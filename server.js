@@ -1,5 +1,5 @@
 // ==========================================================
-// CORTEZ MAFIA - SYSTEM BACKEND (v4.0 ACTIVE DUTY)
+// CORTEZ MAFIA - SYSTEM BACKEND (v4.0 ACTIVE DUTY - FIXED)
 // ==========================================================
 const express = require('express');
 const http = require('http');
@@ -17,8 +17,10 @@ const io = socketIo(server, { cors: { origin: "*" } });
 const JWT_SECRET = "CORTEZ_MAFIA_SECURE_KEY_2026";
 const PORT = process.env.PORT || 3000;
 
-// الاتصال بقاعدة بيانات عائلة كورتيز الرسمية
-mongoose.connect('mongodb://localhost:27017/cortez_mafia')
+// الرابط السحابي الخاص بك على MongoDB Atlas
+const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://moha:cutureire@cluster0.qgk83qz.mongodb.net/cortez?appName=Cluster0';
+
+mongoose.connect(MONGO_URI)
   .then(() => console.log('✓ Connected Strictly to Cortez DB.'))
   .catch(err => console.error('❌ Database Error:', err));
 
@@ -37,7 +39,7 @@ const UserSchema = new mongoose.Schema({
     role: { type: String, enum: ['Don', 'HR_Manager', 'Soldier'], default: 'Soldier' },
     duty_status: { type: String, enum: ['ON-DUTY', 'OFF-DUTY'], default: 'OFF-DUTY' },
     last_punch_in: { type: Date },
-    weekly_hours: { type: Number, default: 0 } // مخزنة كـ دقائق إجمالية لتسهيل الحساب الدقيق
+    weekly_hours: { type: Number, default: 0 }
 });
 
 const LeaveSchema = new mongoose.Schema({
@@ -66,12 +68,32 @@ const Justification = mongoose.model('Justification', JustificationSchema);
 // التسجيل الذاتي للأفراد
 app.post('/api/auth/register', async (req, res) => {
     try {
-        const { username, password, discord_id } = req.body;
+        const { username, password, discord_id, discordId } = req.body;
+        
+        // حل المشكلة: أخذ الآيدي سواء أرسلته الواجهة بـ شرطة سفلية أو بحرف كبير
+        const finalDiscordId = discord_id || discordId;
+        
+        if (!finalDiscordId) {
+            return res.status(400).json({ error: "حقل الـ Discord ID مطلوب وصالح." });
+        }
+
         const hashedPassword = await bcrypt.hash(password, 10);
-        const newUser = new User({ username, password: hashedPassword, discord_id, role: 'Soldier' });
+        
+        // التحقق إن كان هذا أول مستخدم في السيرفر ليعطيه رتبة البوس تلقائياً
+        const isFirstUser = (await User.countDocuments({})) === 0;
+        const assignedRole = isFirstUser ? 'Don' : 'Soldier';
+
+        const newUser = new User({ 
+            username, 
+            password: hashedPassword, 
+            discord_id: String(finalDiscordId), // تحويله لنص صريح دائماً لمنع أخطاء الأنواع
+            role: assignedRole 
+        });
+        
         await newUser.save();
-        res.status(201).json({ msg: "تم التسجيل بنجاح كجندي في عائلة كورتيز." });
+        res.status(201).json({ msg: `تم التسجيل بنجاح برتبة ${assignedRole} في عائلة كورتيز.` });
     } catch (err) {
+        console.error(err);
         res.status(400).json({ error: "اسم المستخدم مسجل مسبقاً أو البيانات غير صالحة." });
     }
 });
@@ -105,7 +127,6 @@ const verifyAuth = (roles) => {
 // 3. LOGIC & LEADERBOARDS
 // ==========================================================
 
-// جلب لوحة المتصدرين والخاملين
 app.get('/api/stats/leaderboard', async (req, res) => {
     const allUsers = await User.find({}, 'username weekly_hours role duty_status');
     const usersFormatted = allUsers.map(u => ({
@@ -121,7 +142,6 @@ app.get('/api/stats/leaderboard', async (req, res) => {
     res.json({ leaderboard, slacking });
 });
 
-// تقديم طلب إجازة
 app.post('/api/hr/leave', verifyAuth(['Soldier', 'HR_Manager']), async (req, res) => {
     const { reason, duration } = req.body;
     const leave = new Leave({ username: req.user.username, reason, duration });
@@ -129,7 +149,6 @@ app.post('/api/hr/leave', verifyAuth(['Soldier', 'HR_Manager']), async (req, res
     res.json({ msg: "تم رفع طلب الإجازة بنجاح." });
 });
 
-// تقديم تبرير غياب
 app.post('/api/hr/justify', verifyAuth(['Soldier', 'HR_Manager']), async (req, res) => {
     const { reason } = req.body;
     const justification = new Justification({ username: req.user.username, reason });
@@ -137,14 +156,12 @@ app.post('/api/hr/justify', verifyAuth(['Soldier', 'HR_Manager']), async (req, r
     res.json({ msg: "تم رفع تبرير الغياب بنجاح." });
 });
 
-// جلب طلبات الـ HR (للبوس والـ HR Manager)
 app.get('/api/hr/requests', verifyAuth(['HR_Manager']), async (req, res) => {
     const leaves = await Leave.find({ status: 'Pending' });
     const justifications = await Justification.find({ status: 'Pending' });
     res.json({ leaves, justifications });
 });
 
-// معالجة الطلبات بالقبول أو الرفض
 app.post('/api/hr/action', verifyAuth(['HR_Manager']), async (req, res) => {
     const { type, id, action } = req.body;
     if (type === 'leave') await Leave.findByIdAndUpdate(id, { status: action });
