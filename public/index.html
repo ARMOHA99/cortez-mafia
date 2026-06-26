@@ -25,7 +25,7 @@
         .menu-btn.active, .menu-btn:hover { color: var(--primary); }
         .main-content { flex-grow: 1; padding: 30px; overflow-y: auto; box-sizing: border-box; }
         .view-panel { display: none; } .view-panel.active { display: block; }
-        .punch-btn { font-size: 1.5rem; padding: 30px; margin-top: 20px; border-radius: 8px; border-color: var(--danger); color: var(--danger); }
+        .punch-btn { font-size: 1.5rem; padding: 30px; margin-top: 20px; border-radius: 8px; border-color: var(--danger); color: var(--danger); width: 100%; }
         .punch-btn.on { border-color: var(--primary); color: var(--primary); background: rgba(0,255,102,0.05); }
         table { width: 100%; border-collapse: collapse; margin-top: 20px; background: var(--panel-bg); }
         th, td { border: 1px solid #1a1a1a; padding: 12px; text-align: right; }
@@ -72,7 +72,7 @@
             <div id="panel-dashboard" class="view-panel active">
                 <h2>بوابة تتبع ساعات النشاط الأسبوعي لعائلة CORTEZ</h2>
                 <p>تنبيه الأفراد: اضغط على الزر أدناه فور دخولك للعبة (ON) واضغطه عند خروجك (OFF) ليقوم السيرفر باحتساب ساعاتك تلقائياً وبدقة.</p>
-                <button id="punchButton" class="punch-btn" onclick="triggerPunch()">[ STATUS: OFF-DUTY 🔴 ]</button>
+                <button id="punchButton" class="punch-btn" onclick="triggerPunch()">[ STATUS: OFF-DUTY 🔴 (الدوام مغلق) ]</button>
             </div>
 
             <div id="panel-leaderboard" class="view-panel">
@@ -85,7 +85,7 @@
             <div id="panel-requests" class="view-panel">
                 <div class="flex-container">
                     <div style="flex:1; min-width:300px;" class="auth-box">
-                        <h3>🌴 نموذج طلب إجازة رسمية</h3>
+                        <h3>🌴 نموذجطلب إجازة رسمية</h3>
                         <div class="input-group"><label>سبب الإجازة بالتفصيل:</label><input type="text" id="leave-reason"></div>
                         <div class="input-group"><label>مدتها (بالأيام):</label><input type="number" id="leave-days"></div>
                         <button onclick="submitLeave()">إرسال طلب الإجازة</button>
@@ -174,7 +174,6 @@
                 document.getElementById('role-display').innerText = userData.role;
                 updatePunchButtonUI(userData.duty_status);
                 
-                // التحكم في إظهار شاشات الإدارة بناء على الرتبة
                 if(userData.role === 'Don' || userData.role === 'HR_Manager') {
                     document.getElementById('nav-hr').style.display = 'block';
                     document.getElementById('nav-don').style.display = 'block';
@@ -189,16 +188,21 @@
         }
 
         function triggerPunch() {
-            socket.emit('toggleDuty', { username: userData.username });
+            if(userData && userData.username) {
+                socket.emit('toggleDuty', { username: userData.username });
+            }
         }
 
         socket.on('statusResponse', (data) => {
-            updatePunchButtonUI(data.duty_status);
+            if(userData && data.username === userData.username) {
+                userData.duty_status = data.duty_status;
+                updatePunchButtonUI(data.duty_status);
+            }
         });
 
         socket.on('dutyUpdated', () => { 
             fetchStats(); 
-            if(userData.role !== 'Soldier') {
+            if(userData && userData.role !== 'Soldier') {
                 fetchHRRequests();
                 fetchAdminUsersList();
             } 
@@ -206,8 +210,14 @@
 
         function updatePunchButtonUI(status) {
             const btn = document.getElementById('punchButton');
-            if(status === 'ON-DUTY') { btn.className = "punch-btn on"; btn.innerText = "[ STATUS: ON-DUTY 🟢 (جاري احتساب ساعاتك الآن) ]"; }
-            else { btn.className = "punch-btn"; btn.innerText = "[ STATUS: OFF-DUTY 🔴 (الدوام مغلق) ]"; }
+            if(!btn) return;
+            if(status === 'ON-DUTY') { 
+                btn.className = "punch-btn on"; 
+                btn.innerText = "[ STATUS: ON-DUTY 🟢 (جاري احتساب ساعاتك الآن) ]"; 
+            } else { 
+                btn.className = "punch-btn"; 
+                btn.innerText = "[ STATUS: OFF-DUTY 🔴 (الدوام مغلق) ]"; 
+            }
         }
 
         async function fetchStats() {
@@ -251,7 +261,6 @@
             fetchHRRequests();
         }
 
-        // --- ميزات الإدارة العليا الجديدة الخاصة بالبوس والـ HR ---
         async function fetchAdminUsersList() {
             const res = await fetch('/api/admin/users', { headers: { 'Authorization': `Bearer ${userToken}` } });
             const users = await res.json();
