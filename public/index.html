@@ -19,11 +19,14 @@
         .btn-danger:hover { background: var(--danger); color: #000; }
         .btn-warning { border-color: var(--warning); color: var(--warning); }
         .btn-warning:hover { background: var(--warning); color: #000; }
+        
         #app-screen { display: none; width: 100%; height: 100%; }
-        .sidebar { width: 280px; background: #080808; border-left: 1px solid #222; padding: 20px; display: flex; flex-direction: column; }
-        .menu-btn { background: none; border: none; color: #666; text-align: right; padding: 12px; font-size: 0.95rem; cursor: pointer; border-bottom: 1px solid #111; font-family: inherit; }
+        /* إصلاح انكماش القائمة الجانبية وتداخل الخطوط */
+        .sidebar { width: 280px; min-width: 280px; flex-shrink: 0; background: #080808; border-left: 1px solid #222; padding: 20px; display: flex; flex-direction: column; box-sizing: border-box; }
+        
+        .menu-btn { background: none; border: none; color: #666; text-align: right; padding: 12px; font-size: 0.95rem; cursor: pointer; border-bottom: 1px solid #111; font-family: inherit; width: 100%; }
         .menu-btn.active, .menu-btn:hover { color: var(--primary); }
-        .main-content { flex-grow: 1; padding: 30px; overflow-y: auto; box-sizing: border-box; }
+        .main-content { flex-grow: 1; padding: 30px; overflow-y: auto; box-sizing: border-box; width: calc(100% - 280px); }
         .view-panel { display: none; } .view-panel.active { display: block; }
         .punch-btn { font-size: 1.5rem; padding: 30px; margin-top: 20px; border-radius: 8px; border-color: var(--danger); color: var(--danger); width: 100%; }
         .punch-btn.on { border-color: var(--primary); color: var(--primary); background: rgba(0,255,102,0.05); }
@@ -49,7 +52,7 @@
             <h2 style="color: var(--primary); margin-top:0;">حساب جديد</h2>
             <div class="input-group"><label>اسم المستخدم داخل اللعبة:</label><input type="text" id="reg-user"></div>
             <div class="input-group"><label>كلمة المرور:</label><input type="password" id="reg-pass"></div>
-            <div class="input-group"><label>حساب الديسكورد (Discord ID):</label><input type="text" id="reg-discord"></div>
+            <div class="input-group"><label>حساب الديسكورد (Discord ID):</label><input type="text" id="reg-discord" placeholder="انسخ الرقم الطويل هنا مباشرة"></div>
             <button onclick="register()">[ إنشاء الحساب والتعميد ]</button>
             <p style="margin-top:15px; font-size:0.8rem; color:#555; cursor:pointer;" onclick="toggleAuthMode(false)">العودة لشاشة الدخول</p>
         </div>
@@ -57,11 +60,11 @@
 
     <div id="app-screen">
         <div class="sidebar">
-            <h3 style="text-align:center; color:#fff; border-bottom:1px solid #222; padding-bottom:10px; letter-spacing:1px;">CORTEZ SYSTEM</h3>
+            <h3 style="text-align:center; color:#fff; border-bottom:1px solid #222; padding-bottom:10px; letter-spacing:1px; margin-top: 0;">CORTEZ SYSTEM</h3>
             <div style="font-size:0.8rem; text-align:center; margin-bottom:20px; color:#666;">
                 مرحباً القائد: <span id="user-display" style="color:#fff; font-weight:bold;">-</span> | <span id="role-display" style="color:gold;">-</span>
             </div>
-            <button class="menu-btn active" id="btn-nav-dashboard" onclick="changeTab('panel-dashboard', this)">⏱️ ساعة الدوام والتسجيل</button>
+            <button class="menu-btn active" onclick="changeTab('panel-dashboard', this)">⏱️ ساعة الدوام والتسجيل</button>
             <button class="menu-btn" onclick="changeTab('panel-leaderboard', this)">🏆 جدول المتصدرين أسبوعياً</button>
             <button class="menu-btn" onclick="changeTab('panel-requests', this)">📝 تقديم الإجازات والتبريرات</button>
             <button class="menu-btn" id="nav-hr" style="display:none; color:orange;" onclick="changeTab('panel-hr-review', this)">🕵️‍♂️ لوحة تدقيق الـ HR</button>
@@ -85,7 +88,7 @@
             <div id="panel-requests" class="view-panel">
                 <div class="flex-container">
                     <div style="flex:1; min-width:300px;" class="auth-box">
-                        <h3>🌴 نموذجطلب إجازة رسمية</h3>
+                        <h3>🌴 نموذج طلب إجازة رسمية</h3>
                         <div class="input-group"><label>سبب الإجازة بالتفصيل:</label><input type="text" id="leave-reason"></div>
                         <div class="input-group"><label>مدتها (بالأيام):</label><input type="number" id="leave-days"></div>
                         <button onclick="submitLeave()">إرسال طلب الإجازة</button>
@@ -113,7 +116,7 @@
                 </div>
 
                 <div class="flex-container" style="margin-top:20px;">
-                    <div class="auth-box" style="flex:1; text-align:right; width:100%; max-width:400px;">
+                    <div class="auth-box" style="flex:1; text-align:right; min-width:300px;">
                         <h3 style="color:var(--warning); margin-top:0;">⚡ إجراء عقوبة أو تعديل رتبة سريع</h3>
                         <div class="input-group"><label>اسم المستخدم المستهدف:</label><input type="text" id="target-name" placeholder="اكتب اسم العضو هنا..."></div>
                         <div class="input-group">
@@ -128,14 +131,16 @@
                         <button class="btn-warning" onclick="applyPenalty()">تنفيذ الإجراء الآن</button>
                     </div>
 
-                    <div style="flex:2; min-width:450px;">
+                    <div style="flex:2; min-width:350px;">
                         <h3 style="color:var(--primary); margin-top:0;">👥 إدارة أفراد عائلة كورتيز وتراخيصهم الحالية</h3>
-                        <table id="tbl-all-users">
-                            <thead>
-                                <tr><th>العضو</th><th>الرتبة</th><th>الساعات</th><th>الإنذارات</th><th>الحالة</th><th>تغيير الرتبة الحالية</th></tr>
-                            </thead>
-                            <tbody></tbody>
-                        </table>
+                        <div style="overflow-x:auto;">
+                            <table id="tbl-all-users">
+                                <thead>
+                                    <tr><th>العضو</th><th>الرتبة</th><th>الساعات</th><th>الإنذارات</th><th>الحالة</th><th>تغيير الرتبة الحالية</th></tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -190,6 +195,8 @@
         function triggerPunch() {
             if(userData && userData.username) {
                 socket.emit('toggleDuty', { username: userData.username });
+            } else {
+                alert("انتهت جلسة العمل، يرجى إعادة تسجيل الدخول.");
             }
         }
 
@@ -306,7 +313,7 @@
         }
 
         async function resetWeeklyHoursAll() {
-            if(!confirm("⚠️ هل أنت متأكد تماماً يا زعيم من تصفير ساعات جميع أفراد عائلة كورتيز لبدء أسبوع جديد؟ هذا الإجراء لا يمكن التراجع عنه!")) return;
+            if(!confirm("⚠️ هل أنت متأكد تماماً يا زعيم من تصفير ساعات جميع أفراد عائلة كورتيز لبدء أسبوع جديد؟")) return;
             const res = await fetch('/api/admin/reset-weekly-hours', { method: 'POST', headers: { 'Authorization': `Bearer ${userToken}` } });
             const d = await res.json(); alert(d.msg || d.error);
             fetchAdminUsersList();
