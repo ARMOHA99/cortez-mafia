@@ -28,7 +28,7 @@
         .main-content { flex-grow: 1; padding: 30px; overflow-y: auto; box-sizing: border-box; width: calc(100% - 280px); }
         .view-panel { display: none; } .view-panel.active { display: block; }
         
-        .punch-btn { font-size: 1.5rem; padding: 30px; margin-top: 20px; border-radius: 8px; border: 2px solid var(--danger); color: var(--danger); width: 100%; background: transparent; font-family: inherit; cursor: pointer; transition: 0.3s; }
+        .punch-btn { font-size: 1.5rem; padding: 30px; margin-top: 20px; border-radius: 8px; border: 2px solid var(--danger); color: var(--danger); width: 100%; background: transparent; font-family: inherit; cursor: pointer; transition: 0.3s; text-align: center; }
         .punch-btn.on { border-color: var(--primary); color: var(--primary); background: rgba(0,255,102,0.05); }
         
         table { width: 100%; border-collapse: collapse; margin-top: 20px; background: var(--panel-bg); }
@@ -152,6 +152,11 @@
         const socket = io();
         let userToken = null; let userData = null;
 
+        // اختبار اتصال السوكيت بالكونسول
+        socket.on('connect', () => {
+            console.log('✅ Connected to Socket.io Server successfully! ID:', socket.id);
+        });
+
         function toggleAuthMode(reg) {
             document.getElementById('login-box').style.display = reg ? 'none' : 'block';
             document.getElementById('reg-box').style.display = reg ? 'block' : 'none';
@@ -174,10 +179,13 @@
             const data = await res.json();
             if(res.status === 200) {
                 userToken = data.token; userData = data.user;
+                console.log('🔒 Login success. User Data:', userData);
+                
                 document.getElementById('auth-screen').style.display = 'none';
                 document.getElementById('app-screen').style.display = 'flex';
                 document.getElementById('user-display').innerText = userData.username;
                 document.getElementById('role-display').innerText = userData.role;
+                
                 updatePunchButtonUI(userData.duty_status);
                 
                 if(userData.role === 'Don' || userData.role === 'HR_Manager') {
@@ -195,28 +203,33 @@
 
         function triggerPunch() {
             if(userData && userData.username) {
+                console.log('🔵 Clicking Punch Button for user:', userData.username);
+                // إرسال طلب تبديل الحالة للسيرفر عبر السوكيت
                 socket.emit('toggleDuty', { username: userData.username });
             } else {
                 alert("انتهت جلسة العمل، يرجى إعادة تسجيل الدخول.");
             }
         }
 
-        // تحديث حالة الزر فوراً عند تلقي الرد من السيرفر للمستخدم الحالي دون الحاجة لـ refresh
+        // 1. استقبال الرد المباشر فور ضغط الزر
         socket.on('statusResponse', (data) => {
-            if(userData && data.username.toLowerCase() === userData.username.toLowerCase()) {
+            console.log('📥 Received statusResponse from server:', data);
+            if(userData && data && data.username && data.username.trim().toLowerCase() === userData.username.trim().toLowerCase()) {
                 userData.duty_status = data.duty_status;
                 updatePunchButtonUI(data.duty_status);
             }
         });
 
-        // تحديث الجداول الحية والزر عند حدوث أي تعديل عام بالسيرفر
+        // 2. استقبال التحديثات العامة عند تغيير أي رتبة أو حالة دوام لأي شخص
         socket.on('dutyUpdated', (data) => { 
+            console.log('📢 Public dutyUpdated broadcast received:', data);
             fetchStats(); 
             if(userData && userData.role !== 'Soldier') {
                 fetchHRRequests();
                 fetchAdminUsersList();
             }
-            if(userData && data && data.username.toLowerCase() === userData.username.toLowerCase()) {
+            // إذا كان التحديث يخص المستخدم الحالي، قم بتغيير شكل الزر فوراً
+            if(userData && data && data.username && data.username.trim().toLowerCase() === userData.username.trim().toLowerCase()) {
                 userData.duty_status = data.duty_status;
                 updatePunchButtonUI(data.duty_status);
             }
@@ -225,6 +238,7 @@
         function updatePunchButtonUI(status) {
             const btn = document.getElementById('punchButton');
             if(!btn) return;
+            console.log('🎨 Updating UI Button to status:', status);
             if(status === 'ON-DUTY') { 
                 btn.className = "punch-btn on"; 
                 btn.innerText = "[ STATUS: ON-DUTY 🟢 (جاري احتساب ساعاتك الآن) ]"; 
