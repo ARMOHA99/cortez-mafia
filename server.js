@@ -252,8 +252,9 @@ io.on('connection', (socket) => {
         }
         await user.save();
 
-        io.emit('dutyUpdated');
-        socket.emit('statusResponse', { duty_status: user.duty_status });
+        // 🛠️ الإصلاح الحاسم هنا: إرسال تفاصيل المستخدم مع البث ليتحدث المتصفح تلقائياً
+        io.emit('dutyUpdated', { username: user.username, duty_status: user.duty_status });
+        socket.emit('statusResponse', { username: user.username, duty_status: user.duty_status });
     });
 });
 
