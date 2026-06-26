@@ -2,21 +2,25 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>[ CORTEZ MAFIA - SYSTEM v4.0 ]</title>
+    <title>[ CORTEZ MAFIA - SYSTEM v5.0 SUPERIOR ]</title>
     <script src="/socket.io/socket.io.js"></script>
     <style>
-        :root { --primary: #00ff66; --bg-color: #050505; --panel-bg: #0d0d0d; --danger: #ff3333; --text: #e0e0e0; }
+        :root { --primary: #00ff66; --bg-color: #050505; --panel-bg: #0d0d0d; --danger: #ff3333; --warning: #ffaa00; --text: #e0e0e0; }
         body { background: var(--bg-color); color: var(--text); font-family: 'Courier New', monospace; margin: 0; padding: 0; display: flex; height: 100vh; overflow: hidden; }
         #auth-screen { display: flex; justify-content: center; align-items: center; width: 100%; height: 100%; position: absolute; background: var(--bg-color); z-index: 100; gap: 20px; }
         .auth-box { background: #0a0a0a; border: 1px solid var(--primary); padding: 30px; width: 350px; text-align: center; box-shadow: 0 0 20px rgba(0,255,102,0.1); }
         .input-group { margin-bottom: 15px; text-align: right; }
         .input-group label { display: block; font-size: 0.8rem; margin-bottom: 5px; color: var(--primary); }
-        .input-group input { width: 100%; padding: 10px; background: #121212; border: 1px solid #333; color: #fff; font-family: inherit; box-sizing: border-box; }
-        .input-group input:focus { border-color: var(--primary); outline: none; }
+        .input-group input, .input-group select { width: 100%; padding: 10px; background: #121212; border: 1px solid #333; color: #fff; font-family: inherit; box-sizing: border-box; }
+        .input-group input:focus, .input-group select:focus { border-color: var(--primary); outline: none; }
         button { width: 100%; padding: 12px; background: transparent; border: 1px solid var(--primary); color: var(--primary); font-weight: bold; cursor: pointer; font-family: inherit; transition: 0.3s; }
         button:hover { background: var(--primary); color: #000; }
+        .btn-danger { border-color: var(--danger); color: var(--danger); }
+        .btn-danger:hover { background: var(--danger); color: #000; }
+        .btn-warning { border-color: var(--warning); color: var(--warning); }
+        .btn-warning:hover { background: var(--warning); color: #000; }
         #app-screen { display: none; width: 100%; height: 100%; }
-        .sidebar { width: 260px; background: #080808; border-left: 1px solid #222; padding: 20px; display: flex; flex-direction: column; }
+        .sidebar { width: 280px; background: #080808; border-left: 1px solid #222; padding: 20px; display: flex; flex-direction: column; }
         .menu-btn { background: none; border: none; color: #666; text-align: right; padding: 12px; font-size: 0.95rem; cursor: pointer; border-bottom: 1px solid #111; font-family: inherit; }
         .menu-btn.active, .menu-btn:hover { color: var(--primary); }
         .main-content { flex-grow: 1; padding: 30px; overflow-y: auto; box-sizing: border-box; }
@@ -26,15 +30,16 @@
         table { width: 100%; border-collapse: collapse; margin-top: 20px; background: var(--panel-bg); }
         th, td { border: 1px solid #1a1a1a; padding: 12px; text-align: right; }
         th { background: #151515; color: var(--primary); }
+        .card { background: #111; border: 1px solid #222; padding: 15px; margin-bottom: 15px; border-radius: 4px; }
+        .flex-container { display: flex; gap: 20px; margin-top: 20px; flex-wrap: wrap; }
     </style>
 </head>
 <body>
 
-    <!-- شاشة التسجيل والدخول المدمجة -->
     <div id="auth-screen">
         <div class="auth-box" id="login-box">
-            <h2 style="color: #fff; margin-top:0;">CORTEZ MAFIA</h2>
-            <p style="color:#555; font-size:0.8rem;">تسجيل الدخول للنظام المشفر</p>
+            <h2 style="color: #fff; margin-top:0; letter-spacing: 2px;">CORTEZ MAFIA</h2>
+            <p style="color:#555; font-size:0.8rem;">تسجيل الدخول للنظام المشفر الرسمي v5.0</p>
             <div class="input-group"><label>اسم المستخدم:</label><input type="text" id="log-user"></div>
             <div class="input-group"><label>كلمة المرور:</label><input type="password" id="log-pass"></div>
             <button onclick="login()">[ دخول ]</button>
@@ -50,28 +55,26 @@
         </div>
     </div>
 
-    <!-- تطبيق تتبع الحضور والساعات الرئيسي -->
     <div id="app-screen">
         <div class="sidebar">
-            <h3 style="text-align:center; color:#fff; border-bottom:1px solid #222; padding-bottom:10px;">CORTEZ SYSTEM</h3>
+            <h3 style="text-align:center; color:#fff; border-bottom:1px solid #222; padding-bottom:10px; letter-spacing:1px;">CORTEZ SYSTEM</h3>
             <div style="font-size:0.8rem; text-align:center; margin-bottom:20px; color:#666;">
-                مرحباً: <span id="user-display" style="color:#fff;">-</span> | <span id="role-display" style="color:gold;">-</span>
+                مرحباً القائد: <span id="user-display" style="color:#fff; font-weight:bold;">-</span> | <span id="role-display" style="color:gold;">-</span>
             </div>
-            <button class="menu-btn active" onclick="showPanel('panel-dashboard')">⏱️ ساعة الدوام والتسجيل</button>
-            <button class="menu-btn" onclick="showPanel('panel-leaderboard')">🏆 جدول المتصدرين والخاملين</button>
-            <button class="menu-btn" onclick="showPanel('panel-requests')">📝 تقديم الإجازات والتبريرات</button>
-            <button class="menu-btn" id="nav-hr" style="display:none; color:orange;" onclick="showPanel('panel-hr-review')">🕵️‍♂️ لوحة مراقبة الـ HR</button>
+            <button class="menu-btn active" id="btn-nav-dashboard" onclick="changeTab('panel-dashboard', this)">⏱️ ساعة الدوام والتسجيل</button>
+            <button class="menu-btn" onclick="changeTab('panel-leaderboard', this)">🏆 جدول المتصدرين أسبوعياً</button>
+            <button class="menu-btn" onclick="changeTab('panel-requests', this)">📝 تقديم الإجازات والتبريرات</button>
+            <button class="menu-btn" id="nav-hr" style="display:none; color:orange;" onclick="changeTab('panel-hr-review', this)">🕵️‍♂️ لوحة تدقيق الـ HR</button>
+            <button class="menu-btn" id="nav-don" style="display:none; color:cyan; font-weight:bold;" onclick="changeTab('panel-don-control', this)">👑 لوحة البوس والسيطرة العليا</button>
         </div>
 
         <div class="main-content">
-            <!-- لوحة الدوام -->
             <div id="panel-dashboard" class="view-panel active">
                 <h2>بوابة تتبع ساعات النشاط الأسبوعي لعائلة CORTEZ</h2>
-                <p>تنبيه: اضغط على الزر أدناه فور دخولك للعبة (ON) واضغطه عند خروجك (OFF) ليقوم السيرفر باحتساب ساعاتك تلقائياً وبدقة.</p>
+                <p>تنبيه الأفراد: اضغط على الزر أدناه فور دخولك للعبة (ON) واضغطه عند خروجك (OFF) ليقوم السيرفر باحتساب ساعاتك تلقائياً وبدقة.</p>
                 <button id="punchButton" class="punch-btn" onclick="triggerPunch()">[ STATUS: OFF-DUTY 🔴 ]</button>
             </div>
 
-            <!-- لوحة المتصدرين والخاملين -->
             <div id="panel-leaderboard" class="view-panel">
                 <h2>🏆 لوحة الشرف والمتصدرين أسبوعياً</h2>
                 <table id="tbl-leaderboard"><thead><tr><th>الترتيب</th><th>العضو</th><th>الرتبة</th><th>إجمالي الساعات هذا الأسبوع</th><th>الحالة الحالية</th></tr></thead><tbody></tbody></table>
@@ -79,16 +82,15 @@
                 <table id="tbl-slacking"><thead><tr><th>العضو</th><th>الرتبة</th><th>الساعات المسجلة</th></tr></thead><tbody></tbody></table>
             </div>
 
-            <!-- لوحة تقديم الطلبات -->
             <div id="panel-requests" class="view-panel">
-                <div style="display:flex; gap:30px;">
-                    <div style="flex:1;" class="auth-box">
+                <div class="flex-container">
+                    <div style="flex:1; min-width:300px;" class="auth-box">
                         <h3>🌴 نموذج طلب إجازة رسمية</h3>
                         <div class="input-group"><label>سبب الإجازة بالتفصيل:</label><input type="text" id="leave-reason"></div>
                         <div class="input-group"><label>مدتها (بالأيام):</label><input type="number" id="leave-days"></div>
                         <button onclick="submitLeave()">إرسال طلب الإجازة</button>
                     </div>
-                    <div style="flex:1;" class="auth-box">
+                    <div style="flex:1; min-width:300px;" class="auth-box">
                         <h3>⚖️ نموذج تبرير غياب عن فاعلية/اجتماع</h3>
                         <div class="input-group"><label>العذر القانوني للغياب:</label><input type="text" id="just-reason"></div>
                         <button onclick="submitJustify()">إرسال التبرير للإدارة</button>
@@ -96,13 +98,46 @@
                 </div>
             </div>
 
-            <!-- لوحة مراجعة الـ HR والـ Don -->
             <div id="panel-hr-review" class="view-panel">
                 <h2>🕵️‍♂️ إدارة وتدقيق طلبات الإجازات وتبريرات الغياب المفتوحة</h2>
                 <h3>طلبات الإجازات المعلقة:</h3>
                 <div id="hr-leaves-list"></div>
                 <h3>تبريرات الغياب المعلقة:</h3>
                 <div id="hr-justs-list"></div>
+            </div>
+
+            <div id="panel-don-control" class="view-panel">
+                <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 2px solid var(--primary); padding-bottom:10px;">
+                    <h2>👑 لوحة التحكم الشاملة وإدارة شؤون أفراد كورتيز</h2>
+                    <button class="btn-danger" id="btn-global-reset" style="width:auto; padding:10px 20px; font-weight:bold; display:none;" onclick="resetWeeklyHoursAll()">⚠️ [ تصفير ساعات السيرفر بالكامل للأسبوع الجديد ]</button>
+                </div>
+
+                <div class="flex-container" style="margin-top:20px;">
+                    <div class="auth-box" style="flex:1; text-align:right; width:100%; max-width:400px;">
+                        <h3 style="color:var(--warning); margin-top:0;">⚡ إجراء عقوبة أو تعديل رتبة سريع</h3>
+                        <div class="input-group"><label>اسم المستخدم المستهدف:</label><input type="text" id="target-name" placeholder="اكتب اسم العضو هنا..."></div>
+                        <div class="input-group">
+                            <label>نوع الإجراء:</label>
+                            <select id="action-type">
+                                <option value="Warning">إعطاء إنذار رسمي (+1)</option>
+                                <option value="Blacklist">إدراج في القائمة السوداء (Blacklist ❌)</option>
+                                <option value="Remove_Blacklist">عفو وإزالة من القائمة السوداء</option>
+                            </select>
+                        </div>
+                        <div class="input-group"><label>السبب والملحوظة المعمدة:</label><input type="text" id="action-reason" placeholder="مثال: الخمول التام..."></div>
+                        <button class="btn-warning" onclick="applyPenalty()">تنفيذ الإجراء الآن</button>
+                    </div>
+
+                    <div style="flex:2; min-width:450px;">
+                        <h3 style="color:var(--primary); margin-top:0;">👥 إدارة أفراد عائلة كورتيز وتراخيصهم الحالية</h3>
+                        <table id="tbl-all-users">
+                            <thead>
+                                <tr><th>العضو</th><th>الرتبة</th><th>الساعات</th><th>الإنذارات</th><th>الحالة</th><th>تغيير الرتبة الحالية</th></tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -138,9 +173,16 @@
                 document.getElementById('user-display').innerText = userData.username;
                 document.getElementById('role-display').innerText = userData.role;
                 updatePunchButtonUI(userData.duty_status);
+                
+                // التحكم في إظهار شاشات الإدارة بناء على الرتبة
                 if(userData.role === 'Don' || userData.role === 'HR_Manager') {
                     document.getElementById('nav-hr').style.display = 'block';
+                    document.getElementById('nav-don').style.display = 'block';
+                    if(userData.role === 'Don') {
+                        document.getElementById('btn-global-reset').style.display = 'block';
+                    }
                     fetchHRRequests();
+                    fetchAdminUsersList();
                 }
                 fetchStats();
             } else { alert(data.error); }
@@ -154,7 +196,13 @@
             updatePunchButtonUI(data.duty_status);
         });
 
-        socket.on('dutyUpdated', () => { fetchStats(); if(userData.role !== 'Soldier') fetchHRRequests(); });
+        socket.on('dutyUpdated', () => { 
+            fetchStats(); 
+            if(userData.role !== 'Soldier') {
+                fetchHRRequests();
+                fetchAdminUsersList();
+            } 
+        });
 
         function updatePunchButtonUI(status) {
             const btn = document.getElementById('punchButton');
@@ -178,23 +226,23 @@
         async function submitLeave() {
             const reason = document.getElementById('leave-reason').value; const duration = document.getElementById('leave-days').value;
             const res = await fetch('/api/hr/leave', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, body: JSON.stringify({ reason, duration }) });
-            const d = await res.json(); alert(d.msg);
+            const d = await res.json(); alert(d.msg || d.error);
         }
 
         async function submitJustify() {
             const reason = document.getElementById('just-reason').value;
             const res = await fetch('/api/hr/justify', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, body: JSON.stringify({ reason }) });
-            const d = await res.json(); alert(d.msg);
+            const d = await res.json(); alert(d.msg || d.error);
         }
 
         async function fetchHRRequests() {
             const res = await fetch('/api/hr/requests', { headers: { 'Authorization': `Bearer ${userToken}` } }); const data = await res.json();
             let lHtml = "";
-            data.leaves.forEach(l => { lHtml += `<div class="card" style="margin-bottom:10px;"><b>العضو: ${l.username}</b> | السبب: ${l.reason} | المدة: ${l.duration} أيام <br><button onclick="hrAction('leave','${l._id}','Approved')" style="width:auto; padding:5px 10px; margin-top:5px;">قبول ✔</button> <button onclick="hrAction('leave','${l._id}','Rejected')" style="width:auto; padding:5px 10px; border-color:var(--danger); color:var(--danger);">رفض ❌</button></div>`; });
+            data.leaves.forEach(l => { lHtml += `<div class="card"><b>العضو: ${l.username}</b> | السبب: ${l.reason} | المدة: ${l.duration} أيام <br><button onclick="hrAction('leave','${l._id}','Approved')" style="width:auto; padding:5px 10px; margin-top:5px;">قبول ✔</button> <button onclick="hrAction('leave','${l._id}','Rejected')" style="width:auto; padding:5px 10px; border-color:var(--danger); color:var(--danger);">رفض ❌</button></div>`; });
             document.getElementById('hr-leaves-list').innerHTML = lHtml || "لا توجد طلبات معلقة.";
 
             let jHtml = "";
-            data.justifications.forEach(j => { jHtml += `<div class="card" style="margin-bottom:10px;"><b>العضو: ${j.username}</b> | التبرير: ${j.reason} <br><button onclick="hrAction('justify','${j._id}','Approved')" style="width:auto; padding:5px 10px; margin-top:5px;">قبول ✔</button> <button onclick="hrAction('justify','${j._id}','Rejected')" style="width:auto; padding:5px 10px; border-color:var(--danger); color:var(--danger);">رفض ❌</button></div>`; });
+            data.justifications.forEach(j => { jHtml += `<div class="card"><b>العضو: ${j.username}</b> | التبرير: ${j.reason} <br><button onclick="hrAction('justify','${j._id}','Approved')" style="width:auto; padding:5px 10px; margin-top:5px;">قبول ✔</button> <button onclick="hrAction('justify','${j._id}','Rejected')" style="width:auto; padding:5px 10px; border-color:var(--danger); color:var(--danger);">رفض ❌</button></div>`; });
             document.getElementById('hr-justs-list').innerHTML = jHtml || "لا توجد تبريرات معلقة.";
         }
 
@@ -203,7 +251,66 @@
             fetchHRRequests();
         }
 
-        function showPanel(id) { document.querySelectorAll('.view-panel').forEach(p => p.classList.remove('active')); document.getElementById(id).classList.add('active'); }
+        // --- ميزات الإدارة العليا الجديدة الخاصة بالبوس والـ HR ---
+        async function fetchAdminUsersList() {
+            const res = await fetch('/api/admin/users', { headers: { 'Authorization': `Bearer ${userToken}` } });
+            const users = await res.json();
+            let html = "";
+            users.forEach(u => {
+                const statusStr = u.is_blacklisted ? "<span style='color:var(--danger)'>BLACK-LIST</span>" : (u.duty_status === 'ON-DUTY' ? "🟢 ON" : "🔴 OFF");
+                const isDisabled = u.role === 'Don' ? 'disabled' : '';
+                html += `<tr>
+                    <td><b>${u.username}</b></td>
+                    <td>${u.role}</td>
+                    <td>${(u.weekly_hours / 60).toFixed(2)} س</td>
+                    <td style="color:${u.warnings > 0 ? 'var(--warning)' : 'inherit'}">${u.warnings}/3</td>
+                    <td>${statusStr}</td>
+                    <td>
+                        <select onchange="changeUserRole('${u.username}', this.value)" ${isDisabled}>
+                            <option value="">-- ترقية/تعديل --</option>
+                            <option value="Soldier" ${u.role==='Soldier'?'selected':''}>Soldier</option>
+                            <option value="HR_Manager" ${u.role==='HR_Manager'?'selected':''}>HR_Manager</option>
+                        </select>
+                    </td>
+                </tr>`;
+            });
+            document.getElementById('tbl-all-users').querySelector('tbody').innerHTML = html;
+        }
+
+        async function changeUserRole(target_username, new_role) {
+            if(!new_role) return;
+            const res = await fetch('/api/admin/change-role', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, body: JSON.stringify({ target_username, new_role }) });
+            const d = await res.json(); alert(d.msg || d.error);
+            fetchAdminUsersList();
+            fetchStats();
+        }
+
+        async function applyPenalty() {
+            const target_username = document.getElementById('target-name').value;
+            const type = document.getElementById('action-type').value;
+            const reason = document.getElementById('action-reason').value;
+            if(!target_username) return alert("الرجاء كتابة اسم العضو أولاً.");
+            const res = await fetch('/api/admin/penalty', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, body: JSON.stringify({ target_username, type, reason }) });
+            const d = await res.json(); alert(d.msg || d.error);
+            fetchAdminUsersList();
+            fetchStats();
+        }
+
+        async function resetWeeklyHoursAll() {
+            if(!confirm("⚠️ هل أنت متأكد تماماً يا زعيم من تصفير ساعات جميع أفراد عائلة كورتيز لبدء أسبوع جديد؟ هذا الإجراء لا يمكن التراجع عنه!")) return;
+            const res = await fetch('/api/admin/reset-weekly-hours', { method: 'POST', headers: { 'Authorization': `Bearer ${userToken}` } });
+            const d = await res.json(); alert(d.msg || d.error);
+            fetchAdminUsersList();
+            fetchStats();
+        }
+
+        function changeTab(panelId, btnElement) { 
+            document.querySelectorAll('.view-panel').forEach(p => p.classList.remove('active')); 
+            document.getElementById(panelId).classList.add('active'); 
+            document.querySelectorAll('.menu-btn').forEach(b => b.classList.remove('active'));
+            btnElement.classList.add('active');
+            if(panelId === 'panel-don-control') { fetchAdminUsersList(); }
+        }
     </script>
 </body>
 </html>
