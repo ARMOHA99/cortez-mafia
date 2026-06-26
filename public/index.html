@@ -2,7 +2,7 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>[ CORTEZ MAFIA - SYSTEM v5.0 SUPERIOR ]</title>
+    <title>[ CORTEZ SYSTEM v5.0 ]</title>
     <script src="/socket.io/socket.io.js"></script>
     <style>
         :root { --primary: #00ff66; --bg-color: #050505; --panel-bg: #0d0d0d; --danger: #ff3333; --warning: #ffaa00; --text: #e0e0e0; }
@@ -21,15 +21,16 @@
         .btn-warning:hover { background: var(--warning); color: #000; }
         
         #app-screen { display: none; width: 100%; height: 100%; }
-        /* إصلاح انكماش القائمة الجانبية وتداخل الخطوط */
         .sidebar { width: 280px; min-width: 280px; flex-shrink: 0; background: #080808; border-left: 1px solid #222; padding: 20px; display: flex; flex-direction: column; box-sizing: border-box; }
         
         .menu-btn { background: none; border: none; color: #666; text-align: right; padding: 12px; font-size: 0.95rem; cursor: pointer; border-bottom: 1px solid #111; font-family: inherit; width: 100%; }
         .menu-btn.active, .menu-btn:hover { color: var(--primary); }
         .main-content { flex-grow: 1; padding: 30px; overflow-y: auto; box-sizing: border-box; width: calc(100% - 280px); }
         .view-panel { display: none; } .view-panel.active { display: block; }
-        .punch-btn { font-size: 1.5rem; padding: 30px; margin-top: 20px; border-radius: 8px; border-color: var(--danger); color: var(--danger); width: 100%; }
+        
+        .punch-btn { font-size: 1.5rem; padding: 30px; margin-top: 20px; border-radius: 8px; border: 2px solid var(--danger); color: var(--danger); width: 100%; background: transparent; font-family: inherit; cursor: pointer; transition: 0.3s; }
         .punch-btn.on { border-color: var(--primary); color: var(--primary); background: rgba(0,255,102,0.05); }
+        
         table { width: 100%; border-collapse: collapse; margin-top: 20px; background: var(--panel-bg); }
         th, td { border: 1px solid #1a1a1a; padding: 12px; text-align: right; }
         th { background: #151515; color: var(--primary); }
@@ -200,19 +201,25 @@
             }
         }
 
+        // تحديث حالة الزر فوراً عند تلقي الرد من السيرفر للمستخدم الحالي دون الحاجة لـ refresh
         socket.on('statusResponse', (data) => {
-            if(userData && data.username === userData.username) {
+            if(userData && data.username.toLowerCase() === userData.username.toLowerCase()) {
                 userData.duty_status = data.duty_status;
                 updatePunchButtonUI(data.duty_status);
             }
         });
 
-        socket.on('dutyUpdated', () => { 
+        // تحديث الجداول الحية والزر عند حدوث أي تعديل عام بالسيرفر
+        socket.on('dutyUpdated', (data) => { 
             fetchStats(); 
             if(userData && userData.role !== 'Soldier') {
                 fetchHRRequests();
                 fetchAdminUsersList();
-            } 
+            }
+            if(userData && data && data.username.toLowerCase() === userData.username.toLowerCase()) {
+                userData.duty_status = data.duty_status;
+                updatePunchButtonUI(data.duty_status);
+            }
         });
 
         function updatePunchButtonUI(status) {
@@ -313,7 +320,7 @@
         }
 
         async function resetWeeklyHoursAll() {
-            if(!confirm("⚠️ هل أنت متأكد تماماً يا زعيم من تصفير ساعات جميع أفراد عائلة كورتيز لبدء أسبوع جديد؟")) return;
+            if(!confirm("⚠️ هل أنت متأكد تماماً من تصفير ساعات جميع أفراد عائلة كورتيز لبدء أسبوع جديد؟")) return;
             const res = await fetch('/api/admin/reset-weekly-hours', { method: 'POST', headers: { 'Authorization': `Bearer ${userToken}` } });
             const d = await res.json(); alert(d.msg || d.error);
             fetchAdminUsersList();
