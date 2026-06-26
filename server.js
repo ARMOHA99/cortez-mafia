@@ -1,5 +1,5 @@
 // ==========================================================
-// CORTEZ MAFIA - SYSTEM BACKEND (v4.0 ACTIVE DUTY - FIXED)
+// CORTEZ MAFIA - SYSTEM BACKEND (v5.0 SUPERIOR EDITION)
 // ==========================================================
 const express = require('express');
 const http = require('http');
@@ -29,7 +29,7 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ==========================================================
-// 1. SCHEMAS & MODELS
+// 1. SCHEMAS & MODELS (محدثة بالنظام الجديد)
 // ==========================================================
 
 const UserSchema = new mongoose.Schema({
@@ -39,7 +39,9 @@ const UserSchema = new mongoose.Schema({
     role: { type: String, enum: ['Don', 'HR_Manager', 'Soldier'], default: 'Soldier' },
     duty_status: { type: String, enum: ['ON-DUTY', 'OFF-DUTY'], default: 'OFF-DUTY' },
     last_punch_in: { type: Date },
-    weekly_hours: { type: Number, default: 0 }
+    weekly_hours: { type: Number, default: 0 },
+    warnings: { type: Number, default: 0 }, // نظام الإنذارات الجديد (0 من 3)
+    is_blacklisted: { type: Boolean, default: false } // البلاك ليست
 });
 
 const LeaveSchema = new mongoose.Schema({
@@ -57,9 +59,19 @@ const JustificationSchema = new mongoose.Schema({
     timestamp: { type: Date, default: Date.now }
 });
 
+// نموذج نظام العقوبات الجديد
+const PenaltyLogSchema = new mongoose.Schema({
+    target_username: String,
+    admin_username: String,
+    type: { type: String, enum: ['Warning', 'Blacklist', 'Remove_Blacklist'] },
+    reason: String,
+    timestamp: { type: Date, default: Date.now }
+});
+
 const User = mongoose.model('User', UserSchema);
 const Leave = mongoose.model('Leave', LeaveSchema);
 const Justification = mongoose.model('Justification', JustificationSchema);
+const PenaltyLog = mongoose.model('PenaltyLog', PenaltyLogSchema);
 
 // ==========================================================
 // 2. AUTHENTICATION & SECURITY ROUTES
@@ -69,8 +81,6 @@ const Justification = mongoose.model('Justification', JustificationSchema);
 app.post('/api/auth/register', async (req, res) => {
     try {
         const { username, password, discord_id, discordId } = req.body;
-        
-        // حل المشكلة: أخذ الآيدي سواء أرسلته الواجهة بـ شرطة سفلية أو بحرف كبير
         const finalDiscordId = discord_id || discordId;
         
         if (!finalDiscordId) {
@@ -78,22 +88,19 @@ app.post('/api/auth/register', async (req, res) => {
         }
 
         const hashedPassword = await bcrypt.hash(password, 10);
-        
-        // التحقق إن كان هذا أول مستخدم في السيرفر ليعطيه رتبة البوس تلقائياً
         const isFirstUser = (await User.countDocuments({})) === 0;
         const assignedRole = isFirstUser ? 'Don' : 'Soldier';
 
         const newUser = new User({ 
             username, 
             password: hashedPassword, 
-            discord_id: String(finalDiscordId), // تحويله لنص صريح دائماً لمنع أخطاء الأنواع
+            discord_id: String(finalDiscordId),
             role: assignedRole 
         });
         
         await newUser.save();
         res.status(201).json({ msg: `تم التسجيل بنجاح برتبة ${assignedRole} في عائلة كورتيز.` });
     } catch (err) {
-        console.error(err);
         res.status(400).json({ error: "اسم المستخدم مسجل مسبقاً أو البيانات غير صالحة." });
     }
 });
@@ -104,6 +111,9 @@ app.post('/api/auth/login', async (req, res) => {
     const user = await User.findOne({ username });
     if (!user || !(await bcrypt.compare(password, user.password))) {
         return res.status(400).json({ error: "خطأ في اسم المستخدم أو كلمة المرور." });
+    }
+    if (user.is_blacklisted) {
+        return res.status(403).json({ error: "تم حظرك ومطاردتك من عائلة كورتيز (بلاك ليست)." });
     }
     const token = jwt.sign({ id: user._id, role: user.role, username: user.username }, JWT_SECRET, { expiresIn: '24h' });
     res.json({ token, user: { username: user.username, role: user.role, duty_status: user.duty_status } });
@@ -124,11 +134,61 @@ const verifyAuth = (roles) => {
 };
 
 // ==========================================================
-// 3. LOGIC & LEADERBOARDS
+// 3. DON & HR MANAGEMENT ROUTES (الميزات الجديدة)
+// ==========================================================
+
+// جلب قائمة كافة الأعضاء لإدارتهم من قبل الـ Don والـ HR
+app.get('/api/admin/users', verifyAuth(['HR_Manager']), async (req, res) => {
+    const users = await User.find({}, 'username role duty_status weekly_hours warnings is_blacklisted');
+    res.json(users);
+});
+
+// تغيير رتبة عضو (خاص بالـ Don فقط)
+app.post('/api/admin/change-role', verifyAuth([]), async (req, res) => {
+    const { target_username, new_role } = req.body;
+    if (new_role === 'Don') return res.status(403).json({ error: "لا يمكن تعيين Don آخر بهذه الطريقة." });
+    await User.findOneAndUpdate({ username: target_username }, { role: new_role });
+    res.json({ msg: `تم تحديث رتبة ${target_username} بنجاح إلى ${new_role}.` });
+});
+
+// تصفير ساعات السيرفر الأسبوعية بالكامل (خاص بالـ Don فقط)
+app.post('/api/admin/reset-weekly-hours', verifyAuth([]), async (req, res) => {
+    await User.updateMany({}, { weekly_hours: 0 });
+    res.json({ msg: "تم تصفير الساعات الأسبوعية لجميع أفراد العائلة بنجاح." });
+});
+
+// نظام العقوبات: إعطاء إنذار أو إدراج في البلاك ليست
+app.post('/api/admin/penalty', verifyAuth(['HR_Manager']), async (req, res) => {
+    const { target_username, type, reason } = req.body;
+    const user = await User.findOne({ username: target_username });
+    if (!user) return res.status(404).json({ error: "المستخدم غير موجود." });
+
+    if (type === 'Warning') {
+        user.warnings += 1;
+        if (user.warnings >= 3) {
+            user.is_blacklisted = true; // نفي تلقائي عند الوصول لـ 3 إنذارات
+        }
+    } else if (type === 'Blacklist') {
+        user.is_blacklisted = true;
+        user.duty_status = 'OFF-DUTY';
+    } else if (type === 'Remove_Blacklist') {
+        user.is_blacklisted = false;
+        user.warnings = 0;
+    }
+
+    await user.save();
+    const log = new PenaltyLog({ target_username, admin_username: req.user.username, type, reason });
+    await log.save();
+
+    res.json({ msg: "تم تطبيق العقوبة وتسجيلها في السجلات الرسمية كورتيز." });
+});
+
+// ==========================================================
+// 4. LOGIC & LEADERBOARDS
 // ==========================================================
 
 app.get('/api/stats/leaderboard', async (req, res) => {
-    const allUsers = await User.find({}, 'username weekly_hours role duty_status');
+    const allUsers = await User.find({ is_blacklisted: false }, 'username weekly_hours role duty_status');
     const usersFormatted = allUsers.map(u => ({
         username: u.username,
         role: u.role,
@@ -170,12 +230,12 @@ app.post('/api/hr/action', verifyAuth(['HR_Manager']), async (req, res) => {
 });
 
 // ==========================================================
-// 4. REAL-TIME CORE (SOCKET.IO PUNCH CLOCK)
+// 5. REAL-TIME CORE (SOCKET.IO PUNCH CLOCK)
 // ==========================================================
 
 io.on('connection', (socket) => {
     socket.on('toggleDuty', async (data) => {
-        const user = await User.findOne({ username: data.username });
+        const user = await User.findOne({ username: data.username, is_blacklisted: false });
         if (!user) return;
 
         const now = new Date();
@@ -197,4 +257,4 @@ io.on('connection', (socket) => {
     });
 });
 
-server.listen(PORT, () => console.log(`📡 Cortez Mafia System running on port ${PORT}`));
+server.listen(PORT, () => console.log(`📡 Cortez Mafia System v5.0 running on port ${PORT}`));
