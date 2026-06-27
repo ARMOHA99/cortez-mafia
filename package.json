@@ -1,17 +1,17 @@
 {
-  "name": "cortez-mafia-system",
+  "name": "cortez-mafia",
   "version": "1.0.0",
-  "description": "Cortez Mafia Management System",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
+    "express": "^4.18.2",
+    "socket.io": "^4.6.0",
+    "mongoose": "^7.0.0",
     "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.0",
     "cors": "^2.8.5",
-    "express": "^4.19.2",
-    "jsonwebtoken": "^9.0.2",
-    "mongoose": "^8.3.1",
-    "socket.io": "^4.7.5"
+    "node-cron": "^3.0.2"
   }
 }
