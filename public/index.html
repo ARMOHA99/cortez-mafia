@@ -2,7 +2,7 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>[ CORTEZ SYSTEM v5.1 ]</title>
+    <title>[ CORTEZ SYSTEM v5.2 ]</title>
     <script src="/socket.io/socket.io.js"></script>
     <style>
         :root { --primary: #00ff66; --bg-color: #050505; --panel-bg: #0d0d0d; --danger: #ff3333; --warning: #ffaa00; --text: #e0e0e0; }
@@ -42,7 +42,7 @@
     <div id="auth-screen">
         <div class="auth-box" id="login-box">
             <h2 style="color: #fff; margin-top:0; letter-spacing: 2px;">CORTEZ MAFIA</h2>
-            <p style="color:#555; font-size:0.8rem;">تسجيل الدخول للنظام المشفر الرسمي v5.1</p>
+            <p style="color:#555; font-size:0.8rem;">تسجيل الدخول للنظام المشفر الرسمي v5.2</p>
             <div class="input-group"><label>اسم المستخدم:</label><input type="text" id="log-user"></div>
             <div class="input-group"><label>كلمة المرور:</label><input type="password" id="log-pass"></div>
             <button onclick="login()">[ دخول ]</button>
@@ -75,6 +75,7 @@
         <div class="main-content">
             <div id="panel-dashboard" class="view-panel active">
                 <h2>بوابة تتبع ساعات النشاط الأسبوعي لعائلة CORTEZ</h2>
+                <p style="color:var(--warning); font-size: 0.9rem;">⚠️ نظام (Anti-AFK) مفعل: الحد الأقصى للدوام المتواصل هو 8 ساعات. السيرفر يغلق الدوام تلقائياً بعدها.</p>
                 <button id="punchButton" class="punch-btn" onclick="triggerPunch()">[ STATUS: OFF-DUTY 🔴 (الدوام مغلق) ]</button>
             </div>
 
@@ -110,7 +111,7 @@
             <div id="panel-don-control" class="view-panel">
                 <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 2px solid var(--primary); padding-bottom:10px;">
                     <h2>👑 لوحة التحكم الشاملة</h2>
-                    <button class="btn-danger" id="btn-global-reset" style="width:auto; padding:10px 20px; font-weight:bold; display:none;" onclick="resetWeeklyHoursAll()">⚠️ [ تصفير الساعات للأسبوع الجديد ]</button>
+                    <button class="btn-danger" id="btn-global-reset" style="width:auto; padding:10px 20px; font-weight:bold; display:none;" onclick="resetWeeklyHoursAll()">⚠️ [ أرشفة الأسبوع وتصفير الساعات ]</button>
                 </div>
                 <div class="flex-container" style="margin-top:20px;">
                     <div class="auth-box" style="flex:1; text-align:right; min-width:300px;">
@@ -288,7 +289,7 @@
         }
 
         async function resetWeeklyHoursAll() {
-            if(!confirm("⚠️ هل أنت متأكد من تصفير الساعات لبدء أسبوع جديد؟")) return;
+            if(!confirm("⚠️ تأكيد: هذا الإجراء سيقوم بأرشفة الأسبوع وتصفير ساعات الجميع. هل أنت متأكد؟")) return;
             const res = await fetch('/api/admin/reset-weekly-hours', { method: 'POST', headers: { 'Authorization': `Bearer ${userToken}` } });
             const d = await res.json(); alert(d.msg || d.error);
         }
