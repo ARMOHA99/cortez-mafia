@@ -2,13 +2,21 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>[ CORTEZ SYSTEM v5.3 ]</title>
+    <title>[ CORTEZ SYSTEM v5.7 ]</title>
     <script src="/socket.io/socket.io.js"></script>
     <style>
         :root { --primary: #00ff66; --bg-color: #050505; --panel-bg: #0d0d0d; --danger: #ff3333; --warning: #ffaa00; --text: #e0e0e0; --purple: #b24bf3; }
         body { background: var(--bg-color); color: var(--text); font-family: 'Courier New', monospace; margin: 0; padding: 0; display: flex; height: 100vh; overflow: hidden; }
+        
+        /* تأثير الـ Matrix (فكرة 7) */
+        #matrix-canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; opacity: 0.15; pointer-events: none; }
+        
+        /* تأثير الطوارئ (فكرة 5) */
+        .emergency-blink { animation: blink 0.5s infinite alternate; border: 5px solid var(--danger) !important; box-shadow: inset 0 0 50px var(--danger); }
+        @keyframes blink { 0% { background-color: rgba(5,5,5,1); } 50% { background-color: rgba(50,0,0,0.8); } 100% { background-color: rgba(5,5,5,1); } }
+
         #auth-screen { display: flex; justify-content: center; align-items: center; width: 100%; height: 100%; position: absolute; background: var(--bg-color); z-index: 100; gap: 20px; }
-        .auth-box { background: #0a0a0a; border: 1px solid var(--primary); padding: 30px; width: 350px; text-align: center; box-shadow: 0 0 20px rgba(0,255,102,0.1); }
+        .auth-box { background: rgba(10,10,10,0.9); border: 1px solid var(--primary); padding: 30px; width: 350px; text-align: center; box-shadow: 0 0 20px rgba(0,255,102,0.1); }
         .input-group { margin-bottom: 15px; text-align: right; }
         .input-group label { display: block; font-size: 0.8rem; margin-bottom: 5px; color: var(--primary); }
         .input-group input, .input-group select { width: 100%; padding: 10px; background: #121212; border: 1px solid #333; color: #fff; font-family: inherit; box-sizing: border-box; }
@@ -21,7 +29,7 @@
         .btn-warning:hover { background: var(--warning); color: #000; }
         
         #app-screen { display: none; width: 100%; height: 100%; }
-        .sidebar { width: 280px; min-width: 280px; flex-shrink: 0; background: #080808; border-left: 1px solid #222; padding: 20px; display: flex; flex-direction: column; box-sizing: border-box; }
+        .sidebar { width: 280px; min-width: 280px; flex-shrink: 0; background: rgba(8,8,8,0.9); border-left: 1px solid #222; padding: 20px; display: flex; flex-direction: column; box-sizing: border-box; }
         
         .menu-btn { background: none; border: none; color: #666; text-align: right; padding: 12px; font-size: 0.95rem; cursor: pointer; border-bottom: 1px solid #111; font-family: inherit; width: 100%; }
         .menu-btn.active, .menu-btn:hover { color: var(--primary); }
@@ -31,14 +39,16 @@
         .punch-btn { font-size: 1.5rem; padding: 30px; margin-top: 20px; border-radius: 8px; border: 2px solid var(--danger); color: var(--danger); width: 100%; background: transparent; font-family: inherit; cursor: pointer; transition: 0.3s; text-align: center; }
         .punch-btn.on { border-color: var(--primary); color: var(--primary); background: rgba(0,255,102,0.05); }
         
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; background: var(--panel-bg); }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; background: rgba(13,13,13,0.9); }
         th, td { border: 1px solid #1a1a1a; padding: 12px; text-align: right; }
         th { background: #151515; color: var(--primary); }
-        .card { background: #111; border: 1px solid #222; padding: 15px; margin-bottom: 15px; border-radius: 4px; }
+        .card { background: rgba(17,17,17,0.9); border: 1px solid #222; padding: 15px; margin-bottom: 15px; border-radius: 4px; }
         .flex-container { display: flex; gap: 20px; margin-top: 20px; flex-wrap: wrap; }
     </style>
 </head>
 <body>
+    <canvas id="matrix-canvas"></canvas>
+    
     <div id="auth-screen">
         <div class="auth-box" id="login-box">
             <h2 style="color: #fff; margin-top:0; letter-spacing: 2px;">CORTEZ MAFIA</h2>
@@ -121,7 +131,10 @@
             <div id="panel-don-control" class="view-panel">
                 <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 2px solid var(--primary); padding-bottom:10px;">
                     <h2>👑 لوحة التحكم الشاملة</h2>
-                    <button class="btn-danger" id="btn-global-reset" style="width:auto; padding:10px 20px; font-weight:bold; display:none;" onclick="resetWeeklyHoursAll()">⚠️ [ أرشفة الأسبوع وتصفير الساعات ]</button>
+                    <div style="display:flex; gap:10px;">
+                        <button class="btn-danger" id="btn-emergency" style="width:auto; padding:10px 20px; font-weight:bold;" onclick="triggerEmergency()">🚨 [ تفعيل استنفار عام ]</button>
+                        <button class="btn-danger" id="btn-global-reset" style="width:auto; padding:10px 20px; font-weight:bold; display:none;" onclick="resetWeeklyHoursAll()">⚠️ [ أرشفة الأسبوع وتصفير الساعات ]</button>
+                    </div>
                 </div>
                 <div class="flex-container" style="margin-top:20px;">
                     <div class="auth-box" style="flex:1; text-align:right; min-width:300px;">
@@ -154,6 +167,36 @@
         let userData = localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')) : null;
         let liveTimerInterval = null; 
 
+        // تشغيل تأثير الـ Matrix (فكرة 7)
+        const canvas = document.getElementById('matrix-canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+        const drops = Array(Math.floor(canvas.width / 20)).fill(1);
+        function drawMatrix() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.05)'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#00ff66';
+            drops.forEach((y, i) => {
+                ctx.fillText(String.fromCharCode(Math.random() * 128), i * 20, y * 20);
+                if (y * 20 > canvas.height) drops[i] = 0; else drops[i]++;
+            });
+        }
+        setInterval(drawMatrix, 50);
+        window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; });
+
+        // تفعيل واستقبال الطوارئ (فكرة 5)
+        function triggerEmergency() {
+            if(confirm("⚠️ تأكيد: هل تريد تفعيل حالة الاستنفار العام لجميع الأعضاء؟")) {
+                socket.emit('triggerEmergency', { username: userData ? userData.username : 'Don' });
+            }
+        }
+
+        socket.on('emergencyAlert', (data) => {
+            document.body.classList.add('emergency-blink');
+            alert(data.message + "\n\nالمرسل: " + data.sender);
+            setTimeout(() => document.body.classList.remove('emergency-blink'), 15000);
+        });
+
+        // دوال مساعدة
         function formatMins(totalMinutes) {
             const m = parseFloat(totalMinutes);
             if (isNaN(m) || m <= 0) return "0 دقيقة";
@@ -196,10 +239,10 @@
             
             if(user.role === 'Don' || user.role === 'HR_Manager') {
                 document.getElementById('nav-hr').style.display = 'block'; 
-                document.getElementById('nav-archive').style.display = 'block'; // إظهار زر الأرشيف
+                document.getElementById('nav-archive').style.display = 'block';
                 document.getElementById('nav-don').style.display = 'block';
                 if(user.role === 'Don') document.getElementById('btn-global-reset').style.display = 'block';
-                fetchHRRequests(); fetchAdminUsersList(); fetchArchive(); // جلب بيانات الأرشيف
+                fetchHRRequests(); fetchAdminUsersList(); fetchArchive();
             }
             fetchStats();
         }
@@ -254,7 +297,6 @@
             document.getElementById('tbl-slacking').querySelector('tbody').innerHTML = slHtml;
         }
 
-        // ⚡ دالة جلب وعرض الأرشيف
         async function fetchArchive() {
             const res = await fetch('/api/admin/archive', { headers: { 'Authorization': `Bearer ${userToken}` } });
             const data = await res.json();
@@ -264,7 +306,6 @@
             } else {
                 data.forEach((arc) => {
                     const dateObj = new Date(arc.week_date);
-                    // تنسيق التاريخ ليظهر بشكل واضح
                     const formattedDate = dateObj.toLocaleDateString('en-GB') + " الساعة " + dateObj.toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'});
                     
                     html += `<div class="card" style="border-color:var(--purple); margin-bottom: 25px;">
@@ -273,7 +314,6 @@
                                     <thead><tr><th>العضو</th><th>الرتبة</th><th>الساعات المسجلة</th></tr></thead>
                                     <tbody>`;
                     
-                    // فرز الأعضاء داخل الأرشيف حسب الساعات (الأكثر أولاً)
                     let sortedRecords = arc.records.sort((a,b) => b.weekly_hours - a.weekly_hours);
                     
                     sortedRecords.forEach(r => {
@@ -339,7 +379,6 @@
             if(!confirm("⚠️ تأكيد: هذا الإجراء سيقوم بأرشفة الأسبوع وتصفير ساعات الجميع. هل أنت متأكد؟")) return;
             const res = await fetch('/api/admin/reset-weekly-hours', { method: 'POST', headers: { 'Authorization': `Bearer ${userToken}` } });
             const d = await res.json(); alert(d.msg || d.error);
-            // بمجرد التصفير، نحدث قائمة الأرشيف فوراً
             fetchArchive();
         }
 
