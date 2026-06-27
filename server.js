@@ -17,13 +17,14 @@ const PORT = process.env.PORT || 3000;
 const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://moha:cutureire@cluster0.qgk83qz.mongodb.net/cortez?appName=Cluster0';
 
 mongoose.connect(MONGO_URI)
-  .then(() => console.log('✓ Connected Strictly to Cortez DB (Stable v5.1).'))
+  .then(() => console.log('✓ Connected Strictly to Cortez DB (v5.2 - Anti-AFK & Archive).'))
   .catch(err => console.error('❌ Database Error:', err));
 
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
+// المخططات (Schemas)
 const UserSchema = new mongoose.Schema({
     username: { type: String, required: true, unique: true },
     password: { type: String, required: true },
@@ -40,12 +41,32 @@ const LeaveSchema = new mongoose.Schema({ username: String, reason: String, dura
 const JustificationSchema = new mongoose.Schema({ username: String, reason: String, status: { type: String, default: 'Pending' }, timestamp: { type: Date, default: Date.now } });
 const PenaltyLogSchema = new mongoose.Schema({ target_username: String, admin_username: String, type: String, reason: String, timestamp: { type: Date, default: Date.now } });
 
+// مخطط الأرشيف الجديد (الفكرة 4)
+const ArchiveSchema = new mongoose.Schema({ 
+    week_date: { type: Date, default: Date.now }, 
+    records: Array 
+});
+
 const User = mongoose.model('User', UserSchema);
 const Leave = mongoose.model('Leave', LeaveSchema);
 const Justification = mongoose.model('Justification', JustificationSchema);
 const PenaltyLog = mongoose.model('PenaltyLog', PenaltyLogSchema);
+const Archive = mongoose.model('Archive', ArchiveSchema); // تفعيل الأرشيف
 
-// Auth
+// حماية الرتب
+const verifyAuth = (roles) => {
+    return (req, res, next) => {
+        const token = req.headers['authorization']?.split(' ')[1];
+        if (!token) return res.status(401).json({ error: "غير مصرح." });
+        try {
+            const decoded = jwt.verify(token, JWT_SECRET);
+            if (!roles.includes(decoded.role) && decoded.role !== 'Don') return res.status(403).json({ error: "رتبتك لا تسمح بالدخول." });
+            req.user = decoded; next();
+        } catch { res.status(400).json({ error: "توكن غير صالح." }); }
+    }
+};
+
+// مسارات التسجيل والدخول
 app.post('/api/auth/register', async (req, res) => {
     try {
         const { username, password, discord_id } = req.body;
@@ -67,19 +88,7 @@ app.post('/api/auth/login', async (req, res) => {
     res.json({ token, user: { username: user.username, role: user.role, duty_status: user.duty_status } });
 });
 
-const verifyAuth = (roles) => {
-    return (req, res, next) => {
-        const token = req.headers['authorization']?.split(' ')[1];
-        if (!token) return res.status(401).json({ error: "غير مصرح." });
-        try {
-            const decoded = jwt.verify(token, JWT_SECRET);
-            if (!roles.includes(decoded.role) && decoded.role !== 'Don') return res.status(403).json({ error: "رتبتك لا تسمح بالدخول." });
-            req.user = decoded; next();
-        } catch { res.status(400).json({ error: "توكن غير صالح." }); }
-    }
-};
-
-// Admin & HR
+// مسارات الإدارة والأرشيف
 app.get('/api/admin/users', verifyAuth(['HR_Manager']), async (req, res) => {
     const users = await User.find({}, 'username role duty_status weekly_hours warnings is_blacklisted');
     res.json(users);
@@ -91,9 +100,19 @@ app.post('/api/admin/change-role', verifyAuth([]), async (req, res) => {
     io.emit('dutyUpdated', {}); res.json({ msg: `تم تحديث الرتبة.` });
 });
 
+// تصفير الساعات مع الأرشفة (الفكرة 4)
 app.post('/api/admin/reset-weekly-hours', verifyAuth([]), async (req, res) => {
+    // 1. أخذ نسخة من الساعات الحالية للأعضاء
+    const currentUsers = await User.find({}, 'username role weekly_hours');
+    
+    // 2. حفظ النسخة في الأرشيف
+    await new Archive({ records: currentUsers }).save();
+    
+    // 3. تصفير الساعات لجميع الأعضاء وإغلاق الدوامات
     await User.updateMany({}, { weekly_hours: 0, duty_status: 'OFF-DUTY' });
-    io.emit('dutyUpdated', {}); res.json({ msg: "تم تصفير الساعات الأسبوعية بنجاح." });
+    
+    io.emit('dutyUpdated', {}); 
+    res.json({ msg: "تمت أرشفة الأسبوع بنجاح وتصفير الساعات لجميع الأفراد." });
 });
 
 app.post('/api/admin/penalty', verifyAuth(['HR_Manager']), async (req, res) => {
@@ -112,9 +131,10 @@ app.post('/api/admin/penalty', verifyAuth(['HR_Manager']), async (req, res) => {
     await user.save();
     await new PenaltyLog({ target_username, admin_username: req.user.username, type, reason }).save();
     io.emit('dutyUpdated', { username: user.username, duty_status: user.duty_status });
-    res.json({ msg: "تم تطبيق العقوبة." });
+    res.json({ msg: "تم تطبيق الإجراء." });
 });
 
+// مسارات الإحصائيات والـ HR
 app.get('/api/stats/leaderboard', async (req, res) => {
     const users = await User.find({ is_blacklisted: false }, 'username weekly_hours role duty_status');
     const fmt = users.map(u => ({ username: u.username, role: u.role, duty_status: u.duty_status, hours: u.weekly_hours }));
@@ -144,7 +164,7 @@ app.post('/api/hr/action', verifyAuth(['HR_Manager']), async (req, res) => {
     io.emit('requestUpdated'); res.json({ msg: "تم تحديث حالة الطلب." });
 });
 
-// Sockets
+// Sockets: تسجيل الدوام
 io.on('connection', (socket) => {
     socket.on('toggleDuty', async (data) => {
         const user = await User.findOne({ username: data.username, is_blacklisted: false });
@@ -162,4 +182,29 @@ io.on('connection', (socket) => {
     });
 });
 
-server.listen(PORT, () => console.log(`📡 Cortez System v5.1 running on port ${PORT}`));
+// ==========================================================
+// الفكرة 3: نظام منع التزوير والـ AFK الذكي (بدون مكتبات إضافية)
+// ==========================================================
+setInterval(async () => {
+    const activeUsers = await User.find({ duty_status: 'ON-DUTY' });
+    const maxTimeMs = 8 * 60 * 60 * 1000; // 8 ساعات بالثواني
+    const now = new Date();
+    let stateChanged = false;
+
+    for (let u of activeUsers) {
+        if (u.last_punch_in && (now - u.last_punch_in > maxTimeMs)) {
+            // إضافة 8 ساعات كحد أقصى ثم إغلاق الدوام
+            u.weekly_hours += Math.floor(maxTimeMs / 60000);
+            u.duty_status = 'OFF-DUTY';
+            await u.save();
+            stateChanged = true;
+        }
+    }
+    
+    // إرسال تحديث للواجهة في حال تم إغلاق دوام أي شخص تلقائياً
+    if (stateChanged) {
+        io.emit('dutyUpdated', {});
+    }
+}, 300000); // يفحص كل 5 دقائق (300,000 مللي ثانية)
+
+server.listen(PORT, () => console.log(`📡 Cortez System v5.2 running on port ${PORT}`));
