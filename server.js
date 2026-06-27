@@ -17,7 +17,7 @@ const PORT = process.env.PORT || 3000;
 const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://moha:cutureire@cluster0.qgk83qz.mongodb.net/cortez?appName=Cluster0';
 
 mongoose.connect(MONGO_URI)
-  .then(() => console.log('✓ Connected Strictly to Cortez DB (v5.3 - with Archive UI).'))
+  .then(() => console.log('✓ Connected Strictly to Cortez DB (v5.7 - Matrix & Emergency).'))
   .catch(err => console.error('❌ Database Error:', err));
 
 app.use(cors());
@@ -108,9 +108,9 @@ app.post('/api/admin/reset-weekly-hours', verifyAuth([]), async (req, res) => {
     res.json({ msg: "تمت أرشفة الأسبوع بنجاح وتصفير الساعات لجميع الأفراد." });
 });
 
-// ⚡ مسار جديد: جلب بيانات الأرشيف وعرضها
+// مسار جلب بيانات الأرشيف وعرضها
 app.get('/api/admin/archive', verifyAuth(['HR_Manager']), async (req, res) => {
-    const archives = await Archive.find().sort({ week_date: -1 }); // ترتيب من الأحدث للأقدم
+    const archives = await Archive.find().sort({ week_date: -1 });
     res.json(archives);
 });
 
@@ -163,8 +163,16 @@ app.post('/api/hr/action', verifyAuth(['HR_Manager']), async (req, res) => {
     io.emit('requestUpdated'); res.json({ msg: "تم تحديث حالة الطلب." });
 });
 
-// Sockets: تسجيل الدوام
+// Sockets: تسجيل الدوام والطوارئ
 io.on('connection', (socket) => {
+    // 🚨 فكرة 5: نظام الاستنفار
+    socket.on('triggerEmergency', (data) => {
+        io.emit('emergencyAlert', { 
+            message: "🚨 استنفار عام داخل النظام! جميع الأعضاء التوجه للديسكورد فوراً.",
+            sender: data.username 
+        });
+    });
+
     socket.on('toggleDuty', async (data) => {
         const user = await User.findOne({ username: data.username, is_blacklisted: false });
         if (!user) return;
@@ -181,7 +189,7 @@ io.on('connection', (socket) => {
     });
 });
 
-// نظام منع التزوير والـ AFK الذكي (بدون مكتبات إضافية)
+// نظام منع التزوير والـ AFK الذكي
 setInterval(async () => {
     const activeUsers = await User.find({ duty_status: 'ON-DUTY' });
     const maxTimeMs = 8 * 60 * 60 * 1000; 
@@ -202,4 +210,4 @@ setInterval(async () => {
     }
 }, 300000); 
 
-server.listen(PORT, () => console.log(`📡 Cortez System v5.3 running on port ${PORT}`));
+server.listen(PORT, () => console.log(`📡 Cortez System v5.7 running on port ${PORT}`));
