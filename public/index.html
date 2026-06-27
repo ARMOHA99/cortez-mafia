@@ -2,10 +2,10 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>[ CORTEZ SYSTEM v5.2 ]</title>
+    <title>[ CORTEZ SYSTEM v5.3 ]</title>
     <script src="/socket.io/socket.io.js"></script>
     <style>
-        :root { --primary: #00ff66; --bg-color: #050505; --panel-bg: #0d0d0d; --danger: #ff3333; --warning: #ffaa00; --text: #e0e0e0; }
+        :root { --primary: #00ff66; --bg-color: #050505; --panel-bg: #0d0d0d; --danger: #ff3333; --warning: #ffaa00; --text: #e0e0e0; --purple: #b24bf3; }
         body { background: var(--bg-color); color: var(--text); font-family: 'Courier New', monospace; margin: 0; padding: 0; display: flex; height: 100vh; overflow: hidden; }
         #auth-screen { display: flex; justify-content: center; align-items: center; width: 100%; height: 100%; position: absolute; background: var(--bg-color); z-index: 100; gap: 20px; }
         .auth-box { background: #0a0a0a; border: 1px solid var(--primary); padding: 30px; width: 350px; text-align: center; box-shadow: 0 0 20px rgba(0,255,102,0.1); }
@@ -42,7 +42,7 @@
     <div id="auth-screen">
         <div class="auth-box" id="login-box">
             <h2 style="color: #fff; margin-top:0; letter-spacing: 2px;">CORTEZ MAFIA</h2>
-            <p style="color:#555; font-size:0.8rem;">تسجيل الدخول للنظام المشفر الرسمي v5.2</p>
+            <p style="color:#555; font-size:0.8rem;">تسجيل الدخول للنظام المشفر الرسمي</p>
             <div class="input-group"><label>اسم المستخدم:</label><input type="text" id="log-user"></div>
             <div class="input-group"><label>كلمة المرور:</label><input type="password" id="log-pass"></div>
             <button onclick="login()">[ دخول ]</button>
@@ -68,6 +68,9 @@
             <button class="menu-btn" onclick="changeTab('panel-leaderboard', this)">🏆 جدول المتصدرين أسبوعياً</button>
             <button class="menu-btn" onclick="changeTab('panel-requests', this)">📝 تقديم الإجازات والتبريرات</button>
             <button class="menu-btn" id="nav-hr" style="display:none; color:orange;" onclick="changeTab('panel-hr-review', this)">🕵️‍♂️ لوحة تدقيق الـ HR</button>
+            
+            <button class="menu-btn" id="nav-archive" style="display:none; color:var(--purple);" onclick="changeTab('panel-archive', this)">📚 سجل الأرشيف التاريخي</button>
+            
             <button class="menu-btn" id="nav-don" style="display:none; color:cyan; font-weight:bold;" onclick="changeTab('panel-don-control', this)">👑 لوحة البوس والسيطرة العليا</button>
             <button class="menu-btn" style="color:var(--danger); margin-top:auto;" onclick="logout()">🚪 تسجيل الخروج</button>
         </div>
@@ -106,6 +109,13 @@
                 <h2>🕵️‍♂️ إدارة وتدقيق الطلبات</h2>
                 <h3>طلبات الإجازات:</h3><div id="hr-leaves-list"></div>
                 <h3>تبريرات الغياب:</h3><div id="hr-justs-list"></div>
+            </div>
+
+            <div id="panel-archive" class="view-panel">
+                <h2 style="color:var(--purple);">📚 الأرشيف التاريخي للأسابيع السابقة</h2>
+                <p>هنا يتم حفظ السجلات أسبوعياً بعد قيام البوس بتصفير الساعات، لضمان عدم ضياع مجهود الأفراد.</p>
+                <div id="archive-content" style="margin-top:20px;">
+                    </div>
             </div>
 
             <div id="panel-don-control" class="view-panel">
@@ -183,10 +193,13 @@
             document.getElementById('auth-screen').style.display = 'none'; document.getElementById('app-screen').style.display = 'flex';
             document.getElementById('user-display').innerText = user.username; document.getElementById('role-display').innerText = user.role;
             updatePunchButtonUI(user.duty_status); startLiveTimer(user.duty_status); 
+            
             if(user.role === 'Don' || user.role === 'HR_Manager') {
-                document.getElementById('nav-hr').style.display = 'block'; document.getElementById('nav-don').style.display = 'block';
+                document.getElementById('nav-hr').style.display = 'block'; 
+                document.getElementById('nav-archive').style.display = 'block'; // إظهار زر الأرشيف
+                document.getElementById('nav-don').style.display = 'block';
                 if(user.role === 'Don') document.getElementById('btn-global-reset').style.display = 'block';
-                fetchHRRequests(); fetchAdminUsersList();
+                fetchHRRequests(); fetchAdminUsersList(); fetchArchive(); // جلب بيانات الأرشيف
             }
             fetchStats();
         }
@@ -241,6 +254,40 @@
             document.getElementById('tbl-slacking').querySelector('tbody').innerHTML = slHtml;
         }
 
+        // ⚡ دالة جلب وعرض الأرشيف
+        async function fetchArchive() {
+            const res = await fetch('/api/admin/archive', { headers: { 'Authorization': `Bearer ${userToken}` } });
+            const data = await res.json();
+            let html = "";
+            if (data.length === 0) {
+                html = "<p style='color:#666;'>لا يوجد أرشيف مسجل حتى الآن. ستبدأ السجلات بالظهور هنا بعد أن يقوم البوس بتصفير الساعات.</p>";
+            } else {
+                data.forEach((arc) => {
+                    const dateObj = new Date(arc.week_date);
+                    // تنسيق التاريخ ليظهر بشكل واضح
+                    const formattedDate = dateObj.toLocaleDateString('en-GB') + " الساعة " + dateObj.toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'});
+                    
+                    html += `<div class="card" style="border-color:var(--purple); margin-bottom: 25px;">
+                                <h3 style="color:var(--purple); margin-top:0;">أرشيف إغلاق أسبوع: ${formattedDate}</h3>
+                                <table>
+                                    <thead><tr><th>العضو</th><th>الرتبة</th><th>الساعات المسجلة</th></tr></thead>
+                                    <tbody>`;
+                    
+                    // فرز الأعضاء داخل الأرشيف حسب الساعات (الأكثر أولاً)
+                    let sortedRecords = arc.records.sort((a,b) => b.weekly_hours - a.weekly_hours);
+                    
+                    sortedRecords.forEach(r => {
+                        html += `<tr><td>${r.username}</td><td>${r.role}</td><td>${formatMins(r.weekly_hours)}</td></tr>`;
+                    });
+                    
+                    html += `       </tbody>
+                                </table>
+                             </div>`;
+                });
+            }
+            document.getElementById('archive-content').innerHTML = html;
+        }
+
         async function submitLeave() {
             const reason = document.getElementById('leave-reason').value; const duration = document.getElementById('leave-days').value;
             const res = await fetch('/api/hr/leave', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, body: JSON.stringify({ reason, duration }) });
@@ -292,6 +339,8 @@
             if(!confirm("⚠️ تأكيد: هذا الإجراء سيقوم بأرشفة الأسبوع وتصفير ساعات الجميع. هل أنت متأكد؟")) return;
             const res = await fetch('/api/admin/reset-weekly-hours', { method: 'POST', headers: { 'Authorization': `Bearer ${userToken}` } });
             const d = await res.json(); alert(d.msg || d.error);
+            // بمجرد التصفير، نحدث قائمة الأرشيف فوراً
+            fetchArchive();
         }
 
         function changeTab(panelId, btnElement) { 
@@ -300,6 +349,7 @@
             document.querySelectorAll('.menu-btn').forEach(b => b.classList.remove('active'));
             btnElement.classList.add('active');
             if(panelId === 'panel-don-control') { fetchAdminUsersList(); }
+            if(panelId === 'panel-archive') { fetchArchive(); }
         }
     </script>
 </body>
