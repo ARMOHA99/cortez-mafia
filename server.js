@@ -1,5 +1,5 @@
 // ==========================================================
-// CORTEZ MAFIA - SYSTEM BACKEND (v5.0 SUPERIOR EDITION)
+// CORTEZ MAFIA - SYSTEM BACKEND (v5.1 SUPERIOR LIVE EDITION)
 // ==========================================================
 const express = require('express');
 const http = require('http');
@@ -148,12 +148,20 @@ app.post('/api/admin/change-role', verifyAuth([]), async (req, res) => {
     const { target_username, new_role } = req.body;
     if (new_role === 'Don') return res.status(403).json({ error: "لا يمكن تعيين Don آخر بهذه الطريقة." });
     await User.findOneAndUpdate({ username: target_username }, { role: new_role });
+    
+    // إرسال تحديث فوري لجميع المتصفحات لتحديث الجداول بعد تغيير الرتبة
+    io.emit('dutyUpdated', {});
+    
     res.json({ msg: `تم تحديث رتبة ${target_username} بنجاح إلى ${new_role}.` });
 });
 
 // تصفير ساعات السيرفر الأسبوعية بالكامل (خاص بالـ Don فقط)
 app.post('/api/admin/reset-weekly-hours', verifyAuth([]), async (req, res) => {
     await User.updateMany({}, { weekly_hours: 0 });
+    
+    // تحديث فوري للجميع بعد التصفير
+    io.emit('dutyUpdated', {});
+    
     res.json({ msg: "تم تصفير الساعات الأسبوعية لجميع أفراد العائلة بنجاح." });
 });
 
@@ -179,6 +187,9 @@ app.post('/api/admin/penalty', verifyAuth(['HR_Manager']), async (req, res) => {
     await user.save();
     const log = new PenaltyLog({ target_username, admin_username: req.user.username, type, reason });
     await log.save();
+
+    // تحديث فوري للجميع لتطبيق الحظر أو الإنذار فوراً في اللوحات المفتوحة
+    io.emit('dutyUpdated', { username: user.username, duty_status: user.duty_status });
 
     res.json({ msg: "تم تطبيق العقوبة وتسجيلها في السجلات الرسمية كورتيز." });
 });
@@ -206,6 +217,10 @@ app.post('/api/hr/leave', verifyAuth(['Soldier', 'HR_Manager']), async (req, res
     const { reason, duration } = req.body;
     const leave = new Leave({ username: req.user.username, reason, duration });
     await leave.save();
+    
+    // بث حدث فوري للإدارة بأن هناك طلب إجازة جديد ظهر
+    io.emit('requestUpdated');
+    
     res.json({ msg: "تم رفع طلب الإجازة بنجاح." });
 });
 
@@ -213,6 +228,10 @@ app.post('/api/hr/justify', verifyAuth(['Soldier', 'HR_Manager']), async (req, r
     const { reason } = req.body;
     const justification = new Justification({ username: req.user.username, reason });
     await justification.save();
+    
+    // بث حدث فوري للإدارة بأن هناك تبرير غياب جديد ظهر
+    io.emit('requestUpdated');
+    
     res.json({ msg: "تم رفع تبرير الغياب بنجاح." });
 });
 
@@ -226,6 +245,10 @@ app.post('/api/hr/action', verifyAuth(['HR_Manager']), async (req, res) => {
     const { type, id, action } = req.body;
     if (type === 'leave') await Leave.findByIdAndUpdate(id, { status: action });
     if (type === 'justify') await Justification.findByIdAndUpdate(id, { status: action });
+    
+    // بث حدث فوري لتحديث قوائم الإجازات عند القبول أو الرفض تلقائياً للجميع
+    io.emit('requestUpdated');
+    
     res.json({ msg: "تم تحديث حالة الطلب فوراً." });
 });
 
@@ -252,10 +275,9 @@ io.on('connection', (socket) => {
         }
         await user.save();
 
-        // 🛠️ الإصلاح الحاسم هنا: إرسال تفاصيل المستخدم مع البث ليتحدث المتصفح تلقائياً
         io.emit('dutyUpdated', { username: user.username, duty_status: user.duty_status });
         socket.emit('statusResponse', { username: user.username, duty_status: user.duty_status });
     });
 });
 
-server.listen(PORT, () => console.log(`📡 Cortez Mafia System v5.0 running on port ${PORT}`));
+server.listen(PORT, () => console.log(`📡 Cortez Mafia System v5.1 running on port ${PORT}`));
