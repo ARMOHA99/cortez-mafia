@@ -2,7 +2,7 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>[ CORTEZ SYSTEM v5.0 ]</title>
+    <title>[ CORTEZ SYSTEM v5.1 ]</title>
     <script src="/socket.io/socket.io.js"></script>
     <style>
         :root { --primary: #00ff66; --bg-color: #050505; --panel-bg: #0d0d0d; --danger: #ff3333; --warning: #ffaa00; --text: #e0e0e0; }
@@ -43,7 +43,7 @@
     <div id="auth-screen">
         <div class="auth-box" id="login-box">
             <h2 style="color: #fff; margin-top:0; letter-spacing: 2px;">CORTEZ MAFIA</h2>
-            <p style="color:#555; font-size:0.8rem;">تسجيل الدخول للنظام المشفر الرسمي v5.0</p>
+            <p style="color:#555; font-size:0.8rem;">تسجيل الدخول للنظام المشفر الرسمي v5.1</p>
             <div class="input-group"><label>اسم المستخدم:</label><input type="text" id="log-user"></div>
             <div class="input-group"><label>كلمة المرور:</label><input type="password" id="log-pass"></div>
             <button onclick="login()">[ دخول ]</button>
@@ -70,6 +70,7 @@
             <button class="menu-btn" onclick="changeTab('panel-requests', this)">📝 تقديم الإجازات والتبريرات</button>
             <button class="menu-btn" id="nav-hr" style="display:none; color:orange;" onclick="changeTab('panel-hr-review', this)">🕵️‍♂️ لوحة تدقيق الـ HR</button>
             <button class="menu-btn" id="nav-don" style="display:none; color:cyan; font-weight:bold;" onclick="changeTab('panel-don-control', this)">👑 لوحة البوس والسيطرة العليا</button>
+            <button class="menu-btn" style="color:var(--danger); margin-top:auto;" onclick="logout()">🚪 تسجيل الخروج</button>
         </div>
 
         <div class="main-content">
@@ -150,12 +151,25 @@
 
     <script>
         const socket = io();
-        let userToken = null; let userData = null;
+        let userToken = localStorage.getItem('token') || null; 
+        let userData = localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')) : null;
+        let liveTimerInterval = null; 
 
-        // اختبار اتصال السوكيت بالكونسول
-        socket.on('connect', () => {
-            console.log('✅ Connected to Socket.io Server successfully! ID:', socket.id);
-        });
+        // تحويل الدقائق لصيغة ساعات ودقائق واضحة
+        function formatMinutesToHoursAndMins(totalMinutes) {
+            const mins = parseFloat(totalMinutes);
+            if (isNaN(mins) || mins <= 0) return "0 دقيقة";
+            const hours = Math.floor(mins / 60);
+            const remainingMins = Math.round(mins % 60);
+            if (hours === 0) return `${remainingMins} دقيقة`;
+            return `${hours} ساعة و ${remainingMins} د`;
+        }
+
+        window.onload = function() {
+            if (userToken && userData) {
+                renderApp(userData);
+            }
+        };
 
         function toggleAuthMode(reg) {
             document.getElementById('login-box').style.display = reg ? 'none' : 'block';
@@ -179,66 +193,102 @@
             const data = await res.json();
             if(res.status === 200) {
                 userToken = data.token; userData = data.user;
-                console.log('🔒 Login success. User Data:', userData);
-                
-                document.getElementById('auth-screen').style.display = 'none';
-                document.getElementById('app-screen').style.display = 'flex';
-                document.getElementById('user-display').innerText = userData.username;
-                document.getElementById('role-display').innerText = userData.role;
-                
-                updatePunchButtonUI(userData.duty_status);
-                
-                if(userData.role === 'Don' || userData.role === 'HR_Manager') {
-                    document.getElementById('nav-hr').style.display = 'block';
-                    document.getElementById('nav-don').style.display = 'block';
-                    if(userData.role === 'Don') {
-                        document.getElementById('btn-global-reset').style.display = 'block';
-                    }
-                    fetchHRRequests();
-                    fetchAdminUsersList();
-                }
-                fetchStats();
+                localStorage.setItem('token', userToken);
+                localStorage.setItem('user', JSON.stringify(userData));
+                renderApp(userData);
             } else { alert(data.error); }
+        }
+
+        function renderApp(user) {
+            document.getElementById('auth-screen').style.display = 'none';
+            document.getElementById('app-screen').style.display = 'flex';
+            document.getElementById('user-display').innerText = user.username;
+            document.getElementById('role-display').innerText = user.role;
+            
+            updatePunchButtonUI(user.duty_status);
+            startLiveTimer(user.duty_status); 
+            
+            if(user.role === 'Don' || user.role === 'HR_Manager') {
+                document.getElementById('nav-hr').style.display = 'block';
+                document.getElementById('nav-don').style.display = 'block';
+                if(user.role === 'Don') {
+                    document.getElementById('btn-global-reset').style.display = 'block';
+                }
+                fetchHRRequests();
+                fetchAdminUsersList();
+            }
+            fetchStats();
+        }
+
+        function logout() {
+            localStorage.clear();
+            if(liveTimerInterval) clearInterval(liveTimerInterval);
+            window.location.reload();
+        }
+
+        // العداد الحي لزيادة الوقت تلقائياً كل 60 ثانية للدوام المفتوح دون الحاجة للريفريش
+        function startLiveTimer(status) {
+            if(liveTimerInterval) clearInterval(liveTimerInterval);
+            if(status === 'ON-DUTY') {
+                liveTimerInterval = setInterval(() => {
+                    fetchStats();
+                    if(userData && userData.role !== 'Soldier') {
+                        fetchAdminUsersList();
+                    }
+                }, 60000); 
+            }
         }
 
         function triggerPunch() {
             if(userData && userData.username) {
-                console.log('🔵 Clicking Punch Button for user:', userData.username);
-                // إرسال طلب تبديل الحالة للسيرفر عبر السوكيت
+                let currentStatus = userData.duty_status || 'OFF-DUTY';
+                let nextStatus = currentStatus === 'ON-DUTY' ? 'OFF-DUTY' : 'ON-DUTY';
+                userData.duty_status = nextStatus;
+                localStorage.setItem('user', JSON.stringify(userData));
+                updatePunchButtonUI(nextStatus);
+                startLiveTimer(nextStatus);
+                
                 socket.emit('toggleDuty', { username: userData.username });
             } else {
-                alert("انتهت جلسة العمل، يرجى إعادة تسجيل الدخول.");
+                alert("انتهت الجلسة، يرجى إعادة تسجيل الدخول.");
+                logout();
             }
         }
 
-        // 1. استقبال الرد المباشر فور ضغط الزر
         socket.on('statusResponse', (data) => {
-            console.log('📥 Received statusResponse from server:', data);
             if(userData && data && data.username && data.username.trim().toLowerCase() === userData.username.trim().toLowerCase()) {
-                userData.duty_status = data.duty_status;
-                updatePunchButtonUI(data.duty_status);
+                let serverStatus = data.duty_status === 'ON-DUTY' ? 'ON-DUTY' : 'OFF-DUTY';
+                userData.duty_status = serverStatus;
+                localStorage.setItem('user', JSON.stringify(userData));
+                updatePunchButtonUI(serverStatus);
+                startLiveTimer(serverStatus);
             }
         });
 
-        // 2. استقبال التحديثات العامة عند تغيير أي رتبة أو حالة دوام لأي شخص
         socket.on('dutyUpdated', (data) => { 
-            console.log('📢 Public dutyUpdated broadcast received:', data);
             fetchStats(); 
             if(userData && userData.role !== 'Soldier') {
-                fetchHRRequests();
                 fetchAdminUsersList();
             }
-            // إذا كان التحديث يخص المستخدم الحالي، قم بتغيير شكل الزر فوراً
             if(userData && data && data.username && data.username.trim().toLowerCase() === userData.username.trim().toLowerCase()) {
-                userData.duty_status = data.duty_status;
-                updatePunchButtonUI(data.duty_status);
+                let serverStatus = data.duty_status === 'ON-DUTY' ? 'ON-DUTY' : 'OFF-DUTY';
+                userData.duty_status = serverStatus;
+                localStorage.setItem('user', JSON.stringify(userData));
+                updatePunchButtonUI(serverStatus);
+                startLiveTimer(serverStatus);
+            }
+        });
+
+        // 🔥 تحديث فوري تلقائي لقائمة طلبات الـ HR والـ Don بمجرد رفع أي تبرير/إجازة من أي عضو
+        socket.on('requestUpdated', () => {
+            if(userData && (userData.role === 'Don' || userData.role === 'HR_Manager')) {
+                fetchHRRequests();
             }
         });
 
         function updatePunchButtonUI(status) {
             const btn = document.getElementById('punchButton');
             if(!btn) return;
-            console.log('🎨 Updating UI Button to status:', status);
             if(status === 'ON-DUTY') { 
                 btn.className = "punch-btn on"; 
                 btn.innerText = "[ STATUS: ON-DUTY 🟢 (جاري احتساب ساعاتك الآن) ]"; 
@@ -252,12 +302,17 @@
             const res = await fetch('/api/stats/leaderboard'); const data = await res.json();
             let lbHtml = "";
             data.leaderboard.forEach((u, i) => {
-                lbHtml += `<tr><td>${i+1}</td><td>${u.username}</td><td>${u.role}</td><td>${u.hours} ساعة</td><td style="color:${u.duty_status==='ON-DUTY'?'var(--primary)':'var(--danger)'}">${u.duty_status}</td></tr>`;
+                let currentStatus = u.duty_status === 'ON-DUTY' ? 'ON-DUTY' : 'OFF-DUTY';
+                let timeDisplay = formatMinutesToHoursAndMins(parseFloat(u.hours) * 60);
+                lbHtml += `<tr><td>${i+1}</td><td>${u.username}</td><td>${u.role}</td><td>${timeDisplay}</td><td style="color:${currentStatus==='ON-DUTY'?'var(--primary)':'var(--danger)'}">${currentStatus}</td></tr>`;
             });
             document.getElementById('tbl-leaderboard').querySelector('tbody').innerHTML = lbHtml;
 
             let slHtml = "";
-            data.slacking.forEach(u => { slHtml += `<tr><td>${u.username}</td><td>${u.role}</td><td style="color:var(--danger);">${u.hours} ساعة</td></tr>`; });
+            data.slacking.forEach(u => { 
+                let timeDisplay = formatMinutesToHoursAndMins(parseFloat(u.hours) * 60);
+                slHtml += `<tr><td>${u.username}</td><td>${u.role}</td><td style="color:var(--danger);">${timeDisplay}</td></tr>`; 
+            });
             document.getElementById('tbl-slacking').querySelector('tbody').innerHTML = slHtml;
         }
 
@@ -265,12 +320,14 @@
             const reason = document.getElementById('leave-reason').value; const duration = document.getElementById('leave-days').value;
             const res = await fetch('/api/hr/leave', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, body: JSON.stringify({ reason, duration }) });
             const d = await res.json(); alert(d.msg || d.error);
+            document.getElementById('leave-reason').value = ""; document.getElementById('leave-days').value = "";
         }
 
         async function submitJustify() {
             const reason = document.getElementById('just-reason').value;
             const res = await fetch('/api/hr/justify', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, body: JSON.stringify({ reason }) });
             const d = await res.json(); alert(d.msg || d.error);
+            document.getElementById('just-reason').value = "";
         }
 
         async function fetchHRRequests() {
@@ -286,7 +343,6 @@
 
         async function hrAction(type, id, action) {
             await fetch('/api/hr/action', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, body: JSON.stringify({ type, id, action }) });
-            fetchHRRequests();
         }
 
         async function fetchAdminUsersList() {
@@ -294,12 +350,14 @@
             const users = await res.json();
             let html = "";
             users.forEach(u => {
-                const statusStr = u.is_blacklisted ? "<span style='color:var(--danger)'>BLACK-LIST</span>" : (u.duty_status === 'ON-DUTY' ? "🟢 ON" : "🔴 OFF");
+                let currentStatus = u.duty_status === 'ON-DUTY' ? 'ON-DUTY' : 'OFF-DUTY';
+                const statusStr = u.is_blacklisted ? "<span style='color:var(--danger)'>BLACK-LIST</span>" : (currentStatus === 'ON-DUTY' ? "🟢 ON" : "🔴 OFF");
                 const isDisabled = u.role === 'Don' ? 'disabled' : '';
+                let adminTimeDisplay = formatMinutesToHoursAndMins(u.weekly_hours);
                 html += `<tr>
                     <td><b>${u.username}</b></td>
                     <td>${u.role}</td>
-                    <td>${(u.weekly_hours / 60).toFixed(2)} س</td>
+                    <td>${adminTimeDisplay}</td>
                     <td style="color:${u.warnings > 0 ? 'var(--warning)' : 'inherit'}">${u.warnings}/3</td>
                     <td>${statusStr}</td>
                     <td>
