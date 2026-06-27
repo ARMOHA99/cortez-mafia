@@ -17,7 +17,7 @@ const PORT = process.env.PORT || 3000;
 const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://moha:cutureire@cluster0.qgk83qz.mongodb.net/cortez?appName=Cluster0';
 
 mongoose.connect(MONGO_URI)
-  .then(() => console.log('✓ Connected Strictly to Cortez DB (v5.2 - Anti-AFK & Archive).'))
+  .then(() => console.log('✓ Connected Strictly to Cortez DB (v5.3 - with Archive UI).'))
   .catch(err => console.error('❌ Database Error:', err));
 
 app.use(cors());
@@ -41,7 +41,6 @@ const LeaveSchema = new mongoose.Schema({ username: String, reason: String, dura
 const JustificationSchema = new mongoose.Schema({ username: String, reason: String, status: { type: String, default: 'Pending' }, timestamp: { type: Date, default: Date.now } });
 const PenaltyLogSchema = new mongoose.Schema({ target_username: String, admin_username: String, type: String, reason: String, timestamp: { type: Date, default: Date.now } });
 
-// مخطط الأرشيف الجديد (الفكرة 4)
 const ArchiveSchema = new mongoose.Schema({ 
     week_date: { type: Date, default: Date.now }, 
     records: Array 
@@ -51,7 +50,7 @@ const User = mongoose.model('User', UserSchema);
 const Leave = mongoose.model('Leave', LeaveSchema);
 const Justification = mongoose.model('Justification', JustificationSchema);
 const PenaltyLog = mongoose.model('PenaltyLog', PenaltyLogSchema);
-const Archive = mongoose.model('Archive', ArchiveSchema); // تفعيل الأرشيف
+const Archive = mongoose.model('Archive', ArchiveSchema);
 
 // حماية الرتب
 const verifyAuth = (roles) => {
@@ -100,19 +99,19 @@ app.post('/api/admin/change-role', verifyAuth([]), async (req, res) => {
     io.emit('dutyUpdated', {}); res.json({ msg: `تم تحديث الرتبة.` });
 });
 
-// تصفير الساعات مع الأرشفة (الفكرة 4)
+// تصفير الساعات مع الأرشفة
 app.post('/api/admin/reset-weekly-hours', verifyAuth([]), async (req, res) => {
-    // 1. أخذ نسخة من الساعات الحالية للأعضاء
-    const currentUsers = await User.find({}, 'username role weekly_hours');
-    
-    // 2. حفظ النسخة في الأرشيف
+    const currentUsers = await User.find({ is_blacklisted: false }, 'username role weekly_hours');
     await new Archive({ records: currentUsers }).save();
-    
-    // 3. تصفير الساعات لجميع الأعضاء وإغلاق الدوامات
     await User.updateMany({}, { weekly_hours: 0, duty_status: 'OFF-DUTY' });
-    
     io.emit('dutyUpdated', {}); 
     res.json({ msg: "تمت أرشفة الأسبوع بنجاح وتصفير الساعات لجميع الأفراد." });
+});
+
+// ⚡ مسار جديد: جلب بيانات الأرشيف وعرضها
+app.get('/api/admin/archive', verifyAuth(['HR_Manager']), async (req, res) => {
+    const archives = await Archive.find().sort({ week_date: -1 }); // ترتيب من الأحدث للأقدم
+    res.json(archives);
 });
 
 app.post('/api/admin/penalty', verifyAuth(['HR_Manager']), async (req, res) => {
@@ -182,18 +181,15 @@ io.on('connection', (socket) => {
     });
 });
 
-// ==========================================================
-// الفكرة 3: نظام منع التزوير والـ AFK الذكي (بدون مكتبات إضافية)
-// ==========================================================
+// نظام منع التزوير والـ AFK الذكي (بدون مكتبات إضافية)
 setInterval(async () => {
     const activeUsers = await User.find({ duty_status: 'ON-DUTY' });
-    const maxTimeMs = 8 * 60 * 60 * 1000; // 8 ساعات بالثواني
+    const maxTimeMs = 8 * 60 * 60 * 1000; 
     const now = new Date();
     let stateChanged = false;
 
     for (let u of activeUsers) {
         if (u.last_punch_in && (now - u.last_punch_in > maxTimeMs)) {
-            // إضافة 8 ساعات كحد أقصى ثم إغلاق الدوام
             u.weekly_hours += Math.floor(maxTimeMs / 60000);
             u.duty_status = 'OFF-DUTY';
             await u.save();
@@ -201,10 +197,9 @@ setInterval(async () => {
         }
     }
     
-    // إرسال تحديث للواجهة في حال تم إغلاق دوام أي شخص تلقائياً
     if (stateChanged) {
         io.emit('dutyUpdated', {});
     }
-}, 300000); // يفحص كل 5 دقائق (300,000 مللي ثانية)
+}, 300000); 
 
-server.listen(PORT, () => console.log(`📡 Cortez System v5.2 running on port ${PORT}`));
+server.listen(PORT, () => console.log(`📡 Cortez System v5.3 running on port ${PORT}`));
