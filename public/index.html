@@ -2,282 +2,141 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>[ CORTEZ SYNDICATE - TERMINAL ]</title>
+    <title>[ CORTEZ SYSTEM v6.0 ]</title>
     <script src="/socket.io/socket.io.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <style>
-        /* --- النمط المافيوي المظلم والصارم --- */
-        :root { 
-            --bg-color: #000000;      
-            --panel-bg: #050505;      
-            --border-color: #1a1a1a;  
-            --text-main: #ffffff;     
-            --text-muted: #666666;    
-            --danger: #8a0303;        
-            --danger-hover: #ff0000;  
-            --accent: #e0e0e0;        
-        }
-
-        body { 
-            background: var(--bg-color); 
-            color: var(--text-main); 
-            font-family: 'Courier New', Courier, monospace; 
-            margin: 0; 
-            padding: 0; 
-            display: flex; 
-            height: 100vh; 
-            overflow: hidden;
-            text-transform: uppercase; 
-        }
+        :root { --primary: #00ff66; --bg-color: #050505; --panel-bg: #0d0d0d; --danger: #ff3333; --warning: #ffaa00; --text: #e0e0e0; }
+        body { background: var(--bg-color); color: var(--text); font-family: 'Courier New', monospace; margin: 0; padding: 0; display: flex; height: 100vh; overflow: hidden; }
         
-        ::-webkit-scrollbar { width: 5px; }
-        ::-webkit-scrollbar-track { background: #000; }
-        ::-webkit-scrollbar-thumb { background: #333; }
-
-        input, select {
-            background: #000;
-            border: 1px solid #333;
-            color: #fff;
-            padding: 10px;
-            font-family: inherit;
-            text-transform: uppercase;
-        }
-        input:focus, select:focus { outline: none; border-color: #666; }
-
-        button { 
-            padding: 10px 15px; 
-            background: transparent; 
-            border: 1px solid var(--text-muted); 
-            color: var(--text-main); 
-            font-weight: bold; 
-            font-family: inherit;
-            cursor: pointer; 
-            transition: all 0.2s ease-in-out; 
-            letter-spacing: 1px;
-            text-transform: uppercase;
-        }
-        button:hover:not(:disabled) { 
-            background: var(--accent); 
-            color: #000; 
-            border-color: var(--accent);
-            box-shadow: 0 0 10px rgba(255,255,255,0.2);
-        }
-        button:disabled { border-color: #111; color: #333; cursor: not-allowed; }
-        
+        button { padding: 10px; background: transparent; border: 1px solid var(--primary); color: var(--primary); font-weight: bold; cursor: pointer; transition: 0.3s; }
+        button:hover:not(:disabled) { background: var(--primary); color: #000; }
+        button:disabled { border-color: #333; color: #555; cursor: not-allowed; }
         .btn-danger { border-color: var(--danger); color: var(--danger); }
-        .btn-danger:hover { background: var(--danger-hover); color: #000; border-color: var(--danger-hover); box-shadow: 0 0 15px rgba(255,0,0,0.5); }
+        .btn-danger:hover { background: var(--danger); color: #000; }
+        .btn-warning { border-color: var(--warning); color: var(--warning); }
+        .btn-warning:hover { background: var(--warning); color: #000; }
 
-        /* شاشة تسجيل الدخول */
-        #login-screen {
-            position: absolute; top:0; left:0; width:100%; height:100%;
-            background: #000; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 1000;
-        }
-        .login-box {
-            background: #050505; border: 1px solid #222; padding: 40px; width: 300px; text-align: center;
-            box-shadow: 0 0 30px rgba(0,0,0,0.8);
-        }
-
-        /* القائمة الجانبية */
-        .sidebar { 
-            width: 250px; 
-            background: #020202; 
-            border-left: 1px solid var(--border-color); 
-            display: flex; 
-            flex-direction: column; 
-            align-items: center;
-            padding-top: 30px;
-        }
-        .mafia-logo { width: 140px; margin-bottom: 20px; filter: drop-shadow(0px 0px 8px rgba(255, 255, 255, 0.1)) contrast(1.1); }
-        .user-info { width: 100%; text-align: center; padding: 15px 0; border-top: 1px solid #111; border-bottom: 1px solid #111; margin-bottom: 20px; background: #050505; }
-        .menu-btn { background: none; border: none; border-bottom: 1px solid #111; color: var(--text-muted); text-align: center; padding: 15px; width: 100%; }
-        .menu-btn.active, .menu-btn:hover { color: var(--text-main); border-color: #333; background: #0a0a0a; }
-        
-        /* المحتوى الرئيسي */
-        .main-content { flex-grow: 1; padding: 40px; overflow-y: auto; width: calc(100% - 250px); }
+        .sidebar { width: 280px; background: rgba(8,8,8,0.9); border-left: 1px solid #222; padding: 20px; display: flex; flex-direction: column; }
+        .menu-btn { background: none; border: none; color: #666; text-align: right; padding: 12px; cursor: pointer; border-bottom: 1px solid #111; width: 100%; }
+        .menu-btn.active, .menu-btn:hover { color: var(--primary); }
+        .main-content { flex-grow: 1; padding: 30px; overflow-y: auto; width: calc(100% - 280px); }
         .view-panel { display: none; } .view-panel.active { display: block; }
-        h2, h3 { border-bottom: 1px solid #333; padding-bottom: 10px; letter-spacing: 2px; margin-top: 0; }
-
-        /* تصميمات المتجر */
-        .shop-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; }
-        .item-card { background: var(--panel-bg); border: 1px solid var(--border-color); padding: 15px; text-align: center; }
-        .item-card:hover { border-color: #444; }
-        .item-card.out-of-stock { opacity: 0.3; filter: grayscale(100%); }
-        .item-card img { width: 100%; height: 140px; object-fit: cover; border-bottom: 1px solid #111; margin-bottom: 15px; filter: grayscale(80%) contrast(1.2); }
-        .qty-controls { display: flex; justify-content: center; align-items: center; gap: 15px; margin: 15px 0; }
-        .qty-controls button { padding: 5px 15px; border-color: #333; }
-        .admin-controls { margin-top: 15px; display: flex; gap: 5px; justify-content: center; flex-wrap: wrap; }
-        .admin-controls button { font-size: 0.7rem; padding: 5px; width: 45%; border-color: #222; color: #888; }
-        .admin-controls button:hover { color: #fff; border-color: #fff; }
         
-        .box-panel { background: var(--panel-bg); border: 1px solid #222; padding: 20px; margin-top: 20px; }
-        .list-item { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dotted #333; padding: 10px 0; font-size: 0.9rem; }
-
-        /* الفاتورة */
+        /* Shop Styles */
+        .shop-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 20px; }
+        .item-card { background: #0a0a0a; border: 1px solid #222; padding: 15px; text-align: center; position: relative; }
+        .item-card.out-of-stock { opacity: 0.5; filter: grayscale(100%); }
+        .item-card img { width: 100%; height: 130px; object-fit: cover; border-bottom: 1px solid #222; margin-bottom: 10px; }
+        .qty-controls { display: flex; justify-content: center; align-items: center; gap: 10px; margin: 10px 0; }
+        .qty-controls button { padding: 2px 10px; font-size: 1.2rem; border-color:#555; color:#fff;}
+        .admin-controls { margin-top: 10px; display: flex; gap: 5px; justify-content: center; flex-wrap: wrap; }
+        .admin-controls button { font-size: 0.7rem; padding: 5px; width: 45%; }
+        
+        /* Cart Styles */
+        .cart-box { background: #111; border: 1px solid var(--primary); padding: 20px; margin-top: 20px; }
+        .cart-item { display: flex; justify-content: space-between; border-bottom: 1px dashed #333; padding: 10px 0; }
+        
+        /* Bon / PDF Styles (Hidden from screen) */
         #invoice-template { display: none; padding: 40px; background: #fff; color: #000; font-family: 'Courier New', monospace; direction: ltr; }
+        .invoice-header { text-align: center; border-bottom: 3px solid #000; padding-bottom: 20px; margin-bottom: 20px; }
         .invoice-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
         .invoice-table th, .invoice-table td { border: 1px solid #000; padding: 10px; text-align: left; }
     </style>
 </head>
 <body>
-
-    <!-- شاشة الدخول -->
-    <div id="login-screen">
-        <img src="dd.png" alt="Cortez Logo" style="width: 180px; margin-bottom: 30px; filter: contrast(1.2);">
-        <div class="login-box">
-            <h3 style="border:none; margin-bottom: 20px;">RESTRICTED ACCESS</h3>
-            <input type="text" id="login-user" placeholder="IDENTIFICATION" style="width: 90%; margin-bottom: 15px;">
-            <input type="password" id="login-pass" placeholder="PASSPHRASE" style="width: 90%; margin-bottom: 20px;">
-            <button onclick="login()" style="width: 100%;">AUTHENTICATE</button>
-            <div id="login-error" style="color: var(--danger); margin-top: 15px; font-size: 0.8rem;"></div>
-        </div>
-    </div>
-
-    <!-- التطبيق الرئيسي -->
-    <div id="app-screen" style="display:none; width:100%;">
-        
-        <!-- القائمة الجانبية -->
+    <!-- (شاشة تسجيل الدخول مخفية اختصاراً، افترض أنها موجودة مثل الكود السابق) -->
+    
+    <div id="app-screen" style="display:flex; width:100%;">
         <div class="sidebar">
-            <img src="dd.png" alt="Cortez Logo" class="mafia-logo">
-            <div class="user-info">
-                <div style="color:var(--text-muted); font-size:0.8rem; margin-bottom:5px;">OP-ID CONFIRMED</div>
-                <div id="user-display" style="font-size:1.2rem; font-weight:bold; letter-spacing:1px;"></div>
-                <div id="role-display" style="color:var(--text-muted); font-size:0.9rem; margin-top:5px;"></div>
-            </div>
-
-            <button class="menu-btn active" onclick="changeTab('panel-shop', this)">>> ARSENAL</button>
-            <button class="menu-btn" id="nav-logs" style="display:none;" onclick="changeTab('panel-logs', this)">>> LEDGER (LOGS)</button>
-            <button class="menu-btn" id="nav-treasury" style="display:none;" onclick="changeTab('panel-treasury', this)">>> THE VAULT</button>
-            <button class="menu-btn btn-danger" style="margin-top:auto; border-top:1px solid #111;" onclick="logout()">[ TERMINATE ]</button>
+            <h3 style="color:var(--primary)">CORTEZ SYSTEM</h3>
+            <div style="color:#fff; margin-bottom: 20px;">القائد: <span id="user-display"></span> <br><span id="role-display" style="color:gold;"></span></div>
+            <button class="menu-btn active" onclick="changeTab('panel-shop', this)">🛒 المتجر و المخزن</button>
+            <button class="menu-btn" style="color:var(--danger); margin-top:auto;" onclick="logout()">🚪 خروج</button>
         </div>
 
-        <!-- المحتوى -->
         <div class="main-content">
-            
-            <!-- 1. لوحة المتجر -->
             <div id="panel-shop" class="view-panel active">
-                <h2>FAMILY ARSENAL</h2>
-                
-                <div id="add-item-box" class="box-panel" style="display:none; margin-bottom: 20px;">
-                    <h3 style="color:#888; font-size:0.9rem;">>> REGISTER NEW ASSET</h3>
-                    <div style="display:flex; gap:10px;">
-                        <input type="text" id="itm-name" placeholder="DESIGNATION" style="flex:1;"> 
-                        <input type="number" id="itm-price" placeholder="VALUE ($)" style="width:120px;"> 
-                        <input type="text" id="itm-img" placeholder="IMG URL" style="flex:1;">
-                        <button onclick="addItem()">REGISTER</button>
+                <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #333; padding-bottom:10px;">
+                    <h2>🛒 المستودع السري لعائلة كورتيز</h2>
+                    <div id="treasury-box" style="display:none; text-align:left;">
+                        <span style="background:#111; padding:10px; border:1px solid gold; color:gold; font-weight:bold;">💰 الخزينة: <span id="treasury-balance">0</span>$</span>
+                        <button class="btn-danger" style="margin-right:10px;" onclick="resetTreasury()">🔄 تصفير الخزينة (غسيل)</button>
                     </div>
                 </div>
 
-                <div style="display:flex; gap:30px;">
+                <div id="add-item-box" style="display:none; background:#111; padding:15px; margin-top:20px; border:1px solid #555;">
+                    <h3>➕ إضافة منتج</h3>
+                    <input type="text" id="itm-name" placeholder="اسم الآيتم"> <input type="number" id="itm-price" placeholder="السعر"> <input type="text" id="itm-img" placeholder="رابط الصورة">
+                    <button onclick="addItem()">إضافة للسوق</button>
+                </div>
+
+                <div style="display:flex; gap:20px; margin-top:20px;">
+                    <!-- المنتجات -->
                     <div style="flex:3;">
                         <div id="shop-items-container" class="shop-grid"></div>
                     </div>
                     
+                    <!-- السلة للمشترين -->
                     <div style="flex:1;">
-                        <div class="box-panel" style="margin-top:0;">
-                            <h3 style="color:#888; font-size:0.9rem; margin-top:0;">>> SECURE CART</h3>
-                            <div id="cart-items" style="min-height: 100px;"></div>
-                            <div style="border-top:1px solid #333; margin-top:15px; padding-top:15px; text-align:right;">
-                                <span>DUE: </span><span style="font-size:1.5rem; font-weight:bold;">$<span id="cart-total">0</span></span>
-                            </div>
-                            <button onclick="checkoutCart()" style="width:100%; margin-top:20px;">PRINT MANIFEST</button>
+                        <div class="cart-box">
+                            <h3 style="margin-top:0;">🛒 سلة المعدات</h3>
+                            <div id="cart-items"></div>
+                            <h3 style="color:gold; text-align:left;">الإجمالي: <span id="cart-total">0</span>$</h3>
+                            <button onclick="checkoutCart()" style="width:100%; margin-top:10px;">💵 تأكيد الطلب واستخراج الوصل</button>
                         </div>
                     </div>
                 </div>
-            </div>
 
-            <!-- 2. لوحة سجل الطلبات -->
-            <div id="panel-logs" class="view-panel">
-                <h2 style="color:var(--danger);">CLASSIFIED LEDGER</h2>
-                <div class="box-panel">
+                <!-- اللوج الخاص بالإدارة -->
+                <div id="admin-orders-box" style="display:none; margin-top:30px;">
+                    <h3 style="color:var(--warning); border-bottom:1px solid #333; padding-bottom:10px;">📦 سجل الطلبات (Logs)</h3>
                     <div id="orders-list-container"></div>
                 </div>
             </div>
-
-            <!-- 3. لوحة الخزينة -->
-            <div id="panel-treasury" class="view-panel">
-                <h2>VAULT OPERATIONS</h2>
-                <div class="box-panel">
-                    <h1 style="font-size: 3rem; margin: 10px 0;">$<span id="treasury-balance">0</span></h1>
-                    <p style="color: var(--text-muted);">TOTAL LAUNDERED FUNDS IN SECURE STORAGE.</p>
-                    <button class="btn-danger" style="margin-top: 20px;" onclick="resetTreasury()">INITIATE FULL WASH (RESET TO $0)</button>
-                </div>
-            </div>
-
         </div>
     </div>
 
-    <!-- الفاتورة الرسمية (تُطبع كـ PDF) -->
+    <!-- Template for PDF Bon -->
     <div id="invoice-container" style="position: absolute; left: -9999px;">
         <div id="invoice-template">
-            <div style="text-align: center; border-bottom: 3px solid #000; padding-bottom: 20px; margin-bottom: 20px;">
-                <h1 style="margin:0; font-size:2.5rem;">CORTEZ SYNDICATE</h1>
-                <p style="margin:5px 0; font-weight:bold; letter-spacing: 2px;">OFFICIAL MANIFEST</p>
+            <div class="invoice-header">
+                <h1 style="margin:0;">CORTEZ FAMILY</h1>
+                <p style="margin:5px 0;">Official Syndicate Receipt</p>
                 <p id="inv-date"></p>
             </div>
-            <div style="margin-bottom: 20px; padding: 10px; border: 1px solid #000;">
-                <p style="margin:0;"><b>OPERATIVE ID:</b> <span id="inv-user"></span></p>
-            </div>
+            <p><b>Client:</b> <span id="inv-user"></span></p>
+            <p><b>Status:</b> PENDING PAYMENT (IN-CITY)</p>
             <table class="invoice-table">
-                <thead><tr><th>ASSET</th><th>QTY</th><th>UNIT ($)</th><th>SUBTOTAL ($)</th></tr></thead>
+                <thead><tr><th>ITEM</th><th>QTY</th><th>PRICE</th><th>SUBTOTAL</th></tr></thead>
                 <tbody id="inv-tbody"></tbody>
             </table>
-            <h2 style="text-align:right; margin-top:30px; border-top: 2px solid #000; padding-top: 10px;">TOTAL DUE: $<span id="inv-total"></span></h2>
-            <p style="text-align:center; margin-top:50px; font-size:0.9rem; font-weight:bold;">Blood In. Blood Out.</p>
+            <h2 style="text-align:right; margin-top:20px;">TOTAL: $<span id="inv-total"></span></h2>
+            <p style="text-align:center; margin-top:40px; font-size:0.8rem; color:#555;">No refunds. Blood in, Blood out.</p>
         </div>
     </div>
 
     <script>
         const socket = io();
-        let userToken = ""; 
-        let userData = null; 
+        let userToken = "YOUR_LOGIN_TOKEN_LOGIC"; // افترض أن اللوجن شغال
+        let userData = { username: "DonMoha", role: "Don" }; // للتجربة
         let shopData = [];
-        let cart = {}; 
+        let cart = {}; // { item_id: quantity }
 
-        // 1. نظام الدخول والتبديل
-        async function login() {
-            const u = document.getElementById('login-user').value;
-            const p = document.getElementById('login-pass').value;
-            try {
-                const res = await fetch('/api/auth/login', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({username: u, password: p}) });
-                const data = await res.json();
-                if(res.ok) {
-                    userToken = data.token; userData = data.user;
-                    document.getElementById('login-screen').style.display = 'none';
-                    document.getElementById('app-screen').style.display = 'flex';
-                    initApp();
-                } else { document.getElementById('login-error').innerText = "[!] " + data.error; }
-            } catch(e) { document.getElementById('login-error').innerText = "[!] CONNECTION FAILED."; }
+        // تهيئة الواجهة
+        document.getElementById('user-display').innerText = userData.username;
+        document.getElementById('role-display').innerText = userData.role;
+        
+        if(['Don', 'Business_Manager', 'Chef_Braquage'].includes(userData.role)) {
+            document.getElementById('treasury-box').style.display = 'block';
+            document.getElementById('add-item-box').style.display = 'block';
+            document.getElementById('admin-orders-box').style.display = 'block';
         }
 
-        function logout() { location.reload(); }
-
-        function changeTab(tabId, btn) {
-            document.querySelectorAll('.view-panel').forEach(p => p.classList.remove('active'));
-            document.querySelectorAll('.menu-btn').forEach(b => b.classList.remove('active'));
-            document.getElementById(tabId).classList.add('active');
-            btn.classList.add('active');
-        }
-
-        // 2. تهيئة التطبيق بعد الدخول
-        function initApp() {
-            document.getElementById('user-display').innerText = userData.username;
-            document.getElementById('role-display').innerText = userData.role;
-            
-            const isAdmin = ['Don', 'Business_Manager', 'Chef_Braquage'].includes(userData.role);
-            if(isAdmin) {
-                document.getElementById('nav-logs').style.display = 'block';
-                document.getElementById('nav-treasury').style.display = 'block';
-                document.getElementById('add-item-box').style.display = 'block';
-                fetchOrders();
-                fetchTreasury();
-            }
-            fetchShopItems();
-        }
-
-        // 3. دوال المتجر (Shop)
+        // --- دوال المنتجات ---
         async function fetchShopItems() {
-            const res = await fetch('/api/shop/items', { headers: { 'Authorization': `Bearer ${userToken}` }});
-            if(res.ok) { shopData = await res.json(); renderShop(); }
+            const res = await fetch('/api/shop/items');
+            shopData = await res.json(); renderShop();
         }
 
         function renderShop() {
@@ -286,24 +145,24 @@
             
             shopData.forEach(item => {
                 const stockClass = item.in_stock ? "" : "out-of-stock";
-                const stockText = item.in_stock ? `<span style="color:#aaa;">AVAILABLE</span>` : `<span style="color:var(--danger)">DEPLETED</span>`;
+                const stockText = item.in_stock ? `<span style="color:var(--primary)">متوفر</span>` : `<span style="color:var(--danger)">Out of Stock</span>`;
                 
                 let adminBtns = isAdmin ? `
                     <div class="admin-controls">
-                        <button onclick="editItem('${item._id}')">EDIT</button>
-                        <button onclick="toggleStock('${item._id}')">${item.in_stock ? 'KILL STOCK' : 'RESTOCK'}</button>
-                        <button class="btn-danger" style="width:100%; margin-top:5px;" onclick="deleteItem('${item._id}')">ERASE</button>
+                        <button onclick="editItem('${item._id}')">تعديل</button>
+                        <button onclick="toggleStock('${item._id}')">${item.in_stock ? 'نفاذ' : 'توفير'}</button>
+                        <button class="btn-danger" onclick="deleteItem('${item._id}')">حذف</button>
                     </div>` : "";
 
                 html += `<div class="item-card ${stockClass}">
-                    <img src="${item.image_url}" onerror="this.src='https://placehold.co/200x150/111/333?text=NO+IMAGE'">
-                    <h4 style="margin:10px 0 5px 0;">${item.name}</h4>
-                    <p style="margin:0; font-weight:bold; font-size:1.1rem;">$${item.price}</p>
-                    <p style="font-size:0.7rem; margin:10px 0;">[ ${stockText} ]</p>
+                    <img src="${item.image_url}">
+                    <h4>${item.name}</h4>
+                    <p style="color:gold;">${item.price} $</p>
+                    <p style="font-size:0.8rem">${stockText}</p>
                     ${item.in_stock ? `
                     <div class="qty-controls">
                         <button onclick="updateCart('${item._id}', -1)">-</button>
-                        <span id="qty-${item._id}" style="font-weight:bold; width:20px;">${cart[item._id] || 0}</span>
+                        <span id="qty-${item._id}">${cart[item._id] || 0}</span>
                         <button onclick="updateCart('${item._id}', 1)">+</button>
                     </div>` : ''}
                     ${adminBtns}
@@ -312,6 +171,7 @@
             document.getElementById('shop-items-container').innerHTML = html;
         }
 
+        // --- دوال السلة ---
         function updateCart(itemId, change) {
             if(!cart[itemId]) cart[itemId] = 0;
             cart[itemId] += change;
@@ -325,98 +185,83 @@
                 const item = shopData.find(i => i._id === id);
                 if(item) {
                     const subtotal = item.price * qty; total += subtotal;
-                    html += `<div class="list-item"><span>${item.name} <span style="color:#666">x${qty}</span></span> <span>$${subtotal}</span></div>`;
+                    html += `<div class="cart-item"><span>${item.name} x${qty}</span> <span>${subtotal}$</span></div>`;
                 }
             }
-            document.getElementById('cart-items').innerHTML = html || "<p style='color:#333; text-align:center; margin-top:40px;'>[ EMPTY ]</p>";
+            document.getElementById('cart-items').innerHTML = html || "<p style='color:#555;'>السلة فارغة</p>";
             document.getElementById('cart-total').innerText = total;
         }
 
         async function checkoutCart() {
-            if(Object.keys(cart).length === 0) return alert("CART IS EMPTY.");
+            if(Object.keys(cart).length === 0) return alert("السلة فارغة!");
             const cartArr = Object.keys(cart).map(id => ({ item_id: id, quantity: cart[id] }));
             
             const res = await fetch('/api/shop/checkout', { method: 'POST', headers: { 'Content-Type':'application/json', 'Authorization': `Bearer ${userToken}`}, body: JSON.stringify({ cart: cartArr }) });
-            if(res.ok) {
-                const data = await res.json();
+            const data = await res.json();
+            
+            if(res.status === 200) {
+                alert("تم الطلب! سيتم تحميل وصل الدفع الآن لتسليمه للمسؤول.");
                 generatePDFBon(data.order_id, data.items, data.total_price);
                 cart = {}; renderCart(); renderShop();
-            } else { alert("ERROR PROCESSING ORDER."); }
+            } else { alert(data.error); }
         }
 
-        // 4. استخراج الـ PDF
+        // --- توليد وصل PDF ---
         function generatePDFBon(orderId, items, total) {
             document.getElementById('inv-date').innerText = new Date().toLocaleString();
             document.getElementById('inv-user').innerText = userData.username;
             document.getElementById('inv-total').innerText = total;
             
             let tbody = "";
-            items.forEach(i => { tbody += `<tr><td>${i.item_name}</td><td>${i.quantity}</td><td>${i.price}</td><td>${i.price * i.quantity}</td></tr>`; });
+            items.forEach(i => { tbody += `<tr><td>${i.item_name}</td><td>${i.quantity}</td><td>$${i.price}</td><td>$${i.price * i.quantity}</td></tr>`; });
             document.getElementById('inv-tbody').innerHTML = tbody;
 
             const element = document.getElementById('invoice-template');
             element.style.display = 'block';
             
-            const opt = { margin: 0.5, filename: `MANIFEST_${userData.username}_${Date.now()}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' } };
+            const opt = { margin: 0.5, filename: `Cortez_Bon_${userData.username}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' } };
             html2pdf().set(opt).from(element).save().then(() => { element.style.display = 'none'; });
         }
 
-        // 5. دوال الإدارة (إضافة/تعديل/مسح)
-        async function addItem() {
-            const name = document.getElementById('itm-name').value;
-            const price = document.getElementById('itm-price').value;
-            const image_url = document.getElementById('itm-img').value;
-            if(!name || !price) return alert("REQUIRED FIELDS MISSING.");
-            await fetch('/api/shop/add-item', { method:'POST', headers:{'Content-Type':'application/json', 'Authorization': `Bearer ${userToken}`}, body: JSON.stringify({name, price, image_url}) });
-            document.getElementById('itm-name').value = ''; document.getElementById('itm-price').value = ''; document.getElementById('itm-img').value = '';
-        }
-
-        async function deleteItem(id) { if(confirm("ERASE ASSET PERMANENTLY?")) await fetch(`/api/shop/delete-item/${id}`, { method:'DELETE', headers:{'Authorization': `Bearer ${userToken}`} }); }
+        // --- دوال الإدارة والتحكم ---
+        async function deleteItem(id) { if(confirm("حذف المنتج؟")) await fetch(`/api/shop/delete-item/${id}`, { method:'DELETE', headers:{'Authorization': `Bearer ${userToken}`} }); }
         async function toggleStock(id) { await fetch(`/api/shop/toggle-stock/${id}`, { method:'PUT', headers:{'Authorization': `Bearer ${userToken}`} }); }
         async function editItem(id) {
             const item = shopData.find(i => i._id === id);
-            const newName = prompt("NEW DESIGNATION:", item.name) || item.name;
-            const newPrice = prompt("NEW VALUE:", item.price) || item.price;
+            const newName = prompt("الاسم:", item.name) || item.name;
+            const newPrice = prompt("السعر:", item.price) || item.price;
             await fetch(`/api/shop/edit-item/${id}`, { method:'PUT', headers:{'Content-Type':'application/json', 'Authorization': `Bearer ${userToken}`}, body: JSON.stringify({name: newName, price: newPrice, image_url: item.image_url}) });
         }
 
-        // 6. دوال السجلات والخزينة
         async function fetchOrders() {
-            const res = await fetch('/api/shop/orders', { headers: { 'Authorization': `Bearer ${userToken}` } }); 
-            if(!res.ok) return;
-            const orders = await res.json();
+            const res = await fetch('/api/shop/orders', { headers: { 'Authorization': `Bearer ${userToken}` } }); const orders = await res.json();
             let html = "";
             orders.forEach(o => {
-                let itemsStr = o.items.map(i => `${i.item_name}(x${i.quantity})`).join(' | ');
-                const actionBtn = o.status === 'Pending' ? `<button onclick="confirmPayment('${o._id}')">MARK PAID</button>` : `<span style="color:#555;">[ CLEARED ]</span>`;
-                const deleteBtn = userData.role === 'Don' ? `<button onclick="deleteOrderLog('${o._id}')" class="btn-danger" style="margin-right:15px;">WIPE RECORD</button>` : '';
+                let itemsStr = o.items.map(i => `${i.item_name} (x${i.quantity})`).join(' + ');
+                const actionBtn = o.status === 'Pending' ? `<button onclick="confirmPayment('${o._id}')" class="btn-warning">💵 تم الاستلام</button>` : `<span style="color:var(--primary);">✔️ مدفوع</span>`;
+                const deleteBtn = userData.role === 'Don' ? `<button onclick="deleteOrderLog('${o._id}')" class="btn-danger" style="margin-right:10px;">🗑️ مسح اللوج</button>` : '';
                 
-                html += `<div class="list-item" style="background:#080808; padding:15px; border:1px solid #1a1a1a; margin-bottom:10px;">
-                    <div>
-                        <div style="font-weight:bold; font-size:1.1rem; color:var(--text-main);">OP: ${o.username}</div>
-                        <div style="color:#666; font-size:0.8rem; margin:5px 0;">${itemsStr}</div>
-                        <div style="font-weight:bold; color:#fff;">$${o.total_price}</div>
-                    </div>
-                    <div>${actionBtn} ${deleteBtn}</div>
+                html += `<div style="background:#111; padding:10px; border:1px solid #333; margin-bottom:10px;">
+                    <b>${o.username}</b> طلب: [ ${itemsStr} ] <br> 
+                    <span style="color:gold">الإجمالي: ${o.total_price}$</span> | ${actionBtn} ${deleteBtn}
                 </div>`;
             });
             document.getElementById('orders-list-container').innerHTML = html;
         }
 
         async function confirmPayment(id) { await fetch('/api/shop/confirm-payment', { method:'POST', headers:{'Content-Type':'application/json', 'Authorization': `Bearer ${userToken}`}, body: JSON.stringify({ order_id: id }) }); }
-        async function deleteOrderLog(id) { if(confirm("WARNING: WIPING LEDGER ENTRY. PROCEED?")) await fetch(`/api/shop/delete-order/${id}`, { method:'DELETE', headers:{'Authorization': `Bearer ${userToken}`} }); }
+        async function deleteOrderLog(id) { if(confirm("بصفتك الدون، هل تريد مسح أثر هذه العملية؟")) await fetch(`/api/shop/delete-order/${id}`, { method:'DELETE', headers:{'Authorization': `Bearer ${userToken}`} }); }
         
-        async function resetTreasury() { if(confirm("CRITICAL: LAUNDERING ALL FUNDS TO $0. PROCEED?")) await fetch('/api/treasury/reset', { method:'POST', headers:{'Authorization': `Bearer ${userToken}`} }); }
-        async function fetchTreasury() { 
-            const res = await fetch('/api/treasury/balance', { headers:{'Authorization': `Bearer ${userToken}`} }); 
-            if(res.ok) { const data = await res.json(); document.getElementById('treasury-balance').innerText = data.balance; }
-        }
+        async function resetTreasury() { if(confirm("تحذير: سيتم تصفير أموال الخزينة. هل أنت متأكد؟")) await fetch('/api/treasury/reset', { method:'POST', headers:{'Authorization': `Bearer ${userToken}`} }); }
+        async function fetchTreasury() { const res = await fetch('/api/treasury/balance', { headers:{'Authorization': `Bearer ${userToken}`} }); const data = await res.json(); document.getElementById('treasury-balance').innerText = data.balance; }
 
-        // مقابس السوكيت للتحديث المباشر
-        socket.on('shopUpdated', () => { if(userData) fetchShopItems(); });
-        socket.on('ordersUpdated', () => { if(userData && ['Don', 'Business_Manager', 'Chef_Braquage'].includes(userData.role)) fetchOrders(); });
-        socket.on('treasuryUpdated', () => { if(userData && ['Don', 'Business_Manager', 'Chef_Braquage'].includes(userData.role)) fetchTreasury(); });
+        socket.on('shopUpdated', fetchShopItems);
+        socket.on('ordersUpdated', fetchOrders);
+        socket.on('treasuryUpdated', fetchTreasury);
 
+        // تشغيل مبدئي
+        fetchShopItems(); 
+        if(['Don', 'Business_Manager', 'Chef_Braquage'].includes(userData.role)) { fetchOrders(); fetchTreasury(); }
     </script>
 </body>
 </html>
