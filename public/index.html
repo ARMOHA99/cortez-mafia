@@ -8,44 +8,53 @@
     <style>
         /* --- النمط المافيوي المظلم والصارم --- */
         :root { 
-            --bg-color: #000000;      /* أسود مطلق */
-            --panel-bg: #050505;      /* رمادي داكن جداً للوحات */
-            --border-color: #1a1a1a;  /* إطارات خافتة */
-            --text-main: #ffffff;     /* أبيض حاد */
-            --text-muted: #666666;    /* رمادي للنصوص الثانوية */
-            --danger: #8a0303;        /* أحمر دموي داكن */
-            --danger-hover: #ff0000;  /* أحمر فاقع عند التأشير */
-            --accent: #e0e0e0;        /* لون التحديد */
+            --bg-color: #000000;      
+            --panel-bg: #050505;      
+            --border-color: #1a1a1a;  
+            --text-main: #ffffff;     
+            --text-muted: #666666;    
+            --danger: #8a0303;        
+            --danger-hover: #ff0000;  
+            --accent: #e0e0e0;        
         }
 
         body { 
             background: var(--bg-color); 
             color: var(--text-main); 
-            font-family: 'Courier New', Courier, monospace; /* خط السجلات السرية */
+            font-family: 'Courier New', Courier, monospace; 
             margin: 0; 
             padding: 0; 
             display: flex; 
             height: 100vh; 
             overflow: hidden;
-            text-transform: uppercase; /* فرض الطابع الرسمي الصارم */
+            text-transform: uppercase; 
         }
         
-        /* إخفاء شريط التمرير لزيادة الغموض */
         ::-webkit-scrollbar { width: 5px; }
         ::-webkit-scrollbar-track { background: #000; }
         ::-webkit-scrollbar-thumb { background: #333; }
 
-        /* الأزرار الصارمة */
+        input, select {
+            background: #000;
+            border: 1px solid #333;
+            color: #fff;
+            padding: 10px;
+            font-family: inherit;
+            text-transform: uppercase;
+        }
+        input:focus, select:focus { outline: none; border-color: #666; }
+
         button { 
             padding: 10px 15px; 
             background: transparent; 
             border: 1px solid var(--text-muted); 
             color: var(--text-main); 
             font-weight: bold; 
-            font-family: 'Courier New', Courier, monospace;
+            font-family: inherit;
             cursor: pointer; 
             transition: all 0.2s ease-in-out; 
             letter-spacing: 1px;
+            text-transform: uppercase;
         }
         button:hover:not(:disabled) { 
             background: var(--accent); 
@@ -58,9 +67,19 @@
         .btn-danger { border-color: var(--danger); color: var(--danger); }
         .btn-danger:hover { background: var(--danger-hover); color: #000; border-color: var(--danger-hover); box-shadow: 0 0 15px rgba(255,0,0,0.5); }
 
-        /* القائمة الجانبية (Sidebar) */
+        /* شاشة تسجيل الدخول */
+        #login-screen {
+            position: absolute; top:0; left:0; width:100%; height:100%;
+            background: #000; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 1000;
+        }
+        .login-box {
+            background: #050505; border: 1px solid #222; padding: 40px; width: 300px; text-align: center;
+            box-shadow: 0 0 30px rgba(0,0,0,0.8);
+        }
+
+        /* القائمة الجانبية */
         .sidebar { 
-            width: 280px; 
+            width: 250px; 
             background: #020202; 
             border-left: 1px solid var(--border-color); 
             display: flex; 
@@ -68,198 +87,197 @@
             align-items: center;
             padding-top: 30px;
         }
-
-        /* تنسيق اللوجو المخيف */
-        .mafia-logo {
-            width: 160px;
-            margin-bottom: 20px;
-            filter: drop-shadow(0px 0px 8px rgba(255, 255, 255, 0.1)) contrast(1.1);
-        }
-
-        .user-info {
-            width: 100%;
-            text-align: center;
-            padding: 15px 0;
-            border-top: 1px solid #111;
-            border-bottom: 1px solid #111;
-            margin-bottom: 20px;
-            background: #050505;
-        }
-
-        .menu-btn { 
-            background: none; 
-            border: none; 
-            border-bottom: 1px solid #111; 
-            color: var(--text-muted); 
-            text-align: center; 
-            padding: 15px; 
-            width: 100%; 
-        }
+        .mafia-logo { width: 140px; margin-bottom: 20px; filter: drop-shadow(0px 0px 8px rgba(255, 255, 255, 0.1)) contrast(1.1); }
+        .user-info { width: 100%; text-align: center; padding: 15px 0; border-top: 1px solid #111; border-bottom: 1px solid #111; margin-bottom: 20px; background: #050505; }
+        .menu-btn { background: none; border: none; border-bottom: 1px solid #111; color: var(--text-muted); text-align: center; padding: 15px; width: 100%; }
         .menu-btn.active, .menu-btn:hover { color: var(--text-main); border-color: #333; background: #0a0a0a; }
         
         /* المحتوى الرئيسي */
-        .main-content { flex-grow: 1; padding: 40px; overflow-y: auto; width: calc(100% - 280px); }
+        .main-content { flex-grow: 1; padding: 40px; overflow-y: auto; width: calc(100% - 250px); }
         .view-panel { display: none; } .view-panel.active { display: block; }
-        
-        h2, h3 { 
-            border-bottom: 1px solid #333; 
-            padding-bottom: 10px; 
-            letter-spacing: 2px;
-            margin-top: 0;
-        }
+        h2, h3 { border-bottom: 1px solid #333; padding-bottom: 10px; letter-spacing: 2px; margin-top: 0; }
 
-        /* شبكة المنتجات */
+        /* تصميمات المتجر */
         .shop-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; }
-        .item-card { 
-            background: var(--panel-bg); 
-            border: 1px solid var(--border-color); 
-            padding: 15px; 
-            text-align: center; 
-            position: relative; 
-            transition: border 0.3s;
-        }
+        .item-card { background: var(--panel-bg); border: 1px solid var(--border-color); padding: 15px; text-align: center; }
         .item-card:hover { border-color: #444; }
         .item-card.out-of-stock { opacity: 0.3; filter: grayscale(100%); }
         .item-card img { width: 100%; height: 140px; object-fit: cover; border-bottom: 1px solid #111; margin-bottom: 15px; filter: grayscale(80%) contrast(1.2); }
-        
         .qty-controls { display: flex; justify-content: center; align-items: center; gap: 15px; margin: 15px 0; }
-        .qty-controls button { padding: 5px 15px; font-size: 1.2rem; border-color: #333; }
-        
+        .qty-controls button { padding: 5px 15px; border-color: #333; }
         .admin-controls { margin-top: 15px; display: flex; gap: 5px; justify-content: center; flex-wrap: wrap; }
         .admin-controls button { font-size: 0.7rem; padding: 5px; width: 45%; border-color: #222; color: #888; }
         .admin-controls button:hover { color: #fff; border-color: #fff; }
         
-        /* السلة والإدارة */
-        .cart-box, .admin-box { background: var(--panel-bg); border: 1px solid #222; padding: 20px; margin-top: 20px; }
-        .cart-item { display: flex; justify-content: space-between; border-bottom: 1px dotted #333; padding: 10px 0; font-size: 0.9rem; }
-        
-        input { 
-            background: #000; 
-            border: 1px solid #333; 
-            color: #fff; 
-            padding: 10px; 
-            font-family: inherit; 
-            margin-right: 5px;
-        }
-        input:focus { outline: none; border-color: #666; }
+        .box-panel { background: var(--panel-bg); border: 1px solid #222; padding: 20px; margin-top: 20px; }
+        .list-item { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dotted #333; padding: 10px 0; font-size: 0.9rem; }
 
-        /* ستايل الفاتورة (مخفي ويستخدم للـ PDF فقط) */
+        /* الفاتورة */
         #invoice-template { display: none; padding: 40px; background: #fff; color: #000; font-family: 'Courier New', monospace; direction: ltr; }
-        .invoice-header { text-align: center; border-bottom: 3px solid #000; padding-bottom: 20px; margin-bottom: 20px; }
         .invoice-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
         .invoice-table th, .invoice-table td { border: 1px solid #000; padding: 10px; text-align: left; }
     </style>
 </head>
 <body>
-    <div id="app-screen" style="display:flex; width:100%;">
+
+    <!-- شاشة الدخول -->
+    <div id="login-screen">
+        <img src="dd.png" alt="Cortez Logo" style="width: 180px; margin-bottom: 30px; filter: contrast(1.2);">
+        <div class="login-box">
+            <h3 style="border:none; margin-bottom: 20px;">RESTRICTED ACCESS</h3>
+            <input type="text" id="login-user" placeholder="IDENTIFICATION" style="width: 90%; margin-bottom: 15px;">
+            <input type="password" id="login-pass" placeholder="PASSPHRASE" style="width: 90%; margin-bottom: 20px;">
+            <button onclick="login()" style="width: 100%;">AUTHENTICATE</button>
+            <div id="login-error" style="color: var(--danger); margin-top: 15px; font-size: 0.8rem;"></div>
+        </div>
+    </div>
+
+    <!-- التطبيق الرئيسي -->
+    <div id="app-screen" style="display:none; width:100%;">
         
         <!-- القائمة الجانبية -->
         <div class="sidebar">
             <img src="dd.png" alt="Cortez Logo" class="mafia-logo">
-            
             <div class="user-info">
-                <div style="color:var(--text-muted); font-size:0.8rem; margin-bottom:5px;">ID IDENTIFIED</div>
+                <div style="color:var(--text-muted); font-size:0.8rem; margin-bottom:5px;">OP-ID CONFIRMED</div>
                 <div id="user-display" style="font-size:1.2rem; font-weight:bold; letter-spacing:1px;"></div>
                 <div id="role-display" style="color:var(--text-muted); font-size:0.9rem; margin-top:5px;"></div>
             </div>
 
-            <button class="menu-btn active" onclick="changeTab('panel-shop', this)">>> ARSENAL & SUPPLIES</button>
-            <button class="menu-btn btn-danger" style="margin-top:auto; border-top:1px solid #111;" onclick="logout()">[ TERMINATE SESSION ]</button>
+            <button class="menu-btn active" onclick="changeTab('panel-shop', this)">>> ARSENAL</button>
+            <button class="menu-btn" id="nav-logs" style="display:none;" onclick="changeTab('panel-logs', this)">>> LEDGER (LOGS)</button>
+            <button class="menu-btn" id="nav-treasury" style="display:none;" onclick="changeTab('panel-treasury', this)">>> THE VAULT</button>
+            <button class="menu-btn btn-danger" style="margin-top:auto; border-top:1px solid #111;" onclick="logout()">[ TERMINATE ]</button>
         </div>
 
-        <!-- المحتوى الرئيسي -->
+        <!-- المحتوى -->
         <div class="main-content">
+            
+            <!-- 1. لوحة المتجر -->
             <div id="panel-shop" class="view-panel active">
+                <h2>FAMILY ARSENAL</h2>
                 
-                <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:30px;">
-                    <h2 style="margin:0; border:none; border-left: 5px solid #fff; padding-left: 15px;">FAMILY ARSENAL</h2>
-                    
-                    <div id="treasury-box" style="display:none; text-align:left;">
-                        <span style="font-size:1.2rem; margin-left:20px;">VAULT: $<span id="treasury-balance">0</span></span>
-                        <button class="btn-danger" onclick="resetTreasury()">LAUNDER FUNDS (RESET)</button>
-                    </div>
-                </div>
-
-                <div id="add-item-box" class="admin-box" style="display:none;">
-                    <h3 style="color:#888; font-size:0.9rem;">>> AUTHORIZED PERSONNEL: ADD NEW ASSET</h3>
+                <div id="add-item-box" class="box-panel" style="display:none; margin-bottom: 20px;">
+                    <h3 style="color:#888; font-size:0.9rem;">>> REGISTER NEW ASSET</h3>
                     <div style="display:flex; gap:10px;">
-                        <input type="text" id="itm-name" placeholder="ASSET DESIGNATION" style="flex:1;"> 
-                        <input type="number" id="itm-price" placeholder="STREET VALUE ($)" style="width:150px;"> 
-                        <input type="text" id="itm-img" placeholder="IMAGE SECURE LINK" style="flex:1;">
-                        <button onclick="addItem()">REGISTER ASSET</button>
+                        <input type="text" id="itm-name" placeholder="DESIGNATION" style="flex:1;"> 
+                        <input type="number" id="itm-price" placeholder="VALUE ($)" style="width:120px;"> 
+                        <input type="text" id="itm-img" placeholder="IMG URL" style="flex:1;">
+                        <button onclick="addItem()">REGISTER</button>
                     </div>
                 </div>
 
-                <div style="display:flex; gap:30px; margin-top:30px;">
-                    <!-- المنتجات -->
+                <div style="display:flex; gap:30px;">
                     <div style="flex:3;">
                         <div id="shop-items-container" class="shop-grid"></div>
                     </div>
                     
-                    <!-- السلة للمشترين -->
                     <div style="flex:1;">
-                        <div class="cart-box">
+                        <div class="box-panel" style="margin-top:0;">
                             <h3 style="color:#888; font-size:0.9rem; margin-top:0;">>> SECURE CART</h3>
                             <div id="cart-items" style="min-height: 100px;"></div>
                             <div style="border-top:1px solid #333; margin-top:15px; padding-top:15px; text-align:right;">
                                 <span>DUE: </span><span style="font-size:1.5rem; font-weight:bold;">$<span id="cart-total">0</span></span>
                             </div>
-                            <button onclick="checkoutCart()" style="width:100%; margin-top:20px; border-color:#fff; color:#fff;">CONFIRM & PRINT MANIFEST</button>
+                            <button onclick="checkoutCart()" style="width:100%; margin-top:20px;">PRINT MANIFEST</button>
                         </div>
                     </div>
                 </div>
+            </div>
 
-                <!-- اللوج الخاص بالإدارة -->
-                <div id="admin-orders-box" class="admin-box" style="display:none; margin-top:40px;">
-                    <h3 style="color:var(--danger); border-bottom:1px solid #333; padding-bottom:10px;">>> CLASSIFIED LEDGER (LOGS)</h3>
+            <!-- 2. لوحة سجل الطلبات -->
+            <div id="panel-logs" class="view-panel">
+                <h2 style="color:var(--danger);">CLASSIFIED LEDGER</h2>
+                <div class="box-panel">
                     <div id="orders-list-container"></div>
                 </div>
             </div>
+
+            <!-- 3. لوحة الخزينة -->
+            <div id="panel-treasury" class="view-panel">
+                <h2>VAULT OPERATIONS</h2>
+                <div class="box-panel">
+                    <h1 style="font-size: 3rem; margin: 10px 0;">$<span id="treasury-balance">0</span></h1>
+                    <p style="color: var(--text-muted);">TOTAL LAUNDERED FUNDS IN SECURE STORAGE.</p>
+                    <button class="btn-danger" style="margin-top: 20px;" onclick="resetTreasury()">INITIATE FULL WASH (RESET TO $0)</button>
+                </div>
+            </div>
+
         </div>
     </div>
 
-    <!-- الفاتورة الرسمية (تُطبع كـ PDF مخفية عن العرض) -->
+    <!-- الفاتورة الرسمية (تُطبع كـ PDF) -->
     <div id="invoice-container" style="position: absolute; left: -9999px;">
         <div id="invoice-template">
-            <div class="invoice-header">
+            <div style="text-align: center; border-bottom: 3px solid #000; padding-bottom: 20px; margin-bottom: 20px;">
                 <h1 style="margin:0; font-size:2.5rem;">CORTEZ SYNDICATE</h1>
                 <p style="margin:5px 0; font-weight:bold; letter-spacing: 2px;">OFFICIAL MANIFEST</p>
                 <p id="inv-date"></p>
             </div>
             <div style="margin-bottom: 20px; padding: 10px; border: 1px solid #000;">
                 <p style="margin:0;"><b>OPERATIVE ID:</b> <span id="inv-user"></span></p>
-                <p style="margin:5px 0 0 0;"><b>CLEARANCE:</b> AUTHORIZED</p>
             </div>
             <table class="invoice-table">
                 <thead><tr><th>ASSET</th><th>QTY</th><th>UNIT ($)</th><th>SUBTOTAL ($)</th></tr></thead>
                 <tbody id="inv-tbody"></tbody>
             </table>
             <h2 style="text-align:right; margin-top:30px; border-top: 2px solid #000; padding-top: 10px;">TOTAL DUE: $<span id="inv-total"></span></h2>
-            <p style="text-align:center; margin-top:50px; font-size:0.9rem; font-weight:bold; text-transform:uppercase;">Blood In. Blood Out.</p>
+            <p style="text-align:center; margin-top:50px; font-size:0.9rem; font-weight:bold;">Blood In. Blood Out.</p>
         </div>
     </div>
 
     <script>
         const socket = io();
-        let userToken = "YOUR_LOGIN_TOKEN_LOGIC"; // مسار التوكن
-        let userData = { username: "DON", role: "Don" }; // بيانات تجريبية (قم بتغييرها بناءً على تسجيل الدخول)
+        let userToken = ""; 
+        let userData = null; 
         let shopData = [];
         let cart = {}; 
 
-        // تهيئة الواجهة
-        document.getElementById('user-display').innerText = userData.username;
-        document.getElementById('role-display').innerText = userData.role;
-        
-        if(['Don', 'Business_Manager', 'Chef_Braquage'].includes(userData.role)) {
-            document.getElementById('treasury-box').style.display = 'block';
-            document.getElementById('add-item-box').style.display = 'block';
-            document.getElementById('admin-orders-box').style.display = 'block';
+        // 1. نظام الدخول والتبديل
+        async function login() {
+            const u = document.getElementById('login-user').value;
+            const p = document.getElementById('login-pass').value;
+            try {
+                const res = await fetch('/api/auth/login', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({username: u, password: p}) });
+                const data = await res.json();
+                if(res.ok) {
+                    userToken = data.token; userData = data.user;
+                    document.getElementById('login-screen').style.display = 'none';
+                    document.getElementById('app-screen').style.display = 'flex';
+                    initApp();
+                } else { document.getElementById('login-error').innerText = "[!] " + data.error; }
+            } catch(e) { document.getElementById('login-error').innerText = "[!] CONNECTION FAILED."; }
         }
 
-        // جلب المنتجات
+        function logout() { location.reload(); }
+
+        function changeTab(tabId, btn) {
+            document.querySelectorAll('.view-panel').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.menu-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            btn.classList.add('active');
+        }
+
+        // 2. تهيئة التطبيق بعد الدخول
+        function initApp() {
+            document.getElementById('user-display').innerText = userData.username;
+            document.getElementById('role-display').innerText = userData.role;
+            
+            const isAdmin = ['Don', 'Business_Manager', 'Chef_Braquage'].includes(userData.role);
+            if(isAdmin) {
+                document.getElementById('nav-logs').style.display = 'block';
+                document.getElementById('nav-treasury').style.display = 'block';
+                document.getElementById('add-item-box').style.display = 'block';
+                fetchOrders();
+                fetchTreasury();
+            }
+            fetchShopItems();
+        }
+
+        // 3. دوال المتجر (Shop)
         async function fetchShopItems() {
-            const res = await fetch('/api/shop/items');
-            shopData = await res.json(); renderShop();
+            const res = await fetch('/api/shop/items', { headers: { 'Authorization': `Bearer ${userToken}` }});
+            if(res.ok) { shopData = await res.json(); renderShop(); }
         }
 
         function renderShop() {
@@ -307,7 +325,7 @@
                 const item = shopData.find(i => i._id === id);
                 if(item) {
                     const subtotal = item.price * qty; total += subtotal;
-                    html += `<div class="cart-item"><span>${item.name} <span style="color:#666">x${qty}</span></span> <span>$${subtotal}</span></div>`;
+                    html += `<div class="list-item"><span>${item.name} <span style="color:#666">x${qty}</span></span> <span>$${subtotal}</span></div>`;
                 }
             }
             document.getElementById('cart-items').innerHTML = html || "<p style='color:#333; text-align:center; margin-top:40px;'>[ EMPTY ]</p>";
@@ -319,14 +337,14 @@
             const cartArr = Object.keys(cart).map(id => ({ item_id: id, quantity: cart[id] }));
             
             const res = await fetch('/api/shop/checkout', { method: 'POST', headers: { 'Content-Type':'application/json', 'Authorization': `Bearer ${userToken}`}, body: JSON.stringify({ cart: cartArr }) });
-            const data = await res.json();
-            
-            if(res.status === 200) {
+            if(res.ok) {
+                const data = await res.json();
                 generatePDFBon(data.order_id, data.items, data.total_price);
                 cart = {}; renderCart(); renderShop();
-            } else { alert(data.error); }
+            } else { alert("ERROR PROCESSING ORDER."); }
         }
 
+        // 4. استخراج الـ PDF
         function generatePDFBon(orderId, items, total) {
             document.getElementById('inv-date').innerText = new Date().toLocaleString();
             document.getElementById('inv-user').innerText = userData.username;
@@ -343,6 +361,7 @@
             html2pdf().set(opt).from(element).save().then(() => { element.style.display = 'none'; });
         }
 
+        // 5. دوال الإدارة (إضافة/تعديل/مسح)
         async function addItem() {
             const name = document.getElementById('itm-name').value;
             const price = document.getElementById('itm-price').value;
@@ -361,19 +380,22 @@
             await fetch(`/api/shop/edit-item/${id}`, { method:'PUT', headers:{'Content-Type':'application/json', 'Authorization': `Bearer ${userToken}`}, body: JSON.stringify({name: newName, price: newPrice, image_url: item.image_url}) });
         }
 
+        // 6. دوال السجلات والخزينة
         async function fetchOrders() {
-            const res = await fetch('/api/shop/orders', { headers: { 'Authorization': `Bearer ${userToken}` } }); const orders = await res.json();
+            const res = await fetch('/api/shop/orders', { headers: { 'Authorization': `Bearer ${userToken}` } }); 
+            if(!res.ok) return;
+            const orders = await res.json();
             let html = "";
             orders.forEach(o => {
                 let itemsStr = o.items.map(i => `${i.item_name}(x${i.quantity})`).join(' | ');
-                const actionBtn = o.status === 'Pending' ? `<button onclick="confirmPayment('${o._id}')" style="border-color:#fff;">MARK PAID</button>` : `<span style="color:#555;">[ CLEARED ]</span>`;
+                const actionBtn = o.status === 'Pending' ? `<button onclick="confirmPayment('${o._id}')">MARK PAID</button>` : `<span style="color:#555;">[ CLEARED ]</span>`;
                 const deleteBtn = userData.role === 'Don' ? `<button onclick="deleteOrderLog('${o._id}')" class="btn-danger" style="margin-right:15px;">WIPE RECORD</button>` : '';
                 
-                html += `<div style="background:#080808; padding:15px; border:1px solid #1a1a1a; margin-bottom:15px; display:flex; justify-content:space-between; align-items:center;">
+                html += `<div class="list-item" style="background:#080808; padding:15px; border:1px solid #1a1a1a; margin-bottom:10px;">
                     <div>
-                        <div style="font-weight:bold; font-size:1.1rem;">OP: ${o.username}</div>
+                        <div style="font-weight:bold; font-size:1.1rem; color:var(--text-main);">OP: ${o.username}</div>
                         <div style="color:#666; font-size:0.8rem; margin:5px 0;">${itemsStr}</div>
-                        <div style="font-weight:bold;">$${o.total_price}</div>
+                        <div style="font-weight:bold; color:#fff;">$${o.total_price}</div>
                     </div>
                     <div>${actionBtn} ${deleteBtn}</div>
                 </div>`;
@@ -385,14 +407,16 @@
         async function deleteOrderLog(id) { if(confirm("WARNING: WIPING LEDGER ENTRY. PROCEED?")) await fetch(`/api/shop/delete-order/${id}`, { method:'DELETE', headers:{'Authorization': `Bearer ${userToken}`} }); }
         
         async function resetTreasury() { if(confirm("CRITICAL: LAUNDERING ALL FUNDS TO $0. PROCEED?")) await fetch('/api/treasury/reset', { method:'POST', headers:{'Authorization': `Bearer ${userToken}`} }); }
-        async function fetchTreasury() { const res = await fetch('/api/treasury/balance', { headers:{'Authorization': `Bearer ${userToken}`} }); const data = await res.json(); document.getElementById('treasury-balance').innerText = data.balance; }
+        async function fetchTreasury() { 
+            const res = await fetch('/api/treasury/balance', { headers:{'Authorization': `Bearer ${userToken}`} }); 
+            if(res.ok) { const data = await res.json(); document.getElementById('treasury-balance').innerText = data.balance; }
+        }
 
-        socket.on('shopUpdated', fetchShopItems);
-        socket.on('ordersUpdated', fetchOrders);
-        socket.on('treasuryUpdated', fetchTreasury);
+        // مقابس السوكيت للتحديث المباشر
+        socket.on('shopUpdated', () => { if(userData) fetchShopItems(); });
+        socket.on('ordersUpdated', () => { if(userData && ['Don', 'Business_Manager', 'Chef_Braquage'].includes(userData.role)) fetchOrders(); });
+        socket.on('treasuryUpdated', () => { if(userData && ['Don', 'Business_Manager', 'Chef_Braquage'].includes(userData.role)) fetchTreasury(); });
 
-        fetchShopItems(); 
-        if(['Don', 'Business_Manager', 'Chef_Braquage'].includes(userData.role)) { fetchOrders(); fetchTreasury(); }
     </script>
 </body>
 </html>
