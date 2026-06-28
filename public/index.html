@@ -275,7 +275,7 @@
             }
             fetchStats(); 
             fetchShopItems();
-            fetchOrders(); 
+            fetchOrders(); // متوفرة للجميع الآن لعرض الطلبات الشخصية والفواتير
         }
 
         function logout() { localStorage.clear(); window.location.reload(); }
@@ -426,6 +426,7 @@
         /* ---------------- ORDERS & TREASURY ---------------- */
 
         async function fetchOrders() {
+            // الآن الدالة تستدعي الطلبات الخاصة بالعضو، أو كل الطلبات لو كان إداري
             const res = await fetch('/api/shop/orders', { headers: { 'Authorization': `Bearer ${userToken}` } }); 
             const orders = await res.json();
             
@@ -444,6 +445,7 @@
                     actionBtn = `<span style="color:var(--primary);">✔️ مدفوع</span>`;
                 }
 
+                // زر الـ BON متاح للجميع الآن
                 actionBtn += ` <button onclick="downloadInvoice('${o._id}')" style="padding:4px 10px; font-size:0.8rem; background:#0055ff; border:1px solid #fff; color:#fff; width:auto; display:inline-block; margin-right:10px;">📄 طباعة BON</button>`;
 
                 let itemsText = o.items ? o.items.map(i => `${i.quantity || 1}x ${i.name}`).join(' + ') : o.item_name;
@@ -481,196 +483,92 @@
             }
         }
 
-        /* --------------- HR & REQUESTS ---------------- */
+        /* ---------------- HR, ARCHIVE, & ADMIN CONTROL ---------------- */
 
-        async function submitLeave() {
-            const reason = document.getElementById('leave-reason').value;
-            const days = document.getElementById('leave-days').value;
-            if(!reason || !days) return alert("الرجاء تعبئة جميع الحقول.");
-            
-            const res = await fetch('/api/hr/leave', { 
-                method: 'POST', 
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, 
-                body: JSON.stringify({ reason, days }) 
+        async function fetchArchive() {
+            const res = await fetch('/api/admin/archive', { headers: { 'Authorization': `Bearer ${userToken}` } }); const data = await res.json();
+            let html = ""; data.forEach((arc) => {
+                const dateObj = new Date(arc.week_date); const formattedDate = dateObj.toLocaleDateString('en-GB') + " " + dateObj.toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'});
+                html += `<div class="card" style="border-color:var(--purple);"><h3>أرشيف أسبوع: ${formattedDate}</h3><table><thead><tr><th>العضو</th><th>الرتبة</th><th>الساعات</th></tr></thead><tbody>`;
+                arc.records.sort((a,b) => b.weekly_hours - a.weekly_hours).forEach(r => { html += `<tr><td>${r.username}</td><td>${r.role}</td><td>${formatMins(r.weekly_hours)}</td></tr>`; });
+                html += `</tbody></table></div>`;
             });
-            const data = await res.json(); 
+            document.getElementById('archive-content').innerHTML = html || "الأرشيف فارغ.";
+        }
+
+        // --- إصلاح الدوال المقطوعة ---
+        async function submitLeave() { 
+            const reason = document.getElementById('leave-reason').value; 
+            const duration = document.getElementById('leave-days').value; 
+            const res = await fetch('/api/hr/leave', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, body: JSON.stringify({ reason, duration }) }); 
+            const data = await res.json();
             alert(data.msg || data.error);
-            if(res.ok) { 
-                document.getElementById('leave-reason').value = ''; 
-                document.getElementById('leave-days').value = ''; 
-            }
         }
 
         async function submitJustify() {
             const reason = document.getElementById('just-reason').value;
-            if(!reason) return alert("الرجاء كتابة العذر القانوني للغياب.");
-            
-            const res = await fetch('/api/hr/justify', { 
-                method: 'POST', 
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, 
-                body: JSON.stringify({ reason }) 
-            });
-            const data = await res.json(); 
+            const res = await fetch('/api/hr/justify', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, body: JSON.stringify({ reason }) });
+            const data = await res.json();
             alert(data.msg || data.error);
-            if(res.ok) document.getElementById('just-reason').value = '';
         }
 
         async function fetchHRRequests() {
-            try {
-                const res = await fetch('/api/hr/requests', { headers: { 'Authorization': `Bearer ${userToken}` } });
-                const data = await res.json();
-                
-                let leavesHtml = "";
-                (data.leaves || []).forEach(r => {
-                    leavesHtml += `<div class="card" style="display:flex; justify-content:space-between; align-items:center;">
-                        <div><b>العضو:</b> <span style="color:var(--primary);">${r.username}</span> | <b>المدة:</b> ${r.days} أيام | <b>السبب:</b> ${r.reason}</div>
-                        <div>
-                            <button onclick="reviewHRRequest('${r._id}', 'leave', 'Approved')" class="btn-warning" style="width:auto; padding:5px 10px;">✔️ قبول</button>
-                            <button onclick="reviewHRRequest('${r._id}', 'leave', 'Rejected')" class="btn-danger" style="width:auto; padding:5px 10px;">❌ رفض</button>
-                        </div>
-                    </div>`;
-                });
-                document.getElementById('hr-leaves-list').innerHTML = leavesHtml || "<p style='color:#555;'>لا توجد طلبات إجازة معلقة.</p>";
-
-                let justsHtml = "";
-                (data.justifications || []).forEach(r => {
-                    justsHtml += `<div class="card" style="display:flex; justify-content:space-between; align-items:center;">
-                        <div><b>العضو:</b> <span style="color:var(--primary);">${r.username}</span> | <b>العذر:</b> ${r.reason}</div>
-                        <div>
-                            <button onclick="reviewHRRequest('${r._id}', 'justify', 'Approved')" class="btn-warning" style="width:auto; padding:5px 10px;">✔️ قبول</button>
-                            <button onclick="reviewHRRequest('${r._id}', 'justify', 'Rejected')" class="btn-danger" style="width:auto; padding:5px 10px;">❌ رفض</button>
-                        </div>
-                    </div>`;
-                });
-                document.getElementById('hr-justs-list').innerHTML = justsHtml || "<p style='color:#555;'>لا توجد تبريرات معلقة.</p>";
-            } catch(e) { console.error("Error fetching HR requests", e); }
+            const res = await fetch('/api/hr/requests', { headers: { 'Authorization': `Bearer ${userToken}` } });
+            const data = await res.json();
+            let leavesHtml = ""; let justsHtml = "";
+            if (data.leaves) data.leaves.forEach(req => { leavesHtml += `<div class="card"><b>${req.username}</b> - المدة: ${req.duration} أيام | السبب: ${req.reason} <button class="btn-warning" onclick="handleHRRequest('${req._id}', 'Leave', 'Approved')">قبول</button></div>`; });
+            if (data.justifications) data.justifications.forEach(req => { justsHtml += `<div class="card"><b>${req.username}</b> - العذر: ${req.reason} <button class="btn-warning" onclick="handleHRRequest('${req._id}', 'Justification', 'Approved')">قبول</button></div>`; });
+            document.getElementById('hr-leaves-list').innerHTML = leavesHtml || "لا يوجد طلبات.";
+            document.getElementById('hr-justs-list').innerHTML = justsHtml || "لا يوجد مبررات.";
         }
 
-        async function reviewHRRequest(id, type, status) {
-            if(!confirm(`تأكيد ${status === 'Approved' ? 'قبول' : 'رفض'} الطلب؟`)) return;
-            const res = await fetch(`/api/hr/${type}/${id}`, { 
-                method: 'PUT', 
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, 
-                body: JSON.stringify({ status }) 
-            });
-            const data = await res.json(); 
-            alert(data.msg || data.error);
+        async function handleHRRequest(id, type, action) {
+            const res = await fetch('/api/hr/action', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, body: JSON.stringify({ request_id: id, type, action }) });
+            const data = await res.json(); alert(data.msg || data.error);
             fetchHRRequests();
         }
 
-        /* --------------- ARCHIVE & ADMIN SYSTEM ---------------- */
-
-        async function fetchArchive() {
-            try {
-                const res = await fetch('/api/admin/archive', { headers: { 'Authorization': `Bearer ${userToken}` } });
-                const data = await res.json();
-                let html = "";
-                data.forEach(week => {
-                    html += `<div class="card" style="border-color:var(--purple);">
-                        <h3 style="color:var(--purple); margin-top:0;">تاريخ الأرشفة: ${new Date(week.date).toLocaleDateString()}</h3>
-                        <table style="margin-top:10px;">
-                            <thead><tr><th>العضو</th><th>الرتبة</th><th>الساعات المسجلة</th></tr></thead>
-                            <tbody>
-                                ${week.records.map(r => `<tr><td>${r.username}</td><td>${r.role}</td><td>${formatMins(r.hours)}</td></tr>`).join('')}
-                            </tbody>
-                        </table>
-                    </div>`;
-                });
-                document.getElementById('archive-content').innerHTML = html || "<p style='color:#555;'>لا توجد سجلات مؤرشفة بعد.</p>";
-            } catch(e) { console.error("Error fetching archive", e); }
-        }
-
         async function fetchAdminUsersList() {
-            try {
-                const res = await fetch('/api/admin/users', { headers: { 'Authorization': `Bearer ${userToken}` } });
-                const users = await res.json();
-                let html = "";
-                users.forEach(u => {
-                    html += `<tr>
-                        <td>${u.username}</td>
-                        <td style="color:gold;">${u.role}</td>
-                        <td>${formatMins(u.hours)}</td>
-                        <td style="color:var(--danger); font-weight:bold;">${u.warnings || 0}</td>
-                        <td style="color:${u.duty_status==='ON-DUTY'?'var(--primary)':'#555'}">${u.duty_status}</td>
-                        <td>
-                            <select style="padding:5px; background:#111; color:#fff; border:1px solid #333; cursor:pointer;" onchange="changeUserRole('${u.username}', this.value)">
-                                <option value="" disabled selected>تعديل الرتبة...</option>
-                                <option value="Soldat">Soldat (جندي)</option>
-                                <option value="Capo">Capo (كابو)</option>
-                                <option value="Chef_Braquage">Chef Braquage (مسؤول سطوات)</option>
-                                <option value="HR_Manager">HR Manager (موارد بشرية)</option>
-                                <option value="Business_Manager">Business Manager (مدير مالي)</option>
-                                <option value="Don">Don (الزعيم)</option>
-                            </select>
-                        </td>
-                    </tr>`;
-                });
-                document.getElementById('tbl-all-users').querySelector('tbody').innerHTML = html;
-            } catch(e) { console.error("Error fetching users list", e); }
+            const res = await fetch('/api/admin/users', { headers: { 'Authorization': `Bearer ${userToken}` } }); const data = await res.json();
+            let html = "";
+            data.forEach(u => {
+                html += `<tr>
+                    <td>${u.username}</td><td>${u.role}</td><td>${formatMins(u.weekly_hours)}</td><td>${u.warnings}</td><td>${u.duty_status}</td>
+                    <td><button onclick="changeRole('${u.username}')" style="padding:5px; font-size:0.8rem;">ترقية/تنزيل</button></td>
+                </tr>`;
+            });
+            document.getElementById('tbl-all-users').querySelector('tbody').innerHTML = html;
         }
 
-        async function changeUserRole(username, newRole) {
-            if(!confirm(`⚠️ تأكيد ترقية/تنزيل [ ${username} ] إلى رتبة [ ${newRole} ]؟`)) return;
-            const res = await fetch('/api/admin/role', { 
-                method: 'PUT', 
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, 
-                body: JSON.stringify({ username, role: newRole }) 
-            });
-            const data = await res.json(); 
-            alert(data.msg || data.error);
-            fetchAdminUsersList();
-            fetchStats();
+        async function changeRole(username) {
+            const newRole = prompt(`أدخل الرتبة الجديدة للعضو ${username}:`);
+            if(newRole) {
+                const res = await fetch('/api/admin/change-role', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, body: JSON.stringify({ target_username: username, new_role: newRole }) });
+                const data = await res.json(); alert(data.msg || data.error); fetchAdminUsersList();
+            }
         }
 
         async function applyPenalty() {
-            const target = document.getElementById('target-name').value;
+            const target_username = document.getElementById('target-name').value;
             const action = document.getElementById('action-type').value;
             const reason = document.getElementById('action-reason').value;
-            
-            if(!target || !reason) return alert("يرجى إدخال اسم العضو وسبب الإجراء بشكل دقيق!");
-            if(!confirm(`🚨 تأكيد تنفيذ إجراء [ ${action} ] على العضو [ ${target} ]؟`)) return;
-
-            const res = await fetch('/api/admin/penalty', { 
-                method: 'POST', 
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, 
-                body: JSON.stringify({ target, action, reason }) 
-            });
-            const data = await res.json(); 
-            alert(data.msg || data.error);
-            
-            if(res.ok) {
-                document.getElementById('target-name').value = '';
-                document.getElementById('action-reason').value = '';
-                fetchAdminUsersList();
-            }
+            const res = await fetch('/api/admin/penalty', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, body: JSON.stringify({ target_username, action, reason }) });
+            const data = await res.json(); alert(data.msg || data.error); fetchAdminUsersList();
         }
 
         async function resetWeeklyHoursAll() {
-            if(confirm("⚠️ إجراء خطير ولا رجعة فيه: هل أنت متأكد من إغلاق الأسبوع الحالي، حفظ الساعات في الأرشيف التاريخي، وتصفير عدادات دوام جميع الأعضاء؟")) {
-                const res = await fetch('/api/admin/reset-weekly', { 
-                    method: 'POST', 
-                    headers: { 'Authorization': `Bearer ${userToken}` } 
-                });
-                const data = await res.json(); 
-                alert(data.msg || "تمت أرشفة الأسبوع وتصفير جميع الساعات بنجاح.");
-                fetchStats();
-                fetchAdminUsersList();
-                fetchArchive();
+            if(confirm("⚠️ تأكيد أرشفة الأسبوع الحالي وتصفير الساعات للجميع؟")) {
+                const res = await fetch('/api/admin/reset-weekly', { method: 'POST', headers: { 'Authorization': `Bearer ${userToken}` } });
+                const data = await res.json(); alert(data.msg || data.error); fetchAdminUsersList(); fetchArchive();
             }
         }
 
-        /* --------------- UI & TAB MANAGEMENT ---------------- */
-
-        function changeTab(tabId, btnElement) {
-            const panels = document.querySelectorAll('.view-panel');
-            panels.forEach(panel => panel.classList.remove('active'));
+        function changeTab(tabId, btn) {
+            document.querySelectorAll('.view-panel').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.menu-btn').forEach(b => b.classList.remove('active'));
             document.getElementById(tabId).classList.add('active');
-
-            const btns = document.querySelectorAll('.menu-btn');
-            btns.forEach(btn => btn.classList.remove('active'));
-            btnElement.classList.add('active');
+            btn.classList.add('active');
         }
-
     </script>
 </body>
 </html>
