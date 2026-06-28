@@ -14,16 +14,24 @@ const io = socketIo(server, { cors: { origin: "*" } });
 const JWT_SECRET = "CORTEZ_MAFIA_SECURE_KEY_2026";
 const PORT = process.env.PORT || 3000;
 
-// استخدم الرابط الخاص بك
+// الرابط الخاص بقاعدة البيانات (يفضل مستقبلاً وضعه في ملف .env)
 const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://moha:cutureire@cluster0.qgk83qz.mongodb.net/cortez?appName=Cluster0';
 
 mongoose.connect(MONGO_URI)
-  .then(() => console.log('✓ Connected Strictly to Cortez DB (v6.0 - Advanced Shop & Cart Mode).'))
+  .then(() => console.log('✓ Connected Strictly to Cortez DB (v6.1 - Quantity & Formatting Update).'))
   .catch(err => console.error('❌ Database Error:', err));
 
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+
+// دالة تنسيق المبالغ المالية (K للآلاف و M للملايين)
+const formatMoney = (amount) => {
+    if (!amount) return '0';
+    if (amount >= 1000000) return (amount / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+    if (amount >= 1000) return (amount / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
+    return amount.toString();
+};
 
 // ---------------- المخططات (Schemas) ----------------
 const UserSchema = new mongoose.Schema({
@@ -55,13 +63,13 @@ const ItemSchema = new mongoose.Schema({
     timestamp: { type: Date, default: Date.now }
 });
 
-// تم تحديث مخطط الطلبات لدعم "السلة" (مجموعة عناصر)
+// مخطط الطلبات محدث لدعم الكميات
 const OrderSchema = new mongoose.Schema({
     username: String,
-    item_name: String, // للحفاظ على توافق الطلبات القديمة
-    price: Number,     // للحفاظ على توافق الطلبات القديمة
-    items: Array,      // المصفوفة الجديدة للطلبات عبر السلة
-    total_price: Number, // إجمالي سعر السلة
+    item_name: String, 
+    price: Number,      
+    items: Array, // ستشمل الآن: { name, price, quantity, total }
+    total_price: Number, 
     status: { type: String, enum: ['Pending', 'Paid'], default: 'Pending' },
     timestamp: { type: Date, default: Date.now }
 });
@@ -79,7 +87,6 @@ const Item = mongoose.model('Item', ItemSchema);
 const Order = mongoose.model('Order', OrderSchema);
 const Treasury = mongoose.model('Treasury', TreasurySchema);
 
-// التأكد من تهيئة الخزينة لأول مرة
 async function initTreasury() {
     const count = await Treasury.countDocuments({});
     if (count === 0) { await new Treasury({ total_balance: 0 }).save(); }
@@ -93,6 +100,7 @@ const verifyAuth = (roles) => {
         if (!token) return res.status(401).json({ error: "غير مصرح." });
         try {
             const decoded = jwt.verify(token, JWT_SECRET);
+            // الدون له صلاحيات مطلقة، الـ HR يقدر يسوي شغل البزنس
             const hasAccess = roles.includes(decoded.role) || decoded.role === 'Don' || (roles.includes('HR_Manager') && decoded.role === 'Business_Manager');
             if (!hasAccess) return res.status(403).json({ error: "رتبتك لا تسمح بالدخول." });
             req.user = decoded; next();
@@ -100,7 +108,7 @@ const verifyAuth = (roles) => {
     }
 };
 
-// ---------------- مسارات التسجيل والدخول ----------------
+// مسارات التسجيل والدخول
 app.post('/api/auth/register', async (req, res) => {
     try {
         const { username, password, discord_id } = req.body;
@@ -122,12 +130,13 @@ app.post('/api/auth/login', async (req, res) => {
     res.json({ token, user: { username: user.username, role: user.role, duty_status: user.duty_status } });
 });
 
-// ---------------- مسارات الشوب والخزينة (النسخة المحدثة v6.0) ----------------
+// ---------------- مسارات الشوب والخزينة ----------------
 app.get('/api/shop/items', async (req, res) => {
     const items = await Item.find().sort({ timestamp: -1 });
     res.json(items);
 });
 
+// الشيف براكاج لديه تحكم كامل في منتجات الشوب
 app.post('/api/shop/add-item', verifyAuth(['Business_Manager', 'Chef_Braquage']), async (req, res) => {
     const { name, price, image_url } = req.body;
     const newItem = new Item({ name, price, image_url, created_by: req.user.username });
@@ -136,7 +145,6 @@ app.post('/api/shop/add-item', verifyAuth(['Business_Manager', 'Chef_Braquage'])
     res.status(201).json({ msg: "تم إضافة الآيتم بنجاح إلى الشوب الرئاسي." });
 });
 
-// جديد: مسار تعديل السعر
 app.put('/api/shop/item/:id', verifyAuth(['Business_Manager', 'Chef_Braquage']), async (req, res) => {
     const { price } = req.body;
     await Item.findByIdAndUpdate(req.params.id, { price });
@@ -144,24 +152,28 @@ app.put('/api/shop/item/:id', verifyAuth(['Business_Manager', 'Chef_Braquage']),
     res.json({ msg: "تم تعديل السعر بنجاح." });
 });
 
-// جديد: مسار حذف منتج
 app.delete('/api/shop/item/:id', verifyAuth(['Business_Manager', 'Chef_Braquage']), async (req, res) => {
     await Item.findByIdAndDelete(req.params.id);
     io.emit('shopUpdated');
     res.json({ msg: "تم حذف المنتج بنجاح." });
 });
 
-// جديد: نظام الشراء عبر السلة (يدعم عدة عناصر)
+// رفع الطلب مع دعم نظام الكميات للجميع
 app.post('/api/shop/checkout', verifyAuth(['Soldier', 'HR_Manager', 'Chef_Braquage', 'Business_Manager']), async (req, res) => {
     const { items } = req.body;
     if (!items || items.length === 0) return res.status(400).json({ error: "السلة فارغة." });
     
     let total_price = 0;
-    items.forEach(i => total_price += i.price);
+    const processedItems = items.map(i => {
+        const qty = i.quantity ? parseInt(i.quantity) : 1; // إذا لم يحدد، نعتبرها 1
+        const itemTotal = i.price * qty;
+        total_price += itemTotal;
+        return { name: i.name, price: i.price, quantity: qty, total: itemTotal };
+    });
 
     const newOrder = new Order({ 
         username: req.user.username, 
-        items: items, 
+        items: processedItems, 
         total_price: total_price, 
         status: 'Pending' 
     });
@@ -171,6 +183,7 @@ app.post('/api/shop/checkout', verifyAuth(['Soldier', 'HR_Manager', 'Chef_Braqua
     res.json({ msg: "تم رفع طلبك للإدارة بنجاح، يرجى تسليم المبلغ داخل المدينة." });
 });
 
+// رؤية الطلبات وتأكيد الدفع (للشيف براكاج ومدراء الأعمال)
 app.get('/api/shop/orders', verifyAuth(['Business_Manager', 'Chef_Braquage', 'HR_Manager']), async (req, res) => {
     const orders = await Order.find().sort({ timestamp: -1 });
     res.json(orders);
@@ -184,7 +197,7 @@ app.post('/api/shop/confirm-payment', verifyAuth(['Business_Manager', 'Chef_Braq
     order.status = 'Paid';
     await order.save();
     
-    const amountToAdd = order.total_price || order.price; // دعم الطلبات القديمة والجديدة
+    const amountToAdd = order.total_price || order.price; 
     await Treasury.updateOne({}, { $inc: { total_balance: amountToAdd } });
     
     io.emit('ordersUpdated');
@@ -194,25 +207,37 @@ app.post('/api/shop/confirm-payment', verifyAuth(['Business_Manager', 'Chef_Braq
 
 app.get('/api/treasury/balance', verifyAuth(['Business_Manager', 'Chef_Braquage', 'HR_Manager']), async (req, res) => {
     const treasury = await Treasury.findOne({});
-    res.json({ balance: treasury ? treasury.total_balance : 0 });
+    // تم إضافة التنسيق المالي للرد لتظهر K و M في الفرونت إند مباشرة للخزينة
+    res.json({ 
+        balance_raw: treasury ? treasury.total_balance : 0,
+        balance_formatted: formatMoney(treasury ? treasury.total_balance : 0)
+    });
 });
 
-// جديد: تصفير الخزينة (صلاحية الـ Don فقط)
 app.post('/api/treasury/reset', verifyAuth(['Don']), async (req, res) => {
     await Treasury.updateOne({}, { total_balance: 0 });
     io.emit('treasuryUpdated');
     res.json({ msg: "تم تصفير الخزينة بالكامل بناءً على أوامر القيادة العليا." });
 });
 
-// جديد: إصدار وصل PDF (يعرض صفحة مجهزة للطباعة بصيغة PDF بنمط عصابة كورتيز)
+// نظام الـ BON (متاح لجميع الأعضاء) + مع دعم الكميات و الـ K/M
+// يمكنك إضافة verifyAuth لضمان أن العصابة فقط تشوفه، لكن خليته مفتوح لتسهيل الطباعة
 app.get('/api/shop/invoice/:id', async (req, res) => {
     const order = await Order.findById(req.params.id);
     if (!order) return res.status(404).send("الطلب غير موجود");
     
-    const itemsList = order.items 
-        ? order.items.map(i => `<li>${i.name} - ${i.price}$</li>`).join('') 
-        : `<li>${order.item_name} - ${order.price}$</li>`;
-    const total = order.total_price || order.price;
+    let itemsList = '';
+    if (order.items && order.items.length > 0) {
+        itemsList = order.items.map(i => {
+            const qty = i.quantity || 1;
+            const itemTotal = i.price * qty;
+            return `<li>${qty}x ${i.name} - ${formatMoney(itemTotal)}$</li>`;
+        }).join('');
+    } else {
+        itemsList = `<li>1x ${order.item_name} - ${formatMoney(order.price)}$</li>`;
+    }
+
+    const total = formatMoney(order.total_price || order.price);
 
     const html = `
     <html lang="ar" dir="rtl">
@@ -222,7 +247,7 @@ app.get('/api/shop/invoice/:id', async (req, res) => {
         <style>
             body { font-family: 'Courier New', monospace; background: #050505; color: #e0e0e0; padding: 40px; text-align: center; }
             .invoice-box { border: 2px solid #00ff66; padding: 40px; max-width: 600px; margin: auto; background: #0a0a0a; box-shadow: 0 0 30px rgba(0,255,102,0.1); }
-            h1 { color: #00ff66; margin-bottom: 5px; letter-spacing: 2px; }
+            h1 { color: #00ff66; margin-bottom: 5px; letter-spacing: 2px; text-transform: uppercase; }
             h3 { color: #555; margin-top: 0; }
             hr { border-color: #222; margin: 30px 0; }
             .details { text-align: right; margin-bottom: 30px; font-size: 1.1rem; line-height: 1.8; }
@@ -254,6 +279,7 @@ app.get('/api/shop/invoice/:id', async (req, res) => {
 });
 
 // ---------------- مسارات الإدارة والأرشيف ----------------
+// الشيف براكاج لم يعد هنا (HR والبزنس فقط)
 app.get('/api/admin/users', verifyAuth(['HR_Manager', 'Business_Manager']), async (req, res) => {
     const users = await User.find({}, 'username role duty_status weekly_hours warnings is_blacklisted');
     res.json(users);
@@ -352,7 +378,6 @@ io.on('connection', (socket) => {
     });
 });
 
-// نظام منع التزوير
 setInterval(async () => {
     const activeUsers = await User.find({ duty_status: 'ON-DUTY' });
     const maxTimeMs = 8 * 60 * 60 * 1000; 
@@ -370,4 +395,4 @@ setInterval(async () => {
     if (stateChanged) io.emit('dutyUpdated', {});
 }, 300000); 
 
-server.listen(PORT, () => console.log(`📡 Cortez System v6.0 running on port ${PORT}`));
+server.listen(PORT, () => console.log(`📡 Cortez System v6.1 running on port ${PORT}`));
