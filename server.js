@@ -63,12 +63,11 @@ const ItemSchema = new mongoose.Schema({
     timestamp: { type: Date, default: Date.now }
 });
 
-// مخطط الطلبات محدث لدعم الكميات
 const OrderSchema = new mongoose.Schema({
     username: String,
     item_name: String, 
     price: Number,      
-    items: Array, // ستشمل الآن: { name, price, quantity, total }
+    items: Array, 
     total_price: Number, 
     status: { type: String, enum: ['Pending', 'Paid'], default: 'Pending' },
     timestamp: { type: Date, default: Date.now }
@@ -100,7 +99,6 @@ const verifyAuth = (roles) => {
         if (!token) return res.status(401).json({ error: "غير مصرح." });
         try {
             const decoded = jwt.verify(token, JWT_SECRET);
-            // الدون له صلاحيات مطلقة، الـ HR يقدر يسوي شغل البزنس
             const hasAccess = roles.includes(decoded.role) || decoded.role === 'Don' || (roles.includes('HR_Manager') && decoded.role === 'Business_Manager');
             if (!hasAccess) return res.status(403).json({ error: "رتبتك لا تسمح بالدخول." });
             req.user = decoded; next();
@@ -136,7 +134,6 @@ app.get('/api/shop/items', async (req, res) => {
     res.json(items);
 });
 
-// الشيف براكاج لديه تحكم كامل في منتجات الشوب
 app.post('/api/shop/add-item', verifyAuth(['Business_Manager', 'Chef_Braquage']), async (req, res) => {
     const { name, price, image_url } = req.body;
     const newItem = new Item({ name, price, image_url, created_by: req.user.username });
@@ -158,14 +155,14 @@ app.delete('/api/shop/item/:id', verifyAuth(['Business_Manager', 'Chef_Braquage'
     res.json({ msg: "تم حذف المنتج بنجاح." });
 });
 
-// رفع الطلب مع دعم نظام الكميات للجميع
+// التعديل 1: رفع الطلب ودفع المبلغ للخزينة مباشرة
 app.post('/api/shop/checkout', verifyAuth(['Soldier', 'HR_Manager', 'Chef_Braquage', 'Business_Manager']), async (req, res) => {
     const { items } = req.body;
     if (!items || items.length === 0) return res.status(400).json({ error: "السلة فارغة." });
     
     let total_price = 0;
     const processedItems = items.map(i => {
-        const qty = i.quantity ? parseInt(i.quantity) : 1; // إذا لم يحدد، نعتبرها 1
+        const qty = i.quantity ? parseInt(i.quantity) : 1; 
         const itemTotal = i.price * qty;
         total_price += itemTotal;
         return { name: i.name, price: i.price, quantity: qty, total: itemTotal };
@@ -175,20 +172,25 @@ app.post('/api/shop/checkout', verifyAuth(['Soldier', 'HR_Manager', 'Chef_Braqua
         username: req.user.username, 
         items: processedItems, 
         total_price: total_price, 
-        status: 'Pending' 
+        status: 'Paid' // تم التعديل: الطلب يُعتبر مدفوع فوراً
     });
     
     await newOrder.save();
+
+    // تم التعديل: إضافة المبلغ فوراً إلى الخزينة
+    await Treasury.updateOne({}, { $inc: { total_balance: total_price } });
+
     io.emit('ordersUpdated');
-    res.json({ msg: "تم رفع طلبك للإدارة بنجاح، يرجى تسليم المبلغ داخل المدينة." });
+    io.emit('treasuryUpdated'); // تحديث الخزينة عند الجميع فوراً
+    res.json({ msg: "تم إتمام عملية الشراء بنجاح وإضافة المبلغ للخزينة." });
 });
 
-// رؤية الطلبات وتأكيد الدفع (للشيف براكاج ومدراء الأعمال)
 app.get('/api/shop/orders', verifyAuth(['Business_Manager', 'Chef_Braquage', 'HR_Manager']), async (req, res) => {
     const orders = await Order.find().sort({ timestamp: -1 });
     res.json(orders);
 });
 
+// مسار تأكيد الدفع اليدوي لم يعد ضرورياً ولكن تركته كإجراء احتياطي إذا كان هناك طلبات معلقة قديمة
 app.post('/api/shop/confirm-payment', verifyAuth(['Business_Manager', 'Chef_Braquage']), async (req, res) => {
     const { order_id } = req.body;
     const order = await Order.findById(order_id);
@@ -207,7 +209,6 @@ app.post('/api/shop/confirm-payment', verifyAuth(['Business_Manager', 'Chef_Braq
 
 app.get('/api/treasury/balance', verifyAuth(['Business_Manager', 'Chef_Braquage', 'HR_Manager']), async (req, res) => {
     const treasury = await Treasury.findOne({});
-    // تم إضافة التنسيق المالي للرد لتظهر K و M في الفرونت إند مباشرة للخزينة
     res.json({ 
         balance_raw: treasury ? treasury.total_balance : 0,
         balance_formatted: formatMoney(treasury ? treasury.total_balance : 0)
@@ -220,8 +221,6 @@ app.post('/api/treasury/reset', verifyAuth(['Don']), async (req, res) => {
     res.json({ msg: "تم تصفير الخزينة بالكامل بناءً على أوامر القيادة العليا." });
 });
 
-// نظام الـ BON (متاح لجميع الأعضاء) + مع دعم الكميات و الـ K/M
-// يمكنك إضافة verifyAuth لضمان أن العصابة فقط تشوفه، لكن خليته مفتوح لتسهيل الطباعة
 app.get('/api/shop/invoice/:id', async (req, res) => {
     const order = await Order.findById(req.params.id);
     if (!order) return res.status(404).send("الطلب غير موجود");
@@ -279,16 +278,25 @@ app.get('/api/shop/invoice/:id', async (req, res) => {
 });
 
 // ---------------- مسارات الإدارة والأرشيف ----------------
-// الشيف براكاج لم يعد هنا (HR والبزنس فقط)
 app.get('/api/admin/users', verifyAuth(['HR_Manager', 'Business_Manager']), async (req, res) => {
     const users = await User.find({}, 'username role duty_status weekly_hours warnings is_blacklisted');
     res.json(users);
 });
 
+// التعديل 3: إجبار الإدارة على اختيار رتبة من ضمن الخيارات المعتمدة فقط
 app.post('/api/admin/change-role', verifyAuth(['Business_Manager']), async (req, res) => {
     const { target_username, new_role } = req.body;
+    
+    // قائمة الخيارات المسموح بها
+    const validRoles = ['Don', 'Business_Manager', 'Chef_Braquage', 'HR_Manager', 'Soldier'];
+    
+    if (!validRoles.includes(new_role)) {
+        return res.status(400).json({ error: "رتبة غير صحيحة! الخيارات المتاحة هي: Don, Business_Manager, Chef_Braquage, HR_Manager, Soldier." });
+    }
+
     await User.findOneAndUpdate({ username: target_username }, { role: new_role });
-    io.emit('dutyUpdated', {}); res.json({ msg: `تم تحديث الرتبة.` });
+    io.emit('dutyUpdated', {}); 
+    res.json({ msg: `تم تحديث الرتبة إلى ${new_role} بنجاح.` });
 });
 
 app.post('/api/admin/reset-weekly-hours', verifyAuth(['Don']), async (req, res) => {
@@ -346,11 +354,22 @@ app.get('/api/hr/requests', verifyAuth(['HR_Manager', 'Business_Manager']), asyn
     res.json({ leaves, justifications });
 });
 
+// التعديل 2: تحسين الاستجابة والتعامل مع الأخطاء عند القبول والرفض
 app.post('/api/hr/action', verifyAuth(['HR_Manager', 'Business_Manager']), async (req, res) => {
     const { type, id, action } = req.body;
-    if (type === 'leave') await Leave.findByIdAndUpdate(id, { status: action });
-    if (type === 'justify') await Justification.findByIdAndUpdate(id, { status: action });
-    io.emit('requestUpdated'); res.json({ msg: "تم تحديث حالة الطلب." });
+    try {
+        if (type === 'leave') {
+            await Leave.findByIdAndUpdate(id, { status: action });
+        } else if (type === 'justify') {
+            await Justification.findByIdAndUpdate(id, { status: action });
+        } else {
+            return res.status(400).json({ error: "نوع الطلب غير معروف." });
+        }
+        io.emit('requestUpdated'); 
+        res.json({ msg: "تم تحديث حالة الطلب بنجاح." });
+    } catch (error) {
+        res.status(400).json({ error: "تأكد من صحة معرف الطلب (ID) المرسل." });
+    }
 });
 
 // ---------------- Sockets ----------------
