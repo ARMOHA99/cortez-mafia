@@ -14,17 +14,18 @@ const io = socketIo(server, { cors: { origin: "*" } });
 const JWT_SECRET = "CORTEZ_MAFIA_SECURE_KEY_2026";
 const PORT = process.env.PORT || 3000;
 
+// استخدم الرابط الخاص بك
 const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://moha:cutureire@cluster0.qgk83qz.mongodb.net/cortez?appName=Cluster0';
 
 mongoose.connect(MONGO_URI)
-  .then(() => console.log('✓ Connected Strictly to Cortez DB (v5.8 - Shop & Treasury Mode).'))
+  .then(() => console.log('✓ Connected Strictly to Cortez DB (v6.0 - Advanced Shop & Cart Mode).'))
   .catch(err => console.error('❌ Database Error:', err));
 
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// المخططات (Schemas)
+// ---------------- المخططات (Schemas) ----------------
 const UserSchema = new mongoose.Schema({
     username: { type: String, required: true, unique: true },
     password: { type: String, required: true },
@@ -46,7 +47,6 @@ const ArchiveSchema = new mongoose.Schema({
     records: Array 
 });
 
-// مخططات الشوب والخزينة الجديدة
 const ItemSchema = new mongoose.Schema({
     name: { type: String, required: true },
     price: { type: Number, required: true },
@@ -55,10 +55,13 @@ const ItemSchema = new mongoose.Schema({
     timestamp: { type: Date, default: Date.now }
 });
 
+// تم تحديث مخطط الطلبات لدعم "السلة" (مجموعة عناصر)
 const OrderSchema = new mongoose.Schema({
     username: String,
-    item_name: String,
-    price: Number,
+    item_name: String, // للحفاظ على توافق الطلبات القديمة
+    price: Number,     // للحفاظ على توافق الطلبات القديمة
+    items: Array,      // المصفوفة الجديدة للطلبات عبر السلة
+    total_price: Number, // إجمالي سعر السلة
     status: { type: String, enum: ['Pending', 'Paid'], default: 'Pending' },
     timestamp: { type: Date, default: Date.now }
 });
@@ -83,14 +86,13 @@ async function initTreasury() {
 }
 initTreasury();
 
-// حماية الرتب المحدثة لتشمل الإدارات الجديدة
+// ---------------- نظام الصلاحيات ----------------
 const verifyAuth = (roles) => {
     return (req, res, next) => {
         const token = req.headers['authorization']?.split(' ')[1];
         if (!token) return res.status(401).json({ error: "غير مصرح." });
         try {
             const decoded = jwt.verify(token, JWT_SECRET);
-            const highRoles = ['Don', 'Business_Manager', 'Chef_Braquage', 'HR_Manager'];
             const hasAccess = roles.includes(decoded.role) || decoded.role === 'Don' || (roles.includes('HR_Manager') && decoded.role === 'Business_Manager');
             if (!hasAccess) return res.status(403).json({ error: "رتبتك لا تسمح بالدخول." });
             req.user = decoded; next();
@@ -98,7 +100,7 @@ const verifyAuth = (roles) => {
     }
 };
 
-// مسارات التسجيل والدخول
+// ---------------- مسارات التسجيل والدخول ----------------
 app.post('/api/auth/register', async (req, res) => {
     try {
         const { username, password, discord_id } = req.body;
@@ -120,7 +122,7 @@ app.post('/api/auth/login', async (req, res) => {
     res.json({ token, user: { username: user.username, role: user.role, duty_status: user.duty_status } });
 });
 
-// مسارات الشوب والخزينة
+// ---------------- مسارات الشوب والخزينة (النسخة المحدثة v6.0) ----------------
 app.get('/api/shop/items', async (req, res) => {
     const items = await Item.find().sort({ timestamp: -1 });
     res.json(items);
@@ -134,25 +136,44 @@ app.post('/api/shop/add-item', verifyAuth(['Business_Manager', 'Chef_Braquage'])
     res.status(201).json({ msg: "تم إضافة الآيتم بنجاح إلى الشوب الرئاسي." });
 });
 
-app.post('/api/shop/buy', verifyAuth(['Soldier', 'HR_Manager', 'Chef_Braquage', 'Business_Manager']), async (req, res) => {
-    const { item_id } = req.body;
-    const item = await Item.findById(item_id);
-    if (!item) return res.status(404).json({ error: "الآيتم غير موجود." });
+// جديد: مسار تعديل السعر
+app.put('/api/shop/item/:id', verifyAuth(['Business_Manager', 'Chef_Braquage']), async (req, res) => {
+    const { price } = req.body;
+    await Item.findByIdAndUpdate(req.params.id, { price });
+    io.emit('shopUpdated');
+    res.json({ msg: "تم تعديل السعر بنجاح." });
+});
+
+// جديد: مسار حذف منتج
+app.delete('/api/shop/item/:id', verifyAuth(['Business_Manager', 'Chef_Braquage']), async (req, res) => {
+    await Item.findByIdAndDelete(req.params.id);
+    io.emit('shopUpdated');
+    res.json({ msg: "تم حذف المنتج بنجاح." });
+});
+
+// جديد: نظام الشراء عبر السلة (يدعم عدة عناصر)
+app.post('/api/shop/checkout', verifyAuth(['Soldier', 'HR_Manager', 'Chef_Braquage', 'Business_Manager']), async (req, res) => {
+    const { items } = req.body;
+    if (!items || items.length === 0) return res.status(400).json({ error: "السلة فارغة." });
     
-    const newOrder = new Order({ username: req.user.username, item_name: item.name, price: item.price, status: 'Pending' });
+    let total_price = 0;
+    items.forEach(i => total_price += i.price);
+
+    const newOrder = new Order({ 
+        username: req.user.username, 
+        items: items, 
+        total_price: total_price, 
+        status: 'Pending' 
+    });
+    
     await newOrder.save();
     io.emit('ordersUpdated');
-    res.json({ msg: "تم إرسال طلب الشراء، يرجى تسليم المبلغ داخل اللعبة للمسؤول." });
+    res.json({ msg: "تم رفع طلبك للإدارة بنجاح، يرجى تسليم المبلغ داخل المدينة." });
 });
 
-app.get('/api/shop/orders', verifyAuth(['Business_Manager', 'Chef_Braquage']), async (req, res) => {
+app.get('/api/shop/orders', verifyAuth(['Business_Manager', 'Chef_Braquage', 'HR_Manager']), async (req, res) => {
     const orders = await Order.find().sort({ timestamp: -1 });
     res.json(orders);
-});
-
-app.get('/api/treasury/balance', verifyAuth(['Business_Manager', 'Chef_Braquage']), async (req, res) => {
-    const treasury = await Treasury.findOne({});
-    res.json({ balance: treasury ? treasury.total_balance : 0 });
 });
 
 app.post('/api/shop/confirm-payment', verifyAuth(['Business_Manager', 'Chef_Braquage']), async (req, res) => {
@@ -163,14 +184,76 @@ app.post('/api/shop/confirm-payment', verifyAuth(['Business_Manager', 'Chef_Braq
     order.status = 'Paid';
     await order.save();
     
-    await Treasury.updateOne({}, { $inc: { total_balance: order.price } });
+    const amountToAdd = order.total_price || order.price; // دعم الطلبات القديمة والجديدة
+    await Treasury.updateOne({}, { $inc: { total_balance: amountToAdd } });
     
     io.emit('ordersUpdated');
     io.emit('treasuryUpdated');
     res.json({ msg: "تم تأكيد الدفع وإضافة المبلغ إلى الخزينة العليا للعصابة." });
 });
 
-// مسارات الإدارة والأرشيف
+app.get('/api/treasury/balance', verifyAuth(['Business_Manager', 'Chef_Braquage', 'HR_Manager']), async (req, res) => {
+    const treasury = await Treasury.findOne({});
+    res.json({ balance: treasury ? treasury.total_balance : 0 });
+});
+
+// جديد: تصفير الخزينة (صلاحية الـ Don فقط)
+app.post('/api/treasury/reset', verifyAuth(['Don']), async (req, res) => {
+    await Treasury.updateOne({}, { total_balance: 0 });
+    io.emit('treasuryUpdated');
+    res.json({ msg: "تم تصفير الخزينة بالكامل بناءً على أوامر القيادة العليا." });
+});
+
+// جديد: إصدار وصل PDF (يعرض صفحة مجهزة للطباعة بصيغة PDF بنمط عصابة كورتيز)
+app.get('/api/shop/invoice/:id', async (req, res) => {
+    const order = await Order.findById(req.params.id);
+    if (!order) return res.status(404).send("الطلب غير موجود");
+    
+    const itemsList = order.items 
+        ? order.items.map(i => `<li>${i.name} - ${i.price}$</li>`).join('') 
+        : `<li>${order.item_name} - ${order.price}$</li>`;
+    const total = order.total_price || order.price;
+
+    const html = `
+    <html lang="ar" dir="rtl">
+    <head>
+        <meta charset="UTF-8">
+        <title>CORTEZ MAFIA - INVOICE</title>
+        <style>
+            body { font-family: 'Courier New', monospace; background: #050505; color: #e0e0e0; padding: 40px; text-align: center; }
+            .invoice-box { border: 2px solid #00ff66; padding: 40px; max-width: 600px; margin: auto; background: #0a0a0a; box-shadow: 0 0 30px rgba(0,255,102,0.1); }
+            h1 { color: #00ff66; margin-bottom: 5px; letter-spacing: 2px; }
+            h3 { color: #555; margin-top: 0; }
+            hr { border-color: #222; margin: 30px 0; }
+            .details { text-align: right; margin-bottom: 30px; font-size: 1.1rem; line-height: 1.8; }
+            .total { font-size: 1.5rem; color: gold; font-weight: bold; border-top: 1px dashed #333; padding-top: 20px; margin-top: 20px;}
+            ul { text-align: right; font-size: 1.1rem; list-style: none; padding: 0; }
+            li { padding: 8px 0; border-bottom: 1px solid #111; }
+            .stamp { color: #00ff66; border: 2px solid #00ff66; display: inline-block; padding: 10px 20px; transform: rotate(-10deg); font-weight: bold; margin-top: 30px; }
+        </style>
+    </head>
+    <body onload="window.print()">
+        <div class="invoice-box">
+            <h1>CORTEZ SYNDICATE</h1>
+            <h3>OFFICIAL TRANSACTION RECEIPT</h3>
+            <hr>
+            <div class="details">
+                <p><b>معرف العملية (ID):</b> ${order._id}</p>
+                <p><b>العميل المستلم:</b> ${order.username}</p>
+                <p><b>تاريخ الإصدار:</b> ${new Date(order.timestamp).toLocaleString('en-GB')}</p>
+                <p><b>حالة السداد:</b> ${order.status === 'Paid' ? '<span style="color:#00ff66;">مكتمل ومدفوع بالكامل ✔️</span>' : '<span style="color:red;">معلق ❌</span>'}</p>
+            </div>
+            <hr>
+            <ul>${itemsList}</ul>
+            <div class="total">الإجمالي النهائي: ${total}$</div>
+            ${order.status === 'Paid' ? '<div class="stamp">AUTHORIZED & PAID</div>' : ''}
+        </div>
+    </body>
+    </html>`;
+    res.send(html);
+});
+
+// ---------------- مسارات الإدارة والأرشيف ----------------
 app.get('/api/admin/users', verifyAuth(['HR_Manager', 'Business_Manager']), async (req, res) => {
     const users = await User.find({}, 'username role duty_status weekly_hours warnings is_blacklisted');
     res.json(users);
@@ -182,7 +265,7 @@ app.post('/api/admin/change-role', verifyAuth(['Business_Manager']), async (req,
     io.emit('dutyUpdated', {}); res.json({ msg: `تم تحديث الرتبة.` });
 });
 
-app.post('/api/admin/reset-weekly-hours', verifyAuth([]), async (req, res) => {
+app.post('/api/admin/reset-weekly-hours', verifyAuth(['Don']), async (req, res) => {
     const currentUsers = await User.find({ is_blacklisted: false }, 'username role weekly_hours');
     await new Archive({ records: currentUsers }).save();
     await User.updateMany({}, { weekly_hours: 0, duty_status: 'OFF-DUTY' });
@@ -214,7 +297,7 @@ app.post('/api/admin/penalty', verifyAuth(['HR_Manager', 'Business_Manager']), a
     res.json({ msg: "تم تطبيق الإجراء." });
 });
 
-// مسارات الإحصائيات والـ HR
+// ---------------- مسارات الإحصائيات والـ HR ----------------
 app.get('/api/stats/leaderboard', async (req, res) => {
     const users = await User.find({ is_blacklisted: false }, 'username weekly_hours role duty_status');
     const fmt = users.map(u => ({ username: u.username, role: u.role, duty_status: u.duty_status, hours: u.weekly_hours }));
@@ -244,7 +327,7 @@ app.post('/api/hr/action', verifyAuth(['HR_Manager', 'Business_Manager']), async
     io.emit('requestUpdated'); res.json({ msg: "تم تحديث حالة الطلب." });
 });
 
-// Sockets
+// ---------------- Sockets ----------------
 io.on('connection', (socket) => {
     socket.on('triggerEmergency', (data) => {
         io.emit('emergencyAlert', { 
@@ -287,4 +370,4 @@ setInterval(async () => {
     if (stateChanged) io.emit('dutyUpdated', {});
 }, 300000); 
 
-server.listen(PORT, () => console.log(`📡 Cortez System v5.8 running on port ${PORT}`));
+server.listen(PORT, () => console.log(`📡 Cortez System v6.0 running on port ${PORT}`));
