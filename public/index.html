@@ -1,7 +1,7 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>[ CORTEZ SYSTEM v6.0 ]</title>
+    <title>[ CORTEZ SYSTEM v6.1 ]</title>
     <script src="/socket.io/socket.io.js"></script>
 
     <style>
@@ -23,10 +23,6 @@
         .btn-danger:hover { background: var(--danger); color: #000; }
         .btn-warning { border-color: var(--warning); color: var(--warning); }
         .btn-warning:hover { background: var(--warning); color: #000; }
-
-
-
-
 
         #app-screen { display: none; width: 100%; height: 100%; }
         .sidebar { width: 280px; min-width: 280px; flex-shrink: 0; background: rgba(8,8,8,0.9); border-left: 1px solid #222; padding: 20px; display: flex; flex-direction: column; box-sizing: border-box; }
@@ -54,11 +50,6 @@
         /* Cart Styles */
         #cart-box { background: #111; border: 1px solid var(--warning); padding: 15px; margin-top: 20px; display: none; }
         .cart-item { display: flex; justify-content: space-between; border-bottom: 1px solid #333; padding: 5px 0; }
-
-
-
-
-
     </style>
 </head>
 <body>
@@ -87,7 +78,6 @@
             <h3>CORTEZ SYSTEM</h3>
             <div style="font-size:0.8rem; text-align:center; margin-bottom:20px; color:#666;">
                 القائد: <span id="user-display" style="color:#fff;">-</span> | <span id="role-display" style="color:gold;">-</span>
-
             </div>
             <button class="menu-btn active" onclick="changeTab('panel-dashboard', this)">⏱️ ساعة الدوام والتسجيل</button>
             <button class="menu-btn" onclick="changeTab('panel-leaderboard', this)">🏆 جدول المتصدرين أسبوعياً</button>
@@ -112,17 +102,14 @@
                 <table id="tbl-slacking"><thead><tr><th>العضو</th><th>الرتبة</th><th>الساعات</th></tr></thead><tbody></tbody></table>
             </div>
 
-            <!-- Shop Panel -->
             <div id="panel-shop" class="view-panel">
                 <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #333; padding-bottom:10px;">
                     <h2>🛒 شوب التجهيزات والأسلحة الرسمي للشبكة</h2>
                     <div id="treasury-box" style="display:none; background:#111; padding:10px 20px; border:1px solid gold; color:gold; font-weight:bold;">
                         💰 خزينة العصابة العليا: <span id="treasury-balance">0</span>$
-
                     </div>
                 </div>
 
-                <!-- إضافة آيتم -->
                 <div id="add-item-box" class="card" style="display:none; margin-top:20px; border-color:var(--primary);">
                     <h3>➕ إضافة منتج جديد للشوب (صلاحيات القيادة)</h3>
                     <div style="display:flex; gap:15px; flex-wrap:wrap;">
@@ -138,15 +125,8 @@
                         <div style="display:flex; justify-content:space-between; align-items:center;">
                             <h3>المنتجات المتوفرة:</h3>
                             <button onclick="toggleCart()" class="btn-warning" style="width:auto; padding:8px 15px;">🛒 السلة (<span id="cart-count">0</span>)</button>
-
-
-
-
-
-
                         </div>
                         
-                        <!-- Cart Box -->
                         <div id="cart-box">
                             <h3 style="color:var(--warning); margin-top:0;">عربة التسوق الحالية</h3>
                             <div id="cart-items-container"></div>
@@ -159,10 +139,8 @@
                         <div id="shop-items-container" class="shop-grid"></div>
                     </div>
 
-
-                    <!-- إدارة الطلبات -->
-                    <div id="admin-orders-box" style="flex:2; display:none;" class="card">
-                        <h3 style="color:var(--warning);">📦 طلبات الشراء الواردة والتحقق المالي</h3>
+                    <div id="orders-box" style="flex:2;" class="card">
+                        <h3 style="color:var(--warning);">📦 طلبات الشراء والفواتير (BON)</h3>
                         <div id="orders-list-container"></div>
                     </div>
                 </div>
@@ -175,18 +153,14 @@
                         <div class="input-group"><label>السبب:</label><input type="text" id="leave-reason"></div>
                         <div class="input-group"><label>المدة (أيام):</label><input type="number" id="leave-days"></div>
                         <button onclick="submitLeave()">إرسال طلب الإجازة</button>
-
                     </div>
                     <div style="flex:1;" class="auth-box">
                         <h3>⚖️ نموذج تبرير غياب</h3>
                         <div class="input-group"><label>العذر القانوني:</label><input type="text" id="just-reason"></div>
                         <button onclick="submitJustify()">إرسال التبرير</button>
-
                     </div>
                 </div>
             </div>
-
-
 
             <div id="panel-hr-review" class="view-panel">
                 <h2>🕵️‍♂️ إدارة وتدقيق الطلبات</h2>
@@ -227,14 +201,6 @@
                     </div>
                 </div>
             </div>
-
-
-
-
-
-
-
-
         </div>
     </div>
 
@@ -243,7 +209,15 @@
         let userToken = localStorage.getItem('token') || null; 
         let userData = localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')) : null;
         let liveTimerInterval = null; 
-        let cart = []; // مصفوفة سلة المشتريات
+        let cart = [];
+
+        // Formatting money with K and M
+        function formatMoneyFrontend(amount) {
+            if (!amount) return '0';
+            if (amount >= 1000000) return (amount / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+            if (amount >= 1000) return (amount / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
+            return amount.toString();
+        }
 
         // Matrix rain Effect
         const canvas = document.getElementById('matrix-canvas'); const ctx = canvas.getContext('2d');
@@ -253,10 +227,6 @@
             ctx.fillStyle = 'rgba(0, 0, 0, 0.05)'; ctx.fillRect(0, 0, canvas.width, canvas.height);
             ctx.fillStyle = '#00ff66';
             drops.forEach((y, i) => { ctx.fillText(String.fromCharCode(Math.random() * 128), i * 20, y * 20); if (y * 20 > canvas.height) drops[i] = 0; else drops[i]++; });
-
-
-
-
         }
         setInterval(drawMatrix, 50);
 
@@ -271,8 +241,6 @@
             const username = document.getElementById('reg-user').value; const password = document.getElementById('reg-pass').value; const discord_id = document.getElementById('reg-discord').value;
             const res = await fetch('/api/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password, discord_id }) });
             const data = await res.json(); alert(data.msg || data.error); if(res.status === 201) toggleAuthMode(false);
-
-
         }
 
         async function login() {
@@ -293,7 +261,6 @@
                 document.getElementById('nav-archive').style.display = 'block';
                 document.getElementById('nav-don').style.display = 'block';
                 document.getElementById('treasury-box').style.display = 'block';
-                document.getElementById('admin-orders-box').style.display = 'block';
                 
                 if(['Don', 'Business_Manager', 'Chef_Braquage'].includes(user.role)) {
                     document.getElementById('add-item-box').style.display = 'block';
@@ -301,12 +268,14 @@
                 
                 if(user.role === 'Don') {
                     document.getElementById('btn-global-reset').style.display = 'block';
-                    document.getElementById('btn-treasury-reset').style.display = 'block'; // زر تصفير الخزينة للـ Don
+                    document.getElementById('btn-treasury-reset').style.display = 'block';
                 }
                 
-                fetchHRRequests(); fetchAdminUsersList(); fetchArchive(); fetchOrders(); fetchTreasuryBalance();
+                fetchHRRequests(); fetchAdminUsersList(); fetchArchive(); fetchTreasuryBalance();
             }
-            fetchStats(); fetchShopItems();
+            fetchStats(); 
+            fetchShopItems();
+            fetchOrders(); // متوفرة للجميع الآن لعرض الطلبات الشخصية والفواتير
         }
 
         function logout() { localStorage.clear(); window.location.reload(); }
@@ -354,17 +323,15 @@
 
                 html += `<div class="item-card">
                     <img src="${item.image_url}" onerror="this.src='https://placehold.co/150x150/0d0d0d/00ff66?text=Cortez'">
-
-
                     <h4>${item.name}</h4>
-                    <p style="color:gold; font-weight:bold;">${item.price} $</p>
-                    <button onclick="addToCart('${item._id}', '${item.name}', ${item.price})">[ إضافة للسلة ]</button>
-
-
-
-
-
-
+                    <p style="color:gold; font-weight:bold;">${formatMoneyFrontend(item.price)} $</p>
+                    
+                    <div style="margin: 10px 0;">
+                        <label style="color:var(--primary); font-size:0.8rem;">الكمية:</label>
+                        <input type="number" id="qty-${item._id}" value="1" min="1" max="100" style="width: 60px; text-align: center; background: #222; color: #00ff66; border: 1px solid #00ff66;">
+                    </div>
+                    
+                    <button onclick="addToCart('${item._id}', '${item.name}', ${item.price})">[ إضافة للسلة 🛒 ]</button>
                     ${adminBtns}
                 </div>`;
             });
@@ -383,12 +350,7 @@
             if(newPrice && !isNaN(newPrice)) {
                 await fetch(`/api/shop/item/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, body: JSON.stringify({ price: Number(newPrice) }) });
                 fetchShopItems();
-
-
-
             }
-
-
         }
 
         async function deleteItem(id) {
@@ -396,23 +358,23 @@
                 await fetch(`/api/shop/item/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${userToken}` } });
                 fetchShopItems();
             }
-
-
-
-
-
-
-
         }
 
-        // --- Cart Functions ---
         function toggleCart() {
             const box = document.getElementById('cart-box');
             box.style.display = box.style.display === 'none' || box.style.display === '' ? 'block' : 'none';
         }
 
         function addToCart(id, name, price) {
-            cart.push({ id, name, price });
+            const qtyInput = document.getElementById(`qty-${id}`);
+            const quantity = qtyInput ? parseInt(qtyInput.value) : 1;
+
+            const existingItemIndex = cart.findIndex(i => i.id === id);
+            if (existingItemIndex > -1) {
+                cart[existingItemIndex].quantity += quantity;
+            } else {
+                cart.push({ id, name, price, quantity });
+            }
             updateCartUI();
         }
 
@@ -422,19 +384,23 @@
         }
 
         function updateCartUI() {
-            document.getElementById('cart-count').innerText = cart.length;
-            let html = ""; let total = 0;
+            let totalQty = 0; let total = 0; let html = "";
             cart.forEach((item, index) => {
-                total += item.price;
+                totalQty += item.quantity;
+                const itemTotal = item.price * item.quantity;
+                total += itemTotal;
                 html += `<div class="cart-item">
-                    <span>${item.name}</span>
-                    <span><span style="color:gold;">${item.price}$</span> <span style="color:var(--danger); cursor:pointer; margin-right:10px;" onclick="removeFromCart(${index})">✖</span></span>
+                    <span>${item.quantity}x ${item.name}</span>
+                    <span>
+                        <span style="color:gold;">${formatMoneyFrontend(itemTotal)}$</span> 
+                        <span style="color:var(--danger); cursor:pointer; margin-right:10px;" onclick="removeFromCart(${index})">✖</span>
+                    </span>
                 </div>`;
             });
+            document.getElementById('cart-count').innerText = totalQty;
             document.getElementById('cart-items-container').innerHTML = html || "<p style='color:#666;'>السلة فارغة.</p>";
-            document.getElementById('cart-total').innerText = total;
+            document.getElementById('cart-total').innerText = formatMoneyFrontend(total);
 
-            // فتح السلة تلقائياً عند إضافة آيتم
             if(cart.length > 0) document.getElementById('cart-box').style.display = 'block';
         }
 
@@ -450,49 +416,52 @@
             const data = await res.json(); 
             alert(data.msg || data.error);
             if(res.ok) {
-                cart = []; // تفريغ السلة
+                cart = [];
                 updateCartUI();
                 document.getElementById('cart-box').style.display = 'none';
+                fetchOrders();
             }
         }
 
         /* ---------------- ORDERS & TREASURY ---------------- */
 
         async function fetchOrders() {
-            if(!['Don', 'Business_Manager', 'Chef_Braquage', 'HR_Manager'].includes(userData?.role)) return;
-            const res = await fetch('/api/shop/orders', { headers: { 'Authorization': `Bearer ${userToken}` } }); const orders = await res.json();
+            // الآن الدالة تستدعي الطلبات الخاصة بالعضو، أو كل الطلبات لو كان إداري
+            const res = await fetch('/api/shop/orders', { headers: { 'Authorization': `Bearer ${userToken}` } }); 
+            const orders = await res.json();
+            
             let html = "";
+            const isManager = ['Don', 'Business_Manager', 'Chef_Braquage', 'HR_Manager'].includes(userData?.role);
+
             orders.forEach(o => {
-                // إضافة زر تحميل الوصل (PDF) إذا كان الطلب مكتملاً
-                const actionBtn = o.status === 'Pending' 
-                    ? `<button onclick="confirmPayment('${o._id}')" style="padding:4px 10px; font-size:0.8rem;" class="btn-warning">💵 تم الدفع في اللعبة</button>` 
-                    : `<span style="color:var(--primary);">✔️ مكتمل ومدفوع</span> 
-                       <button onclick="downloadInvoice('${o._id}')" style="padding:2px 8px; font-size:0.8rem; background:#222; border:1px solid #fff; color:#fff; width:auto; display:inline-block; margin-right:10px;">📄 تحميل الوصل</button>`;
-                
-                // دعم الطلبات المجمعة (السلة) أو الطلبات الفردية القديمة
-                let itemsText = o.items ? o.items.map(i => i.name).join(' + ') : o.item_name;
+                let actionBtn = "";
+                if(o.status === 'Pending') {
+                    if(isManager) {
+                        actionBtn = `<button onclick="confirmPayment('${o._id}')" style="padding:4px 10px; font-size:0.8rem;" class="btn-warning">💵 تأكيد الدفع</button>`;
+                    } else {
+                        actionBtn = `<span style="color:var(--warning);">⏳ قيد المراجعة</span>`;
+                    }
+                } else {
+                    actionBtn = `<span style="color:var(--primary);">✔️ مدفوع</span>`;
+                }
+
+                // زر الـ BON متاح للجميع الآن
+                actionBtn += ` <button onclick="downloadInvoice('${o._id}')" style="padding:4px 10px; font-size:0.8rem; background:#0055ff; border:1px solid #fff; color:#fff; width:auto; display:inline-block; margin-right:10px;">📄 طباعة BON</button>`;
+
+                let itemsText = o.items ? o.items.map(i => `${i.quantity || 1}x ${i.name}`).join(' + ') : o.item_name;
+                const displayPrice = formatMoneyFrontend(o.price || o.total_price);
 
                 html += `<div class="card" style="font-size:0.9rem;">
                     <b>المشتري:</b> ${o.username} | <b>السلع:</b> ${itemsText} <br> 
-                    <b>القيمة:</b> <span style="color:gold">${o.price || o.total_price}$</span> | ${actionBtn}
+                    <b>الإجمالي:</b> <span style="color:gold">${displayPrice}$</span> | ${actionBtn}
                 </div>`;
             });
-            document.getElementById('orders-list-container').innerHTML = html || "لا توجد طلبات شراء.";
+            document.getElementById('orders-list-container').innerHTML = html || "لا توجد طلبات.";
         }
 
         async function confirmPayment(order_id) {
             const res = await fetch('/api/shop/confirm-payment', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, body: JSON.stringify({ order_id }) });
-
-
-
-
-
-
-
-
-
             const data = await res.json(); alert(data.msg || data.error);
-
         }
 
         function downloadInvoice(order_id) {
@@ -502,11 +471,11 @@
         async function fetchTreasuryBalance() {
             if(!['Don', 'Business_Manager', 'Chef_Braquage', 'HR_Manager'].includes(userData?.role)) return;
             const res = await fetch('/api/treasury/balance', { headers: { 'Authorization': `Bearer ${userToken}` } }); const data = await res.json();
-            document.getElementById('treasury-balance').innerText = data.balance;
+            document.getElementById('treasury-balance').innerText = formatMoneyFrontend(data.balance);
         }
 
         async function resetTreasury() {
-            if(confirm("⚠️ تحذير: هل أنت متأكد من رغبتك في تصفير خزينة العصابة المالية نهائياً؟ هذا الإجراء لا يمكن التراجع عنه.")) {
+            if(confirm("⚠️ تحذير: هل أنت متأكد من رغبتك في تصفير خزينة العصابة المالية نهائياً؟")) {
                 const res = await fetch('/api/treasury/reset', { method: 'POST', headers: { 'Authorization': `Bearer ${userToken}` } });
                 const data = await res.json();
                 alert(data.msg || "تم تصفير الخزينة بنجاح.");
@@ -527,37 +496,78 @@
             document.getElementById('archive-content').innerHTML = html || "الأرشيف فارغ.";
         }
 
-        async function submitLeave() { const reason = document.getElementById('leave-reason').value; const duration = document.getElementById('leave-days').value; await fetch('/api/hr/leave', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, body: JSON.stringify({ reason, duration }) }); alert("تم إرسال الطلب للإدارة."); }
-        async function submitJustify() { const reason = document.getElementById('just-reason').value; await fetch('/api/hr/justify', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, body: JSON.stringify({ reason }) }); alert("تم إرسال التبرير للإدارة."); }
-        
-        async function fetchHRRequests() {
-            const res = await fetch('/api/hr/requests', { headers: { 'Authorization': `Bearer ${userToken}` } }); const data = await res.json();
-            let lHtml = ""; data.leaves.forEach(l => { lHtml += `<div class="card"><b>العضو: ${l.username}</b> | المدة: ${l.duration} أيام <br><button onclick="hrAction('leave','${l._id}','Approved')">قبول ✔</button> <button onclick="hrAction('leave','${l._id}','Rejected')" class="btn-danger">رفض ❌</button></div>`; });
-            document.getElementById('hr-leaves-list').innerHTML = lHtml || "لا توجد طلبات.";
+        // --- إصلاح الدوال المقطوعة ---
+        async function submitLeave() { 
+            const reason = document.getElementById('leave-reason').value; 
+            const duration = document.getElementById('leave-days').value; 
+            const res = await fetch('/api/hr/leave', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, body: JSON.stringify({ reason, duration }) }); 
+            const data = await res.json();
+            alert(data.msg || data.error);
         }
-        async function hrAction(type, id, action) { await fetch('/api/hr/action', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, body: JSON.stringify({ type, id, action }) }); fetchHRRequests(); }
+
+        async function submitJustify() {
+            const reason = document.getElementById('just-reason').value;
+            const res = await fetch('/api/hr/justify', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, body: JSON.stringify({ reason }) });
+            const data = await res.json();
+            alert(data.msg || data.error);
+        }
+
+        async function fetchHRRequests() {
+            const res = await fetch('/api/hr/requests', { headers: { 'Authorization': `Bearer ${userToken}` } });
+            const data = await res.json();
+            let leavesHtml = ""; let justsHtml = "";
+            if (data.leaves) data.leaves.forEach(req => { leavesHtml += `<div class="card"><b>${req.username}</b> - المدة: ${req.duration} أيام | السبب: ${req.reason} <button class="btn-warning" onclick="handleHRRequest('${req._id}', 'Leave', 'Approved')">قبول</button></div>`; });
+            if (data.justifications) data.justifications.forEach(req => { justsHtml += `<div class="card"><b>${req.username}</b> - العذر: ${req.reason} <button class="btn-warning" onclick="handleHRRequest('${req._id}', 'Justification', 'Approved')">قبول</button></div>`; });
+            document.getElementById('hr-leaves-list').innerHTML = leavesHtml || "لا يوجد طلبات.";
+            document.getElementById('hr-justs-list').innerHTML = justsHtml || "لا يوجد مبررات.";
+        }
+
+        async function handleHRRequest(id, type, action) {
+            const res = await fetch('/api/hr/action', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, body: JSON.stringify({ request_id: id, type, action }) });
+            const data = await res.json(); alert(data.msg || data.error);
+            fetchHRRequests();
+        }
 
         async function fetchAdminUsersList() {
-            const res = await fetch('/api/admin/users', { headers: { 'Authorization': `Bearer ${userToken}` } }); const users = await res.json();
-            let html = ""; users.forEach(u => {
-                const statusStr = u.is_blacklisted ? "BLACK-LIST" : (u.duty_status === 'ON-DUTY' ? "🟢 ON" : "🔴 OFF");
-                html += `<tr><td><b>${u.username}</b></td><td>${u.role}</td><td>${formatMins(u.weekly_hours)}</td><td>${u.warnings}/3</td><td>${statusStr}</td>
-                    <td><select onchange="changeUserRole('${u.username}', this.value)" ${u.role === 'Don' ? 'disabled' : ''}><option value="">-- خيارات الرتب --</option><option value="Soldier">Soldier</option><option value="HR_Manager">HR_Manager</option><option value="Chef_Braquage">Chef Braquage</option><option value="Business_Manager">Business Manager</option></select></td></tr>`;
+            const res = await fetch('/api/admin/users', { headers: { 'Authorization': `Bearer ${userToken}` } }); const data = await res.json();
+            let html = "";
+            data.forEach(u => {
+                html += `<tr>
+                    <td>${u.username}</td><td>${u.role}</td><td>${formatMins(u.weekly_hours)}</td><td>${u.warnings}</td><td>${u.duty_status}</td>
+                    <td><button onclick="changeRole('${u.username}')" style="padding:5px; font-size:0.8rem;">ترقية/تنزيل</button></td>
+                </tr>`;
             });
             document.getElementById('tbl-all-users').querySelector('tbody').innerHTML = html;
         }
 
-        async function changeUserRole(target_username, new_role) { if(!new_role) return; await fetch('/api/admin/change-role', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, body: JSON.stringify({ target_username, new_role }) }); fetchAdminUsersList(); }
-        async function applyPenalty() { const target_username = document.getElementById('target-name').value; const type = document.getElementById('action-type').value; const reason = document.getElementById('action-reason').value; await fetch('/api/admin/penalty', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, body: JSON.stringify({ target_username, type, reason }) }); fetchAdminUsersList(); }
-        async function resetWeeklyHoursAll() { if(!confirm("هل أنت متأكد من أرشفة الأسبوع وتصفير الساعات؟")) return; await fetch('/api/admin/reset-weekly-hours', { method: 'POST', headers: { 'Authorization': `Bearer ${userToken}` } }); alert("تمت العملية بنجاح!"); fetchAdminUsersList(); fetchStats(); }
+        async function changeRole(username) {
+            const newRole = prompt(`أدخل الرتبة الجديدة للعضو ${username}:`);
+            if(newRole) {
+                const res = await fetch('/api/admin/change-role', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, body: JSON.stringify({ target_username: username, new_role: newRole }) });
+                const data = await res.json(); alert(data.msg || data.error); fetchAdminUsersList();
+            }
+        }
 
+        async function applyPenalty() {
+            const target_username = document.getElementById('target-name').value;
+            const action = document.getElementById('action-type').value;
+            const reason = document.getElementById('action-reason').value;
+            const res = await fetch('/api/admin/penalty', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, body: JSON.stringify({ target_username, action, reason }) });
+            const data = await res.json(); alert(data.msg || data.error); fetchAdminUsersList();
+        }
 
+        async function resetWeeklyHoursAll() {
+            if(confirm("⚠️ تأكيد أرشفة الأسبوع الحالي وتصفير الساعات للجميع؟")) {
+                const res = await fetch('/api/admin/reset-weekly', { method: 'POST', headers: { 'Authorization': `Bearer ${userToken}` } });
+                const data = await res.json(); alert(data.msg || data.error); fetchAdminUsersList(); fetchArchive();
+            }
+        }
 
-        function changeTab(panelId, btnElement) { 
-            document.querySelectorAll('.view-panel').forEach(p => p.classList.remove('active')); document.getElementById(panelId).classList.add('active'); 
-            document.querySelectorAll('.menu-btn').forEach(b => b.classList.remove('active')); btnElement.classList.add('active');
-            if(panelId === 'panel-don-control') fetchAdminUsersList(); if(panelId === 'panel-archive') fetchArchive();
-            if(panelId === 'panel-shop') { fetchShopItems(); fetchOrders(); fetchTreasuryBalance(); }
+        function changeTab(tabId, btn) {
+            document.querySelectorAll('.view-panel').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.menu-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            btn.classList.add('active');
         }
     </script>
 </body>
