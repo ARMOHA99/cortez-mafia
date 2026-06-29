@@ -221,7 +221,6 @@ app.post('/api/treasury/reset', verifyAuth(['Don']), async (req, res) => {
 });
 
 // نظام الـ BON (متاح لجميع الأعضاء) + مع دعم الكميات و الـ K/M
-// يمكنك إضافة verifyAuth لضمان أن العصابة فقط تشوفه، لكن خليته مفتوح لتسهيل الطباعة
 app.get('/api/shop/invoice/:id', async (req, res) => {
     const order = await Order.findById(req.params.id);
     if (!order) return res.status(404).send("الطلب غير موجود");
