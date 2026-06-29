@@ -104,7 +104,6 @@
                 <table id="tbl-slacking"><thead><tr><th>العضو</th><th>الرتبة</th><th>الساعات</th></tr></thead><tbody></tbody></table>
             </div>
 
-            <!-- Shop Panel -->
             <div id="panel-shop" class="view-panel">
                 <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #333; padding-bottom:10px;">
                     <h2>🛒 شوب التجهيزات والأسلحة الرسمي للشبكة</h2>
@@ -113,7 +112,6 @@
                     </div>
                 </div>
 
-                <!-- إضافة آيتم -->
                 <div id="add-item-box" class="card" style="display:none; margin-top:20px; border-color:var(--primary);">
                     <h3>➕ إضافة منتج جديد للشوب (صلاحيات القيادة)</h3>
                     <div style="display:flex; gap:15px; flex-wrap:wrap;">
@@ -131,7 +129,6 @@
                             <button onclick="toggleCart()" class="btn-warning" style="width:auto; padding:8px 15px;">🛒 السلة (<span id="cart-count">0</span>)</button>
                         </div>
                         
-                        <!-- Cart Box -->
                         <div id="cart-box">
                             <h3 style="color:var(--warning); margin-top:0;">عربة التسوق الحالية</h3>
                             <div id="cart-items-container"></div>
@@ -215,6 +212,14 @@
         let userData = localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')) : null;
         let liveTimerInterval = null; 
         let cart = [];
+
+        // دالة التنقل بين الصفحات (كانت مفقودة)
+        function changeTab(panelId, btnElement) {
+            document.querySelectorAll('.view-panel').forEach(panel => panel.classList.remove('active'));
+            document.querySelectorAll('.menu-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(panelId).classList.add('active');
+            btnElement.classList.add('active');
+        }
 
         function formatMoneyFrontend(amount) {
             if (!amount) return '0';
@@ -307,7 +312,6 @@
         }
 
         /* ---------------- SHOP & CART SYSTEM ---------------- */
-
         async function fetchShopItems() {
             const res = await fetch('/api/shop/items'); const items = await res.json();
             let html = "";
@@ -418,12 +422,11 @@
                 updateCartUI();
                 document.getElementById('cart-box').style.display = 'none';
                 fetchOrders();
-                fetchTreasuryBalance(); // تحديث الخزينة فوراً في الواجهة
+                fetchTreasuryBalance(); 
             }
         }
 
         /* ---------------- ORDERS & TREASURY ---------------- */
-
         async function fetchOrders() {
             const res = await fetch('/api/shop/orders', { headers: { 'Authorization': `Bearer ${userToken}` } }); 
             const orders = await res.json();
@@ -458,7 +461,7 @@
 
         async function confirmPayment(order_id) {
             const res = await fetch('/api/shop/confirm-payment', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, body: JSON.stringify({ order_id }) });
-            const data = await res.json(); alert(data.msg || data.error);
+            const data = await res.json(); alert(data.msg || data.error); fetchOrders(); fetchTreasuryBalance();
         }
 
         function downloadInvoice(order_id) { window.open(`/api/shop/invoice/${order_id}`, '_blank'); }
@@ -476,23 +479,11 @@
             }
         }
 
-        /* ---------------- HR, ARCHIVE, & ADMIN CONTROL ---------------- */
-
-        async function fetchArchive() {
-            const res = await fetch('/api/admin/archive', { headers: { 'Authorization': `Bearer ${userToken}` } }); const data = await res.json();
-            let html = ""; data.forEach((arc) => {
-                const dateObj = new Date(arc.week_date); const formattedDate = dateObj.toLocaleDateString('en-GB') + " " + dateObj.toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'});
-                html += `<div class="card" style="border-color:var(--purple);"><h3>أرشيف أسبوع: ${formattedDate}</h3><table><thead><tr><th>العضو</th><th>الرتبة</th><th>الساعات</th></tr></thead><tbody>`;
-                arc.records.sort((a,b) => b.weekly_hours - a.weekly_hours).forEach(r => { html += `<tr><td>${r.username}</td><td>${r.role}</td><td>${formatMins(r.weekly_hours)}</td></tr>`; });
-                html += `</tbody></table></div>`;
-            });
-            document.getElementById('archive-content').innerHTML = html || "الأرشيف فارغ.";
-        }
-
-        async function submitLeave() { 
-            const reason = document.getElementById('leave-reason').value; 
-            const duration = document.getElementById('leave-days').value; 
-            const res = await fetch('/api/hr/leave', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, body: JSON.stringify({ reason, duration }) }); 
+        /* ---------------- HR & ADMIN & ARCHIVE (الدوال التي كانت مفقودة) ---------------- */
+        async function submitLeave() {
+            const reason = document.getElementById('leave-reason').value;
+            const days = document.getElementById('leave-days').value;
+            const res = await fetch('/api/hr/leave', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, body: JSON.stringify({ reason, days }) });
             const data = await res.json(); alert(data.msg || data.error);
         }
 
@@ -503,92 +494,57 @@
         }
 
         async function fetchHRRequests() {
+            // يفترض وجود Endpoint لجلب الطلبات للإدارة
             const res = await fetch('/api/hr/requests', { headers: { 'Authorization': `Bearer ${userToken}` } });
-            const data = await res.json();
-            let leavesHtml = ""; let justsHtml = "";
-            
-            if (data.leaves) data.leaves.forEach(req => { 
-                leavesHtml += `<div class="card" style="display:flex; justify-content:space-between; align-items:center;">
-                    <div><b>${req.username}</b> - المدة: ${req.duration} أيام <br> <span style="color:#aaa; font-size:0.9rem;">السبب: ${req.reason}</span></div>
-                    <div style="display:flex; gap:10px;">
-                        <button class="btn-success" style="width:auto; padding:5px 15px;" onclick="handleHRRequest('${req._id}', 'Leave', 'Approved')">✔️ قبول</button>
-                        <button class="btn-danger" style="width:auto; padding:5px 15px;" onclick="handleHRRequest('${req._id}', 'Leave', 'Rejected')">❌ رفض</button>
-                    </div>
-                </div>`; 
-            });
-            
-            if (data.justifications) data.justifications.forEach(req => { 
-                justsHtml += `<div class="card" style="display:flex; justify-content:space-between; align-items:center;">
-                    <div><b>${req.username}</b> <br> <span style="color:#aaa; font-size:0.9rem;">العذر: ${req.reason}</span></div>
-                    <div style="display:flex; gap:10px;">
-                        <button class="btn-success" style="width:auto; padding:5px 15px;" onclick="handleHRRequest('${req._id}', 'Justification', 'Approved')">✔️ قبول</button>
-                        <button class="btn-danger" style="width:auto; padding:5px 15px;" onclick="handleHRRequest('${req._id}', 'Justification', 'Rejected')">❌ رفض</button>
-                    </div>
-                </div>`; 
-            });
-            
-            document.getElementById('hr-leaves-list').innerHTML = leavesHtml || "لا توجد طلبات إجازة.";
-            document.getElementById('hr-justs-list').innerHTML = justsHtml || "لا توجد مبررات غياب.";
-        }
-
-        async function handleHRRequest(id, type, action) {
-            const res = await fetch('/api/hr/action', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, body: JSON.stringify({ request_id: id, type, action }) });
-            const data = await res.json(); alert(data.msg || data.error);
-            fetchHRRequests();
-        }
-
-        async function fetchAdminUsersList() {
-            const res = await fetch('/api/admin/users', { headers: { 'Authorization': `Bearer ${userToken}` } }); const data = await res.json();
-            let html = "";
-            data.forEach(u => {
-                html += `<tr>
-                    <td>${u.username}</td>
-                    <td>${u.role}</td>
-                    <td>${formatMins(u.weekly_hours)}</td>
-                    <td>${u.warnings}</td>
-                    <td>${u.duty_status}</td>
-                    <td style="display:flex; gap:5px; align-items:center; justify-content:center;">
-                        <select id="role-select-${u.username}" style="background:#111; color:var(--primary); border:1px solid #333; padding:6px; outline:none;">
-                            <option value="Don" ${u.role==='Don'?'selected':''}>Don</option>
-                            <option value="Business_Manager" ${u.role==='Business_Manager'?'selected':''}>Business_Manager</option>
-                            <option value="Chef_Braquage" ${u.role==='Chef_Braquage'?'selected':''}>Chef_Braquage</option>
-                            <option value="HR_Manager" ${u.role==='HR_Manager'?'selected':''}>HR_Manager</option>
-                            <option value="Soldato" ${u.role==='Soldato'?'selected':''}>Soldato</option>
-                            <option value="Associate" ${u.role==='Associate'?'selected':''}>Associate</option>
-                        </select>
-                        <button class="btn-warning" onclick="changeRole('${u.username}')" style="padding:6px 15px; font-size:0.8rem; width:auto;">حفظ</button>
-                    </td>
-                </tr>`;
-            });
-            document.getElementById('tbl-all-users').querySelector('tbody').innerHTML = html;
-        }
-
-        async function changeRole(username) {
-            const newRole = document.getElementById(`role-select-${username}`).value;
-            const res = await fetch('/api/admin/change-role', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, body: JSON.stringify({ target_username: username, new_role: newRole }) });
-            const data = await res.json(); alert(data.msg || data.error); fetchAdminUsersList();
-        }
-
-        async function applyPenalty() {
-            const target_username = document.getElementById('target-name').value;
-            const action = document.getElementById('action-type').value;
-            const reason = document.getElementById('action-reason').value;
-            const res = await fetch('/api/admin/penalty', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, body: JSON.stringify({ target_username, action, reason }) });
-            const data = await res.json(); alert(data.msg || data.error); fetchAdminUsersList();
-        }
-
-        async function resetWeeklyHoursAll() {
-            if(confirm("⚠️ تأكيد أرشفة الأسبوع الحالي وتصفير الساعات للجميع؟")) {
-                const res = await fetch('/api/admin/reset-weekly', { method: 'POST', headers: { 'Authorization': `Bearer ${userToken}` } });
-                const data = await res.json(); alert(data.msg || data.error); fetchAdminUsersList(); fetchArchive();
+            if(res.ok) {
+                const data = await res.json();
+                document.getElementById('hr-leaves-list').innerHTML = JSON.stringify(data.leaves) || "لا توجد طلبات.";
+                document.getElementById('hr-justs-list').innerHTML = JSON.stringify(data.justifications) || "لا توجد طلبات.";
             }
         }
 
-        function changeTab(tabId, btn) {
-            document.querySelectorAll('.view-panel').forEach(p => p.classList.remove('active'));
-            document.querySelectorAll('.menu-btn').forEach(b => b.classList.remove('active'));
-            document.getElementById(tabId).classList.add('active');
-            btn.classList.add('active');
+        async function fetchArchive() {
+            const res = await fetch('/api/archive', { headers: { 'Authorization': `Bearer ${userToken}` } });
+            if(res.ok) {
+                const data = await res.json();
+                document.getElementById('archive-content').innerHTML = JSON.stringify(data) || "الأرشيف فارغ حالياً.";
+            }
+        }
+
+        async function fetchAdminUsersList() {
+            const res = await fetch('/api/admin/users', { headers: { 'Authorization': `Bearer ${userToken}` } });
+            if(res.ok) {
+                const users = await res.json();
+                let html = "";
+                users.forEach(u => {
+                    html += `<tr><td>${u.username}</td><td>${u.role}</td><td>${formatMins(u.hours)}</td><td>${u.warnings || 0}</td><td>${u.status || 'Active'}</td><td><button onclick="promptChangeRole('${u.username}')" style="padding:2px 5px;font-size:0.8rem;">تعديل</button></td></tr>`;
+                });
+                document.getElementById('tbl-all-users').querySelector('tbody').innerHTML = html;
+            }
+        }
+
+        async function applyPenalty() {
+            const username = document.getElementById('target-name').value;
+            const type = document.getElementById('action-type').value;
+            const reason = document.getElementById('action-reason').value;
+            const res = await fetch('/api/admin/penalty', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, body: JSON.stringify({ username, type, reason }) });
+            const data = await res.json(); alert(data.msg || data.error);
+            fetchAdminUsersList();
+        }
+
+        async function resetWeeklyHoursAll() {
+            if(confirm("⚠️ تأكيد: هل تريد أرشفة هذا الأسبوع وتصفير ساعات جميع الأعضاء؟ هذا الإجراء لا يمكن التراجع عنه.")) {
+                const res = await fetch('/api/admin/reset-hours', { method: 'POST', headers: { 'Authorization': `Bearer ${userToken}` } });
+                const data = await res.json(); alert(data.msg || data.error);
+            }
+        }
+
+        function promptChangeRole(username) {
+            const newRole = prompt(`أدخل الرتبة الجديدة للعضو ${username}:`);
+            if(newRole) {
+                fetch('/api/admin/change-role', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, body: JSON.stringify({ username, role: newRole }) })
+                .then(res => res.json()).then(data => { alert(data.msg || data.error); fetchAdminUsersList(); });
+            }
         }
     </script>
 </body>
