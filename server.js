@@ -18,19 +18,27 @@ const PORT = process.env.PORT || 3000;
 const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://moha:cutureire@cluster0.qgk83qz.mongodb.net/cortez?appName=Cluster0';
 
 mongoose.connect(MONGO_URI)
-  .then(() => console.log('✓ Connected Strictly to Cortez DB (v6.1 - Quantity & Formatting Update).'))
+  .then(() => console.log('✓ Connected Strictly to Cortez DB (v6.2 - Precision Formatting Update).'))
   .catch(err => console.error('❌ Database Error:', err));
 
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// دالة تنسيق المبالغ المالية (K للآلاف و M للملايين)
-const formatMoney = (amount) => {
+// ---------------- دوال التنسيق المالي (محدثة) ----------------
+
+// دالة تنسيق المبالغ المالية (K للآلاف و M للملايين) - مخصصة للخزينة
+const formatMoneyShort = (amount) => {
     if (!amount) return '0';
-    if (amount >= 1000000) return (amount / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
-    if (amount >= 1000) return (amount / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
+    if (amount >= 1000000) return (amount / 1000000).toFixed(2).replace(/\.00$/, '') + 'M';
+    if (amount >= 1000) return (amount / 1000).toFixed(2).replace(/\.00$/, '') + 'K';
     return amount.toString();
+};
+
+// دالة الفواتير والسلة (تعرض الرقم بدقة مع فواصل الآلاف)
+const formatMoneyExact = (amount) => {
+    if (!amount) return '0';
+    return amount.toLocaleString('en-US');
 };
 
 // ---------------- المخططات (Schemas) ----------------
@@ -207,10 +215,10 @@ app.post('/api/shop/confirm-payment', verifyAuth(['Business_Manager', 'Chef_Braq
 
 app.get('/api/treasury/balance', verifyAuth(['Business_Manager', 'Chef_Braquage', 'HR_Manager']), async (req, res) => {
     const treasury = await Treasury.findOne({});
-    // تم إضافة التنسيق المالي للرد لتظهر K و M في الفرونت إند مباشرة للخزينة
+    // تم استخدام الدالة المختصرة formatMoneyShort هنا للخزينة
     res.json({ 
         balance_raw: treasury ? treasury.total_balance : 0,
-        balance_formatted: formatMoney(treasury ? treasury.total_balance : 0)
+        balance_formatted: formatMoneyShort(treasury ? treasury.total_balance : 0)
     });
 });
 
@@ -220,7 +228,7 @@ app.post('/api/treasury/reset', verifyAuth(['Don']), async (req, res) => {
     res.json({ msg: "تم تصفير الخزينة بالكامل بناءً على أوامر القيادة العليا." });
 });
 
-// نظام الـ BON (متاح لجميع الأعضاء) + مع دعم الكميات و الـ K/M
+// نظام الـ BON (متاح لجميع الأعضاء) + مع دعم الكميات و الدقة المالية
 app.get('/api/shop/invoice/:id', async (req, res) => {
     const order = await Order.findById(req.params.id);
     if (!order) return res.status(404).send("الطلب غير موجود");
@@ -230,13 +238,14 @@ app.get('/api/shop/invoice/:id', async (req, res) => {
         itemsList = order.items.map(i => {
             const qty = i.quantity || 1;
             const itemTotal = i.price * qty;
-            return `<li>${qty}x ${i.name} - ${formatMoney(itemTotal)}$</li>`;
+            // تم استخدام الدالة الدقيقة formatMoneyExact هنا للفاتورة
+            return `<li>${qty}x ${i.name} - ${formatMoneyExact(itemTotal)}$</li>`;
         }).join('');
     } else {
-        itemsList = `<li>1x ${order.item_name} - ${formatMoney(order.price)}$</li>`;
+        itemsList = `<li>1x ${order.item_name} - ${formatMoneyExact(order.price)}$</li>`;
     }
 
-    const total = formatMoney(order.total_price || order.price);
+    const total = formatMoneyExact(order.total_price || order.price);
 
     const html = `
     <html lang="ar" dir="rtl">
@@ -394,4 +403,4 @@ setInterval(async () => {
     if (stateChanged) io.emit('dutyUpdated', {});
 }, 300000); 
 
-server.listen(PORT, () => console.log(`📡 Cortez System v6.1 running on port ${PORT}`));
+server.listen(PORT, () => console.log(`📡 Cortez System v6.2 running on port ${PORT}`));
