@@ -52,10 +52,29 @@
         /* Cart Styles */
         #cart-box { background: #111; border: 1px solid var(--warning); padding: 15px; margin-top: 20px; display: none; }
         .cart-item { display: flex; justify-content: space-between; border-bottom: 1px solid #333; padding: 5px 0; }
+
+        /* Custom Modal Styles */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 2000; justify-content: center; align-items: center; }
+        .custom-modal { background: #0a0a0a; border: 1px solid var(--primary); padding: 30px; width: 400px; max-width: 90%; text-align: center; box-shadow: 0 0 30px rgba(0,255,102,0.15); border-radius: 5px; }
+        .custom-modal h3 { margin-top: 0; color: var(--primary); border-bottom: 1px solid #222; padding-bottom: 10px; }
+        .custom-modal p { margin-bottom: 25px; line-height: 1.6; font-size: 1rem; color: #ccc; }
+        .custom-modal input { width: 100%; padding: 12px; margin-bottom: 20px; background: #000; border: 1px solid #333; color: #fff; box-sizing: border-box; text-align: center; font-size: 1.1rem; }
+        .custom-modal input:focus { border-color: var(--primary); outline: none; }
+        .modal-btns { display: flex; gap: 15px; justify-content: center; }
+        .modal-btns button { flex: 1; padding: 12px; font-size: 1rem; }
     </style>
 </head>
 <body>
     <canvas id="matrix-canvas"></canvas>
+    
+    <div id="modal-container" class="modal-overlay">
+        <div class="custom-modal">
+            <h3 id="modal-title">تنبيه النظام</h3>
+            <p id="modal-msg"></p>
+            <input type="text" id="modal-input" style="display:none;" autocomplete="off">
+            <div class="modal-btns" id="modal-buttons"></div>
+        </div>
+    </div>
     
     <div id="auth-screen">
         <div class="auth-box" id="login-box">
@@ -213,7 +232,53 @@
         let liveTimerInterval = null; 
         let cart = [];
 
-        // دالة التنقل بين الصفحات (كانت مفقودة)
+        // --- Custom UI Modal System ---
+        function showModal(title, msg, type, callback) {
+            const overlay = document.getElementById('modal-container');
+            const titleEl = document.getElementById('modal-title');
+            const msgEl = document.getElementById('modal-msg');
+            const inputEl = document.getElementById('modal-input');
+            const btnsEl = document.getElementById('modal-buttons');
+
+            titleEl.innerText = title;
+            msgEl.innerText = msg;
+            inputEl.style.display = type === 'prompt' ? 'block' : 'none';
+            inputEl.value = '';
+            btnsEl.innerHTML = '';
+
+            const closeBtn = document.createElement('button');
+            closeBtn.innerText = 'إلغاء';
+            closeBtn.className = 'btn-danger';
+            closeBtn.onclick = () => { overlay.style.display = 'none'; if(type === 'prompt') callback(null); else if(type === 'confirm') callback(false); };
+
+            const okBtn = document.createElement('button');
+            okBtn.innerText = 'تأكيد';
+            okBtn.className = 'btn-success';
+            okBtn.onclick = () => { 
+                overlay.style.display = 'none'; 
+                if(type === 'prompt') callback(inputEl.value); 
+                else if(type === 'confirm') callback(true); 
+                else if(type === 'alert' && callback) callback(); 
+            };
+
+            if(type === 'alert') {
+                closeBtn.innerText = 'حسناً المرجو الإنتباه';
+                closeBtn.className = 'btn-warning';
+                btnsEl.appendChild(closeBtn);
+            } else {
+                btnsEl.appendChild(okBtn);
+                btnsEl.appendChild(closeBtn);
+                if(type === 'prompt') setTimeout(() => inputEl.focus(), 100);
+            }
+
+            overlay.style.display = 'flex';
+        }
+
+        const customAlert = (msg, callback) => showModal('إشعار من النظام', msg, 'alert', callback);
+        const customConfirm = (msg, callback) => showModal('تأكيد الإجراء', msg, 'confirm', callback);
+        const customPrompt = (msg, callback) => showModal('إدخال مطلوب', msg, 'prompt', callback);
+
+        // --- Core UI Functions ---
         function changeTab(panelId, btnElement) {
             document.querySelectorAll('.view-panel').forEach(panel => panel.classList.remove('active'));
             document.querySelectorAll('.menu-btn').forEach(btn => btn.classList.remove('active'));
@@ -223,9 +288,7 @@
 
         function formatMoneyFrontend(amount) {
             if (!amount) return '0';
-            if (amount >= 1000000) return (amount / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
-            if (amount >= 1000) return (amount / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
-            return amount.toString();
+            return amount.toLocaleString('en-US'); // الدقة في الفواتير والسلة
         }
 
         const canvas = document.getElementById('matrix-canvas'); const ctx = canvas.getContext('2d');
@@ -238,24 +301,34 @@
         }
         setInterval(drawMatrix, 50);
 
-        function triggerEmergency() { if(confirm("⚠️ تأكيد تفعيل حالة الاستنفار؟")) { socket.emit('triggerEmergency', { username: userData ? userData.username : 'Leader' }); } }
-        socket.on('emergencyAlert', (data) => { document.body.classList.add('emergency-blink'); alert(data.message + "\n\nالمرسل: " + data.sender); setTimeout(() => document.body.classList.remove('emergency-blink'), 15000); });
+        function triggerEmergency() { 
+            customConfirm("⚠️ تأكيد تفعيل حالة الاستنفار لجميع أفراد العصابة؟", (yes) => {
+                if(yes) socket.emit('triggerEmergency', { username: userData ? userData.username : 'Leader' }); 
+            });
+        }
+        
+        socket.on('emergencyAlert', (data) => { 
+            document.body.classList.add('emergency-blink'); 
+            customAlert(data.message + "\n\nالمرسل: " + data.sender); 
+            setTimeout(() => document.body.classList.remove('emergency-blink'), 15000); 
+        });
 
         function formatMins(totalMinutes) { const m = parseFloat(totalMinutes); if (isNaN(m) || m <= 0) return "0 دقيقة"; const h = Math.floor(m / 60); const rm = Math.round(m % 60); return h === 0 ? `${rm} دقيقة` : `${h} ساعة و ${rm} د`; }
+        
         window.onload = () => { if (userToken && userData) renderApp(userData); };
         function toggleAuthMode(reg) { document.getElementById('login-box').style.display = reg ? 'none' : 'block'; document.getElementById('reg-box').style.display = reg ? 'block' : 'none'; }
 
         async function register() {
             const username = document.getElementById('reg-user').value; const password = document.getElementById('reg-pass').value; const discord_id = document.getElementById('reg-discord').value;
             const res = await fetch('/api/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password, discord_id }) });
-            const data = await res.json(); alert(data.msg || data.error); if(res.status === 201) toggleAuthMode(false);
+            const data = await res.json(); customAlert(data.msg || data.error); if(res.status === 201) toggleAuthMode(false);
         }
 
         async function login() {
             const username = document.getElementById('log-user').value; const password = document.getElementById('log-pass').value;
             const res = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) });
             const data = await res.json();
-            if(res.status === 200) { userToken = data.token; userData = data.user; localStorage.setItem('token', userToken); localStorage.setItem('user', JSON.stringify(userData)); renderApp(userData); } else { alert(data.error); }
+            if(res.status === 200) { userToken = data.token; userData = data.user; localStorage.setItem('token', userToken); localStorage.setItem('user', JSON.stringify(userData)); renderApp(userData); } else { customAlert(data.error); }
         }
 
         function renderApp(user) {
@@ -346,23 +419,26 @@
         async function addItemToShop() {
             const name = document.getElementById('itm-name').value; const price = document.getElementById('itm-price').value; const image_url = document.getElementById('itm-img').value;
             const res = await fetch('/api/shop/add-item', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, body: JSON.stringify({ name, price, image_url }) });
-            const data = await res.json(); alert(data.msg || data.error);
+            const data = await res.json(); customAlert(data.msg || data.error);
             if(res.ok) { document.getElementById('itm-name').value = ''; document.getElementById('itm-price').value = ''; document.getElementById('itm-img').value = ''; }
         }
 
         async function editItemPrice(id) {
-            const newPrice = prompt("أدخل السعر الجديد للقطعة ($):");
-            if(newPrice && !isNaN(newPrice)) {
-                await fetch(`/api/shop/item/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, body: JSON.stringify({ price: Number(newPrice) }) });
-                fetchShopItems();
-            }
+            customPrompt("أدخل السعر الجديد للقطعة ($):", async (newPrice) => {
+                if(newPrice && !isNaN(newPrice)) {
+                    await fetch(`/api/shop/item/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, body: JSON.stringify({ price: Number(newPrice) }) });
+                    fetchShopItems();
+                }
+            });
         }
 
         async function deleteItem(id) {
-            if(confirm("هل أنت متأكد من حذف هذا المنتج من الشوب نهائياً؟")) {
-                await fetch(`/api/shop/item/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${userToken}` } });
-                fetchShopItems();
-            }
+            customConfirm("هل أنت متأكد من حذف هذا المنتج من الشوب نهائياً؟", async (yes) => {
+                if(yes) {
+                    await fetch(`/api/shop/item/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${userToken}` } });
+                    fetchShopItems();
+                }
+            });
         }
 
         function toggleCart() {
@@ -375,11 +451,7 @@
             const quantity = qtyInput ? parseInt(qtyInput.value) : 1;
 
             const existingItemIndex = cart.findIndex(i => i.id === id);
-            if (existingItemIndex > -1) {
-                cart[existingItemIndex].quantity += quantity;
-            } else {
-                cart.push({ id, name, price, quantity });
-            }
+            if (existingItemIndex > -1) { cart[existingItemIndex].quantity += quantity; } else { cart.push({ id, name, price, quantity }); }
             updateCartUI();
         }
 
@@ -402,50 +474,35 @@
             document.getElementById('cart-count').innerText = totalQty;
             document.getElementById('cart-items-container').innerHTML = html || "<p style='color:#666;'>السلة فارغة.</p>";
             document.getElementById('cart-total').innerText = formatMoneyFrontend(total);
-
             if(cart.length > 0) document.getElementById('cart-box').style.display = 'block';
         }
 
         async function checkoutCart() {
-            if(cart.length === 0) return alert("السلة فارغة!");
-            if(!confirm("تأكيد طلب هذه المنتجات من الإدارة؟")) return;
-
-            const res = await fetch('/api/shop/checkout', { 
-                method: 'POST', 
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, 
-                body: JSON.stringify({ items: cart }) 
+            if(cart.length === 0) return customAlert("السلة فارغة!");
+            customConfirm("تأكيد طلب هذه المنتجات من الإدارة؟", async (yes) => {
+                if(!yes) return;
+                const res = await fetch('/api/shop/checkout', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, body: JSON.stringify({ items: cart }) });
+                const data = await res.json(); 
+                customAlert(data.msg || data.error);
+                if(res.ok) { cart = []; updateCartUI(); document.getElementById('cart-box').style.display = 'none'; fetchOrders(); fetchTreasuryBalance(); }
             });
-            const data = await res.json(); 
-            alert(data.msg || data.error);
-            if(res.ok) {
-                cart = [];
-                updateCartUI();
-                document.getElementById('cart-box').style.display = 'none';
-                fetchOrders();
-                fetchTreasuryBalance(); 
-            }
         }
 
         /* ---------------- ORDERS & TREASURY ---------------- */
         async function fetchOrders() {
             const res = await fetch('/api/shop/orders', { headers: { 'Authorization': `Bearer ${userToken}` } }); 
             const orders = await res.json();
-            
             let html = "";
             const isManager = ['Don', 'Business_Manager', 'Chef_Braquage', 'HR_Manager'].includes(userData?.role);
 
             orders.forEach(o => {
                 let actionBtn = "";
                 if(o.status === 'Pending') {
-                    if(isManager) {
-                        actionBtn = `<button onclick="confirmPayment('${o._id}')" style="padding:4px 10px; font-size:0.8rem;" class="btn-warning">💵 تأكيد الدفع</button>`;
-                    } else {
-                        actionBtn = `<span style="color:var(--warning);">⏳ قيد المراجعة</span>`;
-                    }
+                    if(isManager) actionBtn = `<button onclick="confirmPayment('${o._id}')" style="padding:4px 10px; font-size:0.8rem;" class="btn-warning">💵 تأكيد الدفع</button>`;
+                    else actionBtn = `<span style="color:var(--warning);">⏳ قيد المراجعة</span>`;
                 } else {
                     actionBtn = `<span style="color:var(--primary);">✔️ مدفوع</span>`;
                 }
-
                 actionBtn += ` <button onclick="downloadInvoice('${o._id}')" style="padding:4px 10px; font-size:0.8rem; background:#0055ff; border:1px solid #fff; color:#fff; width:auto; display:inline-block; margin-right:10px;">📄 طباعة BON</button>`;
 
                 let itemsText = o.items ? o.items.map(i => `${i.quantity || 1}x ${i.name}`).join(' + ') : o.item_name;
@@ -461,7 +518,7 @@
 
         async function confirmPayment(order_id) {
             const res = await fetch('/api/shop/confirm-payment', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, body: JSON.stringify({ order_id }) });
-            const data = await res.json(); alert(data.msg || data.error); fetchOrders(); fetchTreasuryBalance();
+            const data = await res.json(); customAlert(data.msg || data.error); fetchOrders(); fetchTreasuryBalance();
         }
 
         function downloadInvoice(order_id) { window.open(`/api/shop/invoice/${order_id}`, '_blank'); }
@@ -469,82 +526,109 @@
         async function fetchTreasuryBalance() {
             if(!['Don', 'Business_Manager', 'Chef_Braquage', 'HR_Manager'].includes(userData?.role)) return;
             const res = await fetch('/api/treasury/balance', { headers: { 'Authorization': `Bearer ${userToken}` } }); const data = await res.json();
-            document.getElementById('treasury-balance').innerText = formatMoneyFrontend(data.balance);
+            document.getElementById('treasury-balance').innerText = data.balance_formatted || data.balance_raw;
         }
 
-        async function resetTreasury() {
-            if(confirm("⚠️ تحذير: هل أنت متأكد من رغبتك في تصفير خزينة العصابة المالية نهائياً؟")) {
-                const res = await fetch('/api/treasury/reset', { method: 'POST', headers: { 'Authorization': `Bearer ${userToken}` } });
-                const data = await res.json(); alert(data.msg || "تم تصفير الخزينة بنجاح."); fetchTreasuryBalance();
-            }
-        }
-
-        /* ---------------- HR & ADMIN & ARCHIVE (الدوال التي كانت مفقودة) ---------------- */
+        /* ---------------- HR REQUESTS & ADMIN ACTIONS ---------------- */
         async function submitLeave() {
-            const reason = document.getElementById('leave-reason').value;
-            const days = document.getElementById('leave-days').value;
-            const res = await fetch('/api/hr/leave', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, body: JSON.stringify({ reason, days }) });
-            const data = await res.json(); alert(data.msg || data.error);
+            const reason = document.getElementById('leave-reason').value; const duration = document.getElementById('leave-days').value;
+            if(!reason || !duration) return customAlert("يرجى تعبئة جميع الحقول.");
+            const res = await fetch('/api/hr/leave', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, body: JSON.stringify({ reason, duration }) });
+            const data = await res.json(); customAlert(data.msg || data.error);
         }
 
         async function submitJustify() {
             const reason = document.getElementById('just-reason').value;
+            if(!reason) return customAlert("يرجى كتابة العذر.");
             const res = await fetch('/api/hr/justify', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, body: JSON.stringify({ reason }) });
-            const data = await res.json(); alert(data.msg || data.error);
+            const data = await res.json(); customAlert(data.msg || data.error);
         }
 
+        // --- إصلاح مشكلة ظهور JSON في صفحة التدقيق ---
         async function fetchHRRequests() {
-            // يفترض وجود Endpoint لجلب الطلبات للإدارة
             const res = await fetch('/api/hr/requests', { headers: { 'Authorization': `Bearer ${userToken}` } });
-            if(res.ok) {
-                const data = await res.json();
-                document.getElementById('hr-leaves-list').innerHTML = JSON.stringify(data.leaves) || "لا توجد طلبات.";
-                document.getElementById('hr-justs-list').innerHTML = JSON.stringify(data.justifications) || "لا توجد طلبات.";
-            }
+            const data = await res.json();
+            
+            let leavesHtml = "<table><thead><tr><th>العضو</th><th>السبب</th><th>المدة</th><th>التاريخ</th><th>إجراء</th></tr></thead><tbody>";
+            if(data.leaves && data.leaves.length > 0) {
+                data.leaves.forEach(l => {
+                    leavesHtml += `<tr><td>${l.username}</td><td>${l.reason}</td><td>${l.duration} أيام</td><td>${new Date(l.timestamp).toLocaleDateString()}</td>
+                    <td><button class="btn-success" style="padding:5px;" onclick="handleHRAction('leave', '${l._id}', 'Approved')">قبول ✔️</button> <button class="btn-danger" style="padding:5px;" onclick="handleHRAction('leave', '${l._id}', 'Rejected')">رفض ❌</button></td></tr>`;
+                });
+            } else { leavesHtml += "<tr><td colspan='5' style='text-align:center;'>لا توجد طلبات إجازة معلقة.</td></tr>"; }
+            leavesHtml += "</tbody></table>";
+            document.getElementById('hr-leaves-list').innerHTML = leavesHtml;
+
+            let justsHtml = "<table><thead><tr><th>العضو</th><th>العذر</th><th>التاريخ</th><th>إجراء</th></tr></thead><tbody>";
+            if(data.justifications && data.justifications.length > 0) {
+                data.justifications.forEach(j => {
+                    justsHtml += `<tr><td>${j.username}</td><td>${j.reason}</td><td>${new Date(j.timestamp).toLocaleDateString()}</td>
+                    <td><button class="btn-success" style="padding:5px;" onclick="handleHRAction('justify', '${j._id}', 'Approved')">قبول ✔️</button> <button class="btn-danger" style="padding:5px;" onclick="handleHRAction('justify', '${j._id}', 'Rejected')">رفض ❌</button></td></tr>`;
+                });
+            } else { justsHtml += "<tr><td colspan='4' style='text-align:center;'>لا توجد تبريرات غياب معلقة.</td></tr>"; }
+            justsHtml += "</tbody></table>";
+            document.getElementById('hr-justs-list').innerHTML = justsHtml;
         }
 
-        async function fetchArchive() {
-            const res = await fetch('/api/archive', { headers: { 'Authorization': `Bearer ${userToken}` } });
-            if(res.ok) {
-                const data = await res.json();
-                document.getElementById('archive-content').innerHTML = JSON.stringify(data) || "الأرشيف فارغ حالياً.";
-            }
+        async function handleHRAction(type, id, action) {
+            await fetch('/api/hr/action', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, body: JSON.stringify({ type, id, action }) });
+            fetchHRRequests();
         }
 
         async function fetchAdminUsersList() {
-            const res = await fetch('/api/admin/users', { headers: { 'Authorization': `Bearer ${userToken}` } });
-            if(res.ok) {
-                const users = await res.json();
-                let html = "";
-                users.forEach(u => {
-                    html += `<tr><td>${u.username}</td><td>${u.role}</td><td>${formatMins(u.hours)}</td><td>${u.warnings || 0}</td><td>${u.status || 'Active'}</td><td><button onclick="promptChangeRole('${u.username}')" style="padding:2px 5px;font-size:0.8rem;">تعديل</button></td></tr>`;
-                });
-                document.getElementById('tbl-all-users').querySelector('tbody').innerHTML = html;
-            }
+            const res = await fetch('/api/admin/users', { headers: { 'Authorization': `Bearer ${userToken}` } }); const users = await res.json();
+            let html = "";
+            users.forEach(u => {
+                html += `<tr><td>${u.username} ${u.is_blacklisted ? '❌' : ''}</td><td>${u.role}</td><td>${formatMins(u.weekly_hours)}</td><td>${u.warnings}/3</td><td style="color:${u.duty_status==='ON-DUTY'?'var(--primary)':'var(--danger)'}">${u.duty_status}</td>
+                <td><button onclick="changeRolePrompt('${u.username}')" style="padding:5px;" class="btn-warning">تغيير الرتبة</button></td></tr>`;
+            });
+            document.getElementById('tbl-all-users').querySelector('tbody').innerHTML = html;
+        }
+
+        function changeRolePrompt(username) {
+            customPrompt(`أدخل الرتبة الجديدة للعضو ${username}:\n(Don, Business_Manager, Chef_Braquage, HR_Manager, Soldier)`, async (newRole) => {
+                if(newRole) {
+                    const res = await fetch('/api/admin/change-role', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, body: JSON.stringify({ target_username: username, new_role: newRole }) });
+                    const data = await res.json(); customAlert(data.msg || data.error); fetchAdminUsersList();
+                }
+            });
         }
 
         async function applyPenalty() {
-            const username = document.getElementById('target-name').value;
-            const type = document.getElementById('action-type').value;
-            const reason = document.getElementById('action-reason').value;
-            const res = await fetch('/api/admin/penalty', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, body: JSON.stringify({ username, type, reason }) });
-            const data = await res.json(); alert(data.msg || data.error);
-            fetchAdminUsersList();
+            const target = document.getElementById('target-name').value; const type = document.getElementById('action-type').value; const reason = document.getElementById('action-reason').value;
+            if(!target) return customAlert("الرجاء إدخال اسم العضو.");
+            const res = await fetch('/api/admin/penalty', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, body: JSON.stringify({ target_username: target, type, reason }) });
+            const data = await res.json(); customAlert(data.msg || data.error); fetchAdminUsersList();
         }
 
+        async function fetchArchive() {
+            const res = await fetch('/api/admin/archive', { headers: { 'Authorization': `Bearer ${userToken}` } }); const data = await res.json();
+            let html = "";
+            data.forEach(arch => {
+                html += `<div class="card"><h4>أسبوع: ${new Date(arch.week_date).toLocaleDateString()}</h4><table style="font-size:0.8rem;"><thead><tr><th>العضو</th><th>الرتبة</th><th>الساعات المنجزة</th></tr></thead><tbody>`;
+                arch.records.forEach(r => { html += `<tr><td>${r.username}</td><td>${r.role}</td><td>${formatMins(r.weekly_hours)}</td></tr>`; });
+                html += `</tbody></table></div>`;
+            });
+            document.getElementById('archive-content').innerHTML = html || "<p>لا توجد سجلات مؤرشفة.</p>";
+        }
+
+        // --- دوال القيادة العليا (Don) ---
         async function resetWeeklyHoursAll() {
-            if(confirm("⚠️ تأكيد: هل تريد أرشفة هذا الأسبوع وتصفير ساعات جميع الأعضاء؟ هذا الإجراء لا يمكن التراجع عنه.")) {
-                const res = await fetch('/api/admin/reset-hours', { method: 'POST', headers: { 'Authorization': `Bearer ${userToken}` } });
-                const data = await res.json(); alert(data.msg || data.error);
-            }
+            customConfirm("⚠️ تحذير: سيتم أرشفة الأسبوع الحالي وتصفير الساعات لجميع الأفراد. هل أنت متأكد؟", async (yes) => {
+                if(!yes) return;
+                const res = await fetch('/api/admin/reset-weekly-hours', { method: 'POST', headers: { 'Authorization': `Bearer ${userToken}` } });
+                const data = await res.json(); customAlert(data.msg || data.error);
+                fetchStats(); fetchAdminUsersList(); fetchArchive();
+            });
         }
-
-        function promptChangeRole(username) {
-            const newRole = prompt(`أدخل الرتبة الجديدة للعضو ${username}:`);
-            if(newRole) {
-                fetch('/api/admin/change-role', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, body: JSON.stringify({ username, role: newRole }) })
-                .then(res => res.json()).then(data => { alert(data.msg || data.error); fetchAdminUsersList(); });
-            }
+        
+        async function resetTreasury() {
+            customConfirm("⚠️ تحذير: هل أنت متأكد من رغبتك في تصفير خزينة العصابة بالكامل؟ لا يمكن التراجع عن هذا الإجراء.", async (yes) => {
+                if(!yes) return;
+                const res = await fetch('/api/treasury/reset', { method: 'POST', headers: { 'Authorization': `Bearer ${userToken}` } });
+                const data = await res.json(); customAlert(data.msg || data.error);
+                fetchTreasuryBalance();
+            });
         }
     </script>
 </body>
