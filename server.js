@@ -115,7 +115,6 @@ const HeistItem = mongoose.model('HeistItem', HeistItemSchema);
 const WeeklyGoal = mongoose.model('WeeklyGoal', WeeklyGoalSchema);
 const HeistLog = mongoose.model('HeistLog', HeistLogSchema);
 
-// تهيئة ذكية وقوية لقاعدة البيانات لمنع الأخطاء الحتمية عند التشغيل الأول
 async function initSystemDB() {
     try {
         const treasuryCount = await Treasury.countDocuments({});
@@ -136,8 +135,8 @@ const verifyAuth = (roles) => {
         if (!token) return res.status(401).json({ error: "غير مصرح بالدخول." });
         try {
             const decoded = jwt.verify(token, JWT_SECRET);
-            // الدون له صلاحيات مطلقة، الـ HR والـ Business Manager يتبادلون الصلاحيات الإدارية المشتركة حسب كودك الأصلي
-            const hasAccess = roles.includes(decoded.role) || decoded.role === 'Don' || (roles.includes('HR_Manager') && decoded.role === 'Business_Manager') || (roles.includes('Business_Manager') && decoded.role === 'HR_Manager');
+            // 💡 تصحيح الخطأ: فصلنا صلاحيات الـ HR والـ Business Manager نهائياً. الدون له صلاحية مطلقة.
+            const hasAccess = roles.includes(decoded.role) || decoded.role === 'Don';
             if (!hasAccess) return res.status(403).json({ error: "رتبتك لا تسمح بالدخول إلى هذا القسم." });
             req.user = decoded; next();
         } catch { res.status(400).json({ error: "جلسة العمل منتهية أو التوكن غير صالح." }); }
@@ -146,7 +145,6 @@ const verifyAuth = (roles) => {
 
 // ================== مسارات نظام السرقات والأهداف الأسبوعية ==================
 
-// تحديد الهدف الأسبوعي وحساب البريمات الذكي (Don)
 app.post('/api/heist/set-goal', verifyAuth(['Don']), async (req, res) => {
     try {
         const target = Number(req.body.target || 0);
@@ -155,7 +153,7 @@ app.post('/api/heist/set-goal', verifyAuth(['Don']), async (req, res) => {
         const activeUsersCount = await User.countDocuments({ is_blacklisted: false, weekly_hours: { $gte: 600 } });
         
         let goal = await WeeklyGoal.findOne();
-        if (!goal) { goal = new WeeklyGoal(); } // تأمين ضد الـ Null Pointer
+        if (!goal) { goal = new WeeklyGoal(); } 
         
         goal.target_amount = target;
         goal.payout_percentage = percentage;
@@ -173,7 +171,6 @@ app.post('/api/heist/set-goal', verifyAuth(['Don']), async (req, res) => {
     } catch (err) { res.status(500).json({ error: "فشل تحديث الهدف: " + err.message }); }
 });
 
-// فتح وإغلاق شريط الأهداف (Don)
 app.post('/api/heist/toggle-goal', verifyAuth(['Don']), async (req, res) => {
     try {
         const { is_visible } = req.body;
@@ -188,7 +185,15 @@ app.post('/api/heist/toggle-goal', verifyAuth(['Don']), async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// إضافة أو حذف نوع سرقة (Don)
+// 💡 إضافة زر جديد: مسار لتصفير شريط الأهداف فقط
+app.post('/api/heist/reset-progress', verifyAuth(['Don']), async (req, res) => {
+    try {
+        await WeeklyGoal.updateMany({}, { current_progress: 0 });
+        io.emit('goalUpdated');
+        res.json({ msg: "تم تصفير شريط الأهداف للبدء من جديد." });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.post('/api/heist/types', verifyAuth(['Don']), async (req, res) => {
     try {
         const { action, name } = req.body;
@@ -209,7 +214,6 @@ app.get('/api/heist/types', async (req, res) => {
     catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// إدارة أسعار الغنائم (Business Manager)
 app.post('/api/heist/items', verifyAuth(['Business_Manager']), async (req, res) => {
     try {
         const { name, price } = req.body;
@@ -229,7 +233,6 @@ app.get('/api/heist/items', async (req, res) => {
     catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// تسجيل العمليات الميدانية والخصم التلقائي (Chef Braquage)
 app.post('/api/heist/submit', verifyAuth(['Chef_Braquage', 'Business_Manager', 'Don']), async (req, res) => {
     try {
         const { heist_type, participants, status, cash, loss, items } = req.body;
@@ -250,21 +253,18 @@ app.post('/api/heist/submit', verifyAuth(['Chef_Braquage', 'Business_Manager', '
                 }
             }
         } else if (status === 'Loss') {
-            total_value -= Number(loss || 0); // الحسبة الذكية لتراجع الشريط بالسالب
+            total_value -= Number(loss || 0); 
         } else { return res.status(400).json({ error: "حالة العملية يجب أن تكون Win أو Loss." }); }
         
-        // تحديث شريط الأهداف مع التأمين ضد الـ Null
         let goal = await WeeklyGoal.findOne();
         if (!goal) { goal = new WeeklyGoal(); }
         goal.current_progress += total_value;
         await goal.save();
         
-        // زيادة نقاط السرقات للمشاركين (+1 مشاركة) لجدول المتصدرين الثاني
         if (participants && participants.length > 0) {
             await User.updateMany({ username: { $in: participants } }, { $inc: { total_heists: 1 } });
         }
         
-        // تسجيل لوق أمني معصوم من التعديل والمحي
         await new HeistLog({
             chef_name: req.user.username,
             heist_type,
@@ -282,7 +282,6 @@ app.post('/api/heist/submit', verifyAuth(['Chef_Braquage', 'Business_Manager', '
     } catch (err) { res.status(500).json({ error: "خطأ في معالجة بيانات العملية: " + err.message }); }
 });
 
-// لوحة معلومات الأهداف للأعضاء
 app.get('/api/heist/dashboard', verifyAuth(['Don', 'Business_Manager', 'Chef_Braquage', 'HR_Manager', 'Soldier']), async (req, res) => {
     try {
         const goal = await WeeklyGoal.findOne();
@@ -291,8 +290,7 @@ app.get('/api/heist/dashboard', verifyAuth(['Don', 'Business_Manager', 'Chef_Bra
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// سجل العمليات الخاص بالإدارة
-app.get('/api/heist/logs', verifyAuth(['Don', 'HR_Manager']), async (req, res) => {
+app.get('/api/heist/logs', verifyAuth(['HR_Manager']), async (req, res) => {
     try {
         const logs = await HeistLog.find().sort({ timestamp: -1 });
         res.json(logs);
@@ -323,12 +321,21 @@ app.post('/api/auth/login', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// 💡 إضافة مسار جلب أسماء الأعضاء للقائمة المنسدلة في استمارة السرقة
+app.get('/api/users/list', verifyAuth(['Chef_Braquage', 'Business_Manager', 'Don']), async (req, res) => {
+    try {
+        const users = await User.find({ is_blacklisted: false }, 'username');
+        res.json(users);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.get('/api/shop/items', async (req, res) => {
     try { const items = await Item.find().sort({ timestamp: -1 }); res.json(items); } 
     catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/shop/add-item', verifyAuth(['Business_Manager', 'Chef_Braquage']), async (req, res) => {
+// 💡 سحب الصلاحيات من الـ Chef Braquage وتخصيصها للـ Business Manager والدون فقط
+app.post('/api/shop/add-item', verifyAuth(['Business_Manager']), async (req, res) => {
     try {
         const { name, price, image_url } = req.body;
         const newItem = new Item({ name, price: Number(price), image_url, created_by: req.user.username });
@@ -338,7 +345,7 @@ app.post('/api/shop/add-item', verifyAuth(['Business_Manager', 'Chef_Braquage'])
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.put('/api/shop/item/:id', verifyAuth(['Business_Manager', 'Chef_Braquage']), async (req, res) => {
+app.put('/api/shop/item/:id', verifyAuth(['Business_Manager']), async (req, res) => {
     try {
         const { price } = req.body;
         await Item.findByIdAndUpdate(req.params.id, { price: Number(price) });
@@ -347,7 +354,7 @@ app.put('/api/shop/item/:id', verifyAuth(['Business_Manager', 'Chef_Braquage']),
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.delete('/api/shop/item/:id', verifyAuth(['Business_Manager', 'Chef_Braquage']), async (req, res) => {
+app.delete('/api/shop/item/:id', verifyAuth(['Business_Manager']), async (req, res) => {
     try {
         await Item.findByIdAndDelete(req.params.id);
         io.emit('shopUpdated');
@@ -380,7 +387,7 @@ app.get('/api/shop/orders', verifyAuth(['Business_Manager', 'Chef_Braquage', 'HR
     catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/shop/confirm-payment', verifyAuth(['Business_Manager', 'Chef_Braquage']), async (req, res) => {
+app.post('/api/shop/confirm-payment', verifyAuth(['Business_Manager']), async (req, res) => {
     try {
         const { order_id } = req.body;
         const order = await Order.findById(order_id);
@@ -397,7 +404,7 @@ app.post('/api/shop/confirm-payment', verifyAuth(['Business_Manager', 'Chef_Braq
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/api/treasury/balance', verifyAuth(['Business_Manager', 'Chef_Braquage', 'HR_Manager']), async (req, res) => {
+app.get('/api/treasury/balance', verifyAuth(['Business_Manager']), async (req, res) => {
     try {
         const treasury = await Treasury.findOne({});
         const balance = treasury ? treasury.total_balance : 0;
@@ -467,16 +474,18 @@ app.get('/api/shop/invoice/:id', async (req, res) => {
     } catch (err) { res.status(500).send("خطأ في جلب الفاتورة: " + err.message); }
 });
 
-app.get('/api/admin/users', verifyAuth(['HR_Manager', 'Business_Manager']), async (req, res) => {
+app.get('/api/admin/users', verifyAuth(['HR_Manager']), async (req, res) => {
     try {
         const users = await User.find({}, 'username role duty_status weekly_hours warnings is_blacklisted');
         res.json(users);
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/admin/change-role', verifyAuth(['Business_Manager']), async (req, res) => {
+// 💡 حماية رتبة البوس: منع ترقية أي شخص لرتبة Don وحصر الترقية في الـ HR
+app.post('/api/admin/change-role', verifyAuth(['HR_Manager']), async (req, res) => {
     try {
         const { target_username, new_role } = req.body;
+        if (new_role === 'Don') return res.status(403).json({ error: "لا يمكن منح رتبة البوس (Don) لأي شخص!" });
         await User.findOneAndUpdate({ username: target_username }, { role: new_role });
         io.emit('dutyUpdated', {}); res.json({ msg: `تم تحديث الرتبة بنجاح.` });
     } catch (err) { res.status(500).json({ error: err.message }); }
@@ -488,19 +497,19 @@ app.post('/api/admin/reset-weekly-hours', verifyAuth(['Don']), async (req, res) 
         await new Archive({ records: currentUsers }).save();
         
         await User.updateMany({}, { weekly_hours: 0, duty_status: 'OFF-DUTY', total_heists: 0 }); 
-        await WeeklyGoal.updateMany({}, { current_progress: 0 }); // تأمين التصفير الشامل للهدف
+        await WeeklyGoal.updateMany({}, { current_progress: 0 }); 
         
         io.emit('dutyUpdated'); io.emit('goalUpdated');
         res.json({ msg: "تمت أرشفة الأسبوع بنجاح وتصفير الساعات والسرقات والهدف الأسبوعي لبدء دورة جديدة." });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/api/admin/archive', verifyAuth(['HR_Manager', 'Business_Manager']), async (req, res) => {
+app.get('/api/admin/archive', verifyAuth(['HR_Manager']), async (req, res) => {
     try { const archives = await Archive.find().sort({ week_date: -1 }); res.json(archives); } 
     catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/admin/penalty', verifyAuth(['HR_Manager', 'Business_Manager']), async (req, res) => {
+app.post('/api/admin/penalty', verifyAuth(['HR_Manager']), async (req, res) => {
     try {
         const { target_username, type, reason } = req.body;
         const user = await User.findOne({ username: target_username });
@@ -548,7 +557,7 @@ app.post('/api/hr/justify', verifyAuth(['Soldier', 'HR_Manager', 'Chef_Braquage'
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/api/hr/requests', verifyAuth(['HR_Manager', 'Business_Manager']), async (req, res) => {
+app.get('/api/hr/requests', verifyAuth(['HR_Manager']), async (req, res) => {
     try {
         const leaves = await Leave.find({ status: 'Pending' });
         const justifications = await Justification.find({ status: 'Pending' });
@@ -556,7 +565,7 @@ app.get('/api/hr/requests', verifyAuth(['HR_Manager', 'Business_Manager']), asyn
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/hr/action', verifyAuth(['HR_Manager', 'Business_Manager']), async (req, res) => {
+app.post('/api/hr/action', verifyAuth(['HR_Manager']), async (req, res) => {
     try {
         const { type, id, action } = req.body;
         if (type === 'leave') await Leave.findByIdAndUpdate(id, { status: action });
