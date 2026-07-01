@@ -1,14 +1,14 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>[ CORTEZ SYSTEM v6.2 ]</title>
+    <title>[ CORTEZ SYSTEM v7.5 ]</title>
     <script src="/socket.io/socket.io.js"></script>
 
     <style>
         :root { --primary: #00ff66; --bg-color: #050505; --panel-bg: #0d0d0d; --danger: #ff3333; --warning: #ffaa00; --text: #e0e0e0; --purple: #b24bf3; --success: #28a745; }
         body { background: var(--bg-color); color: var(--text); font-family: 'Courier New', monospace; margin: 0; padding: 0; display: flex; height: 100vh; overflow: hidden; }
 
-        #matrix-canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; opacity: 0.15; pointer-events: none; }
+        #matrix-canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; opacity: 0.12; pointer-events: none; }
         .emergency-blink { animation: blink 0.5s infinite alternate; border: 5px solid var(--danger) !important; box-shadow: inset 0 0 50px var(--danger); }
         @keyframes blink { 0% { background-color: rgba(5,5,5,1); } 50% { background-color: rgba(50,0,0,0.8); } 100% { background-color: rgba(5,5,5,1); } }
 
@@ -16,7 +16,12 @@
         .auth-box { background: rgba(10,10,10,0.9); border: 1px solid var(--primary); padding: 30px; width: 350px; text-align: center; box-shadow: 0 0 20px rgba(0,255,102,0.1); }
         .input-group { margin-bottom: 15px; text-align: right; }
         .input-group label { display: block; font-size: 0.8rem; margin-bottom: 5px; color: var(--primary); }
-        .input-group input, .input-group select { width: 100%; padding: 10px; background: #121212; border: 1px solid #333; color: #fff; font-family: inherit; box-sizing: border-box; }
+        
+        /* تحسين وتوحيد الستايل لجميع المدخلات لمنع اختلال التصميم مظهر الهكر */
+        .input-group input, .input-group select, .card input, .card select, #chef-submit-box input, #chef-submit-box select { 
+            width: 100%; padding: 10px; background: #121212; border: 1px solid #333; color: #fff; font-family: inherit; box-sizing: border-box; 
+        }
+        
         button { width: 100%; padding: 12px; background: transparent; border: 1px solid var(--primary); color: var(--primary); font-weight: bold; cursor: pointer; font-family: inherit; transition: 0.3s; }
         button:hover { background: var(--primary); color: #000; }
         .btn-danger { border-color: var(--danger); color: var(--danger); }
@@ -41,6 +46,11 @@
         th { background: #151515; color: var(--primary); }
         .card { background: rgba(17,17,17,0.9); border: 1px solid #222; padding: 15px; margin-bottom: 15px; border-radius: 4px; }
         .flex-container { display: flex; gap: 20px; margin-top: 20px; flex-wrap: wrap; }
+
+        /* Progress Bar Setup */
+        .progress-wrapper { background: #111; border: 1px solid #333; border-radius: 4px; height: 30px; position: relative; margin: 20px 0; overflow: hidden; }
+        .progress-bar-fill { background: linear-gradient(90deg, #00aa44, var(--primary)); height: 100%; width: 0%; transition: width 0.5s ease; }
+        .progress-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-weight: bold; color: #fff; text-shadow: 0 0 5px #000; }
 
         /* Shop Styles */
         .shop-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 20px; margin-top: 20px; }
@@ -100,14 +110,15 @@
             <div style="font-size:0.8rem; text-align:center; margin-bottom:20px; color:#666;">
                 العضو: <span id="user-display" style="color:#fff;">-</span> | <span id="role-display" style="color:gold;">-</span>
             </div>
-            <button class="menu-btn active" onclick="changeTab('panel-dashboard', this)">⏱️ON-OFF</button>
-            <button class="menu-btn" onclick="changeTab('panel-leaderboard', this)">🏆WEEKLY LEADERBOARD</button>
-            <button class="menu-btn" onclick="changeTab('panel-shop', this)">🛒 SOLDAT SHOP</button>
-            <button class="menu-btn" onclick="changeTab('panel-requests', this)">📝 ABSENCE-CONGE</button>
-            <button class="menu-btn" id="nav-hr" style="display:none; color:orange;" onclick="changeTab('panel-hr-review', this)">🕵️‍♂️GRH </button>
-            <button class="menu-btn" id="nav-archive" style="display:none; color:var(--purple);" onclick="changeTab('panel-archive', this)">📚 TABLEAU LOG</button>
-            <button class="menu-btn" id="nav-don" style="display:none; color:cyan;" onclick="changeTab('panel-don-control', this)">👑 ADMIN</button>
-            <button class="menu-btn" style="color:var(--danger); margin-top:auto;" onclick="logout()">🚪 SIGN OUT</button>
+            <button class="menu-btn active" onclick="changeTab('panel-dashboard', this)">⏱️ ساعة الدوام والتسجيل</button>
+            <button class="menu-btn" onclick="changeTab('panel-heists', this)">⚔️ العمليات والأهداف الأسبوعية</button>
+            <button class="menu-btn" onclick="changeTab('panel-leaderboard', this)">🏆 جدول المتصدرين أسبوعياً</button>
+            <button class="menu-btn" onclick="changeTab('panel-shop', this)">🛒 شوب العصابة المالي</button>
+            <button class="menu-btn" onclick="changeTab('panel-requests', this)">📝 تقديم الإجازات والتبريرات</button>
+            <button class="menu-btn" id="nav-hr" style="display:none; color:orange;" onclick="changeTab('panel-hr-review', this)">🕵️‍♂️ لوحة تدقيق الـ HR</button>
+            <button class="menu-btn" id="nav-archive" style="display:none; color:var(--purple);" onclick="changeTab('panel-archive', this)">📚 سجل الأرشيف التاريخي</button>
+            <button class="menu-btn" id="nav-don" style="display:none; color:cyan;" onclick="changeTab('panel-don-control', this)">👑 لوحة التحكم العليا</button>
+            <button class="menu-btn" style="color:var(--danger); margin-top:auto;" onclick="logout()">🚪 تسجيل الخروج</button>
         </div>
 
         <div class="main-content">
@@ -116,9 +127,110 @@
                 <button id="punchButton" class="punch-btn" onclick="triggerPunch()">[ STATUS: OFF-DUTY 🔴 ]</button>
             </div>
 
+            <div id="panel-heists" class="view-panel">
+                <h2>⚔️ نظام السرقات وتطوير الإنتاجية الأسبوعية</h2>
+                
+                <div id="global-goal-container" style="display:none;" class="card">
+                    <h3 style="color:var(--primary);">📊 شريط الهدف المالي للأسبوع الحالي</h3>
+                    <div class="progress-wrapper">
+                        <div id="goal-progress-bar" class="progress-bar-fill"></div>
+                        <div id="goal-progress-text" class="progress-text">0 / 0 $ (0%)</div>
+                    </div>
+                </div>
+
+                <div id="don-goal-box" class="card" style="display:none; border-color:cyan;">
+                    <h3 style="color:cyan;">👑 إدارة الهدف الأسبوعي وعمولات الأعضاء (Don)</h3>
+                    <div style="display:flex; gap:15px; flex-wrap:wrap; margin-bottom: 15px;">
+                        <input type="number" id="heist-target-amount" placeholder="الهدف المالي الكلي ($)">
+                        <input type="number" id="heist-payout-percentage" placeholder="نسبة توزيع البونص لكل فرد (%)">
+                        <button onclick="setWeeklyGoal()" style="width:auto; padding:0 20px;">تعميم وتحديث الهدف</button>
+                        <button class="btn-warning" id="btn-toggle-goal-visibility" onclick="toggleGoalVisibility(true)" style="width:auto; padding:0 20px;">إظهار الشريط للأعضاء</button>
+                    </div>
+                    
+                    <h4 style="margin-top:20px; color:#aaa;">🛠️ تهيئة أسماء العمليات الميدانية المعتمدة</h4>
+                    <div style="display:flex; gap:10px;">
+                        <input type="text" id="new-heist-type-name" placeholder="اسم عملية جديدة (مثال: البنك المركزي)">
+                        <button onclick="manageHeistType('add')" style="width:auto; padding:0 20px;">إضافة العملية</button>
+                        <button class="btn-danger" onclick="manageHeistType('delete')" style="width:auto; padding:0 20px;">حذف العملية</button>
+                    </div>
+                </div>
+
+                <div id="bm-pricing-box" class="card" style="display:none; border-color:orange;">
+                    <h3 style="color:orange;">💼 تسعير غنائم ومواد السوق السوداء (Business Manager)</h3>
+                    <div style="display:flex; gap:15px;">
+                        <input type="text" id="heist-item-name" placeholder="اسم المادة (ذهب، ألماس...)">
+                        <input type="number" id="heist-item-price" placeholder="سعر الشراء الحكومي الثابت ($)">
+                        <button class="btn-warning" onclick="setHeistItemPrice()" style="width:auto; padding:0 20px;">تحديث سعر المادة</button>
+                    </div>
+                </div>
+
+                <div id="chef-submit-box" class="card" style="display:none; border-color:var(--primary);">
+                    <h3>📝 استمارة تسجيل وتوثيق عملية ميدانية (Chef Braquage)</h3>
+                    <div class="flex-container" style="margin-top:0;">
+                        <div style="flex:1;" class="input-group">
+                            <label>نوع العملية:</label>
+                            <select id="sel-heist-type"></select>
+                        </div>
+                        <div style="flex:1;" class="input-group">
+                            <label>حالة العملية الميدانية:</label>
+                            <select id="sel-heist-status" onchange="toggleHeistFields(this.value)">
+                                <option value="Win">ناجحة (Win) ✔️</option>
+                                <option value="Loss">فاشلة / خسارة مصادرة (Loss) ❌</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="input-group" style="margin-bottom: 15px;">
+                        <label>أسماء المشاركين الميدانيين (افصل بينهم بفاصلة ,):</label>
+                        <input type="text" id="heist-participants" placeholder="moha, naz, deco">
+                    </div>
+
+                    <div id="heist-win-fields">
+                        <div style="display:flex; gap:15px; margin-bottom:15px;">
+                            <div style="flex:1;" class="input-group">
+                                <label>الكاش الصافي المجموع ($):</label>
+                                <input type="number" id="heist-cash" value="0">
+                            </div>
+                        </div>
+                        <h4 style="color:var(--warning); margin-bottom:5px;">📦 غنائم ومواد إضافية تمت مصادرتها:</h4>
+                        <div id="loot-items-lines"></div>
+                        <button class="btn-success" onclick="addLootLine()" style="width:auto; padding:5px 15px; font-size:0.8rem; margin-bottom:15px;">+ إضافة غنيمة</button>
+                    </div>
+
+                    <div id="heist-loss-fields" style="display:none;">
+                        <div class="input-group">
+                            <label>إجمالي الغرامات المالية المدفوعة أو الخسائر الفادحة ($):</label>
+                            <input type="number" id="heist-loss" value="0">
+                        </div>
+                    </div>
+
+                    <button class="btn-success" onclick="submitHeistReport()">رفع التقرير وتحديث الشريط العام للعصابة</button>
+                </div>
+
+                <div id="heist-logs-box" class="card" style="display:none;">
+                    <h3 style="color:var(--purple);">📋 سجل العمليات الميدانية واللوقات الأمنية</h3>
+                    <table id="tbl-heist-logs">
+                        <thead>
+                            <tr>
+                                <th>القائد المسؤول</th>
+                                <th>العملية</th>
+                                <th>الحالة</th>
+                                <th>المشاركين</th>
+                                <th>القيمة الكلية</th>
+                                <th>التاريخ</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+
             <div id="panel-leaderboard" class="view-panel">
-                <h2>🏆 لوحة الشرف والمتصدرين أسبوعياً</h2>
+                <h2>🏆 لوحة الشرف والمتصدرين أسبوعياً (حسب ساعات الدوام)</h2>
                 <table id="tbl-leaderboard"><thead><tr><th>الترتيب</th><th>العضو</th><th>الرتبة</th><th>الساعات</th><th>الحالة</th></tr></thead><tbody></tbody></table>
+                
+                <h2 style="color:cyan; margin-top:40px;">⚔️ لوحة شرف العمليات الميدانية المنجحة</h2>
+                <table id="tbl-heists-leaderboard"><thead><tr><th>الترتيب</th><th>العضو</th><th>الرتبة</th><th>إجمالي العمليات المنفذة</th></tr></thead><tbody></tbody></table>
+
                 <h2 style="color:var(--danger); margin-top:40px;">🔴 قائمة المحاسبة والأعضاء الخاملين</h2>
                 <table id="tbl-slacking"><thead><tr><th>العضو</th><th>الرتبة</th><th>الساعات</th></tr></thead><tbody></tbody></table>
             </div>
@@ -229,8 +341,10 @@
         const socket = io();
         let userToken = localStorage.getItem('token') || null; 
         let userData = localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')) : null;
-        let liveTimerInterval = null; 
         let cart = [];
+        let globalHeistTypes = [];
+        let globalHeistItems = [];
+        let isGoalVisibleCurrently = false;
 
         // --- Custom UI Modal System ---
         function showModal(title, msg, type, callback) {
@@ -278,7 +392,7 @@
         const customConfirm = (msg, callback) => showModal('تأكيد الإجراء', msg, 'confirm', callback);
         const customPrompt = (msg, callback) => showModal('إدخال مطلوب', msg, 'prompt', callback);
 
-        // --- Core UI Functions ---
+        // --- Core UI Tab Switcher ---
         function changeTab(panelId, btnElement) {
             document.querySelectorAll('.view-panel').forEach(panel => panel.classList.remove('active'));
             document.querySelectorAll('.menu-btn').forEach(btn => btn.classList.remove('active'));
@@ -288,348 +402,852 @@
 
         function formatMoneyFrontend(amount) {
             if (!amount) return '0';
-            return amount.toLocaleString('en-US'); // الدقة في الفواتير والسلة
+            return amount.toLocaleString('en-US');
         }
 
-        const canvas = document.getElementById('matrix-canvas'); const ctx = canvas.getContext('2d');
+        // --- Matrix Digital Rain Canvas Animation ---
+        const canvas = document.getElementById('matrix-canvas'); 
+        const ctx = canvas.getContext('2d');
         canvas.width = window.innerWidth; canvas.height = window.innerHeight;
-        const drops = Array(Math.floor(canvas.width / 20)).fill(1);
+        
+        const katakana = '01';
+        const alphabet = katakana.split('');
+        const fontSize = 16;
+        const columns = canvas.width / fontSize;
+        const rainDrops = Array.from({ length: columns }).fill(1);
+
         function drawMatrix() {
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.05)'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = 'rgba(5, 5, 5, 0.05)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
             ctx.fillStyle = '#00ff66';
-            drops.forEach((y, i) => { ctx.fillText(String.fromCharCode(Math.random() * 128), i * 20, y * 20); if (y * 20 > canvas.height) drops[i] = 0; else drops[i]++; });
-        }
-        setInterval(drawMatrix, 50);
+            ctx.font = fontSize + 'px monospace';
 
-        function triggerEmergency() { 
-            customConfirm("⚠️ تأكيد تفعيل حالة الاستنفار لجميع أفراد العصابة؟", (yes) => {
-                if(yes) socket.emit('triggerEmergency', { username: userData ? userData.username : 'Leader' }); 
-            });
+            for (let i = 0; i < rainDrops.length; i++) {
+                const text = alphabet[Math.floor(Math.random() * alphabet.length)];
+                ctx.fillText(text, i * fontSize, rainDrops[i] * fontSize);
+                if (rainDrops[i] * fontSize > canvas.height && Math.random() > 0.975) {
+                    rainDrops[i] = 0;
+                }
+                rainDrops[i]++;
+            }
         }
-        
-        socket.on('emergencyAlert', (data) => { 
-            document.body.classList.add('emergency-blink'); 
-            customAlert(data.message + "\n\nالمرسل: " + data.sender); 
-            setTimeout(() => document.body.classList.remove('emergency-blink'), 15000); 
-        });
+        setInterval(drawMatrix, 30);
+        window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; });
 
-        function formatMins(totalMinutes) { const m = parseFloat(totalMinutes); if (isNaN(m) || m <= 0) return "0 دقيقة"; const h = Math.floor(m / 60); const rm = Math.round(m % 60); return h === 0 ? `${rm} دقيقة` : `${h} ساعة و ${rm} د`; }
-        
-        window.onload = () => { if (userToken && userData) renderApp(userData); };
-        function toggleAuthMode(reg) { document.getElementById('login-box').style.display = reg ? 'none' : 'block'; document.getElementById('reg-box').style.display = reg ? 'block' : 'none'; }
+        // --- Auth Operations ---
+        function toggleAuthMode(isReg) {
+            document.getElementById('login-box').style.display = isReg ? 'none' : 'block';
+            document.getElementById('reg-box').style.display = isReg ? 'block' : 'none';
+        }
 
         async function register() {
-            const username = document.getElementById('reg-user').value; const password = document.getElementById('reg-pass').value; const discord_id = document.getElementById('reg-discord').value;
-            const res = await fetch('/api/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password, discord_id }) });
-            const data = await res.json(); customAlert(data.msg || data.error); if(res.status === 201) toggleAuthMode(false);
+            const username = document.getElementById('reg-user').value.trim();
+            const password = document.getElementById('reg-pass').value;
+            const discord_id = document.getElementById('reg-discord').value.trim();
+
+            if(!username || !password || !discord_id) return customAlert("الرجاء ملء جميع حقول التسجيل المعتمدة.");
+            
+            try {
+                const res = await fetch('/api/auth/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password, discord_id })
+                });
+                const data = await res.json();
+                if(!res.ok) throw new Error(data.error);
+                customAlert("تم تسجيلك بالتنظيم بنجاح! يرجى الدخول الآن.");
+                toggleAuthMode(false);
+            } catch(err) { customAlert(err.message); }
         }
 
         async function login() {
-            const username = document.getElementById('log-user').value; const password = document.getElementById('log-pass').value;
-            const res = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) });
-            const data = await res.json();
-            if(res.status === 200) { userToken = data.token; userData = data.user; localStorage.setItem('token', userToken); localStorage.setItem('user', JSON.stringify(userData)); renderApp(userData); } else { customAlert(data.error); }
+            const username = document.getElementById('log-user').value.trim();
+            const password = document.getElementById('log-pass').value;
+
+            if(!username || !password) return customAlert("الرجاء إدخال بيانات الدخول.");
+            
+            try {
+                const res = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                const data = await res.json();
+                if(!res.ok) throw new Error(data.error);
+                
+                userToken = data.token;
+                userData = data.user;
+                localStorage.setItem('token', userToken);
+                localStorage.setItem('user', JSON.stringify(userData));
+                
+                initAppSession();
+            } catch(err) { customAlert(err.message); }
         }
 
-        function renderApp(user) {
-            document.getElementById('auth-screen').style.display = 'none'; document.getElementById('app-screen').style.display = 'flex';
-            document.getElementById('user-display').innerText = user.username; document.getElementById('role-display').innerText = user.role;
-            updatePunchButtonUI(user.duty_status); startLiveTimer(user.duty_status); 
+        function logout() {
+            localStorage.clear();
+            location.reload();
+        }
+
+        // --- Core Session Initialization ---
+        function initAppSession() {
+            if(!userToken || !userData) return;
+            document.getElementById('auth-screen').style.display = 'none';
+            document.getElementById('app-screen').style.display = 'flex';
+            document.getElementById('user-display').innerText = userData.username;
+            document.getElementById('role-display').innerText = userData.role;
+
+            updatePunchButtonUI(userData.duty_status);
+            configureRolePermissions(userData.role);
             
-            const isAdmin = ['Don', 'Business_Manager', 'Chef_Braquage', 'HR_Manager'].includes(user.role);
-            if(isAdmin) {
-                document.getElementById('nav-hr').style.display = 'block'; 
+            loadLeaderboardData();
+            loadShopItems();
+            loadHeistDashboard();
+            loadHeistDropdowns();
+            
+            if(['Don', 'HR_Manager', 'Business_Manager', 'Chef_Braquage'].includes(userData.role)) {
+                loadOrdersData();
+            }
+            if(['Don', 'HR_Manager', 'Business_Manager'].includes(userData.role)) {
+                loadAllUsersTable();
+                loadHRRequests();
+                loadArchiveData();
+            }
+            if(['Don', 'HR_Manager'].includes(userData.role)) {
+                loadHeistLogs();
+            }
+        }
+
+        function configureRolePermissions(role) {
+            document.getElementById('nav-hr').style.display = 'none';
+            document.getElementById('nav-archive').style.display = 'none';
+            document.getElementById('nav-don').style.display = 'none';
+            document.getElementById('add-item-box').style.display = 'none';
+            document.getElementById('treasury-box').style.display = 'none';
+            document.getElementById('btn-treasury-reset').style.display = 'none';
+            document.getElementById('btn-global-reset').style.display = 'none';
+            
+            document.getElementById('don-goal-box').style.display = 'none';
+            document.getElementById('bm-pricing-box').style.display = 'none';
+            document.getElementById('chef-submit-box').style.display = 'none';
+            document.getElementById('heist-logs-box').style.display = 'none';
+
+            if(role === 'Don') {
+                document.getElementById('nav-hr').style.display = 'block';
                 document.getElementById('nav-archive').style.display = 'block';
                 document.getElementById('nav-don').style.display = 'block';
-                document.getElementById('treasury-box').style.display = 'block';
-                
-                if(['Don', 'Business_Manager', 'Chef_Braquage'].includes(user.role)) {
-                    document.getElementById('add-item-box').style.display = 'block';
-                }
-                
-                if(user.role === 'Don') {
-                    document.getElementById('btn-global-reset').style.display = 'block';
-                    document.getElementById('btn-treasury-reset').style.display = 'block';
-                }
-                
-                fetchHRRequests(); fetchAdminUsersList(); fetchArchive(); fetchTreasuryBalance();
+                document.getElementById('btn-treasury-reset').style.display = 'inline-block';
+                document.getElementById('btn-global-reset').style.display = 'inline-block';
+                document.getElementById('don-goal-box').style.display = 'block';
+                document.getElementById('chef-submit-box').style.display = 'block';
+                document.getElementById('heist-logs-box').style.display = 'block';
             }
-            fetchStats(); fetchShopItems(); fetchOrders();
+            if(role === 'Business_Manager') {
+                document.getElementById('nav-hr').style.display = 'block';
+                document.getElementById('nav-archive').style.display = 'block';
+                document.getElementById('add-item-box').style.display = 'block';
+                document.getElementById('treasury-box').style.display = 'block';
+                document.getElementById('bm-pricing-box').style.display = 'block';
+                document.getElementById('chef-submit-box').style.display = 'block';
+            }
+            if(role === 'Chef_Braquage') {
+                document.getElementById('add-item-box').style.display = 'block';
+                document.getElementById('chef-submit-box').style.display = 'block';
+            }
+            if(role === 'HR_Manager') {
+                document.getElementById('nav-hr').style.display = 'block';
+                document.getElementById('nav-archive').style.display = 'block';
+                document.getElementById('heist-logs-box').style.display = 'block';
+            }
         }
 
-        function logout() { localStorage.clear(); window.location.reload(); }
-        function startLiveTimer(status) { if(liveTimerInterval) clearInterval(liveTimerInterval); if(status === 'ON-DUTY') liveTimerInterval = setInterval(() => { fetchStats(); }, 60000); }
-
+        // --- Duty / Punch Operations ---
         function triggerPunch() {
-            if(userData && userData.username) {
-                let currentStatus = userData.duty_status || 'OFF-DUTY'; let nextStatus = currentStatus === 'ON-DUTY' ? 'OFF-DUTY' : 'ON-DUTY';
-                userData.duty_status = nextStatus; localStorage.setItem('user', JSON.stringify(userData)); updatePunchButtonUI(nextStatus); startLiveTimer(nextStatus);
-                socket.emit('toggleDuty', { username: userData.username });
-            } else { logout(); }
+            socket.emit('toggleDuty', { username: userData.username });
         }
 
-        socket.on('statusResponse', (data) => { if(userData && data.username.toLowerCase() === userData.username.toLowerCase()) { userData.duty_status = data.duty_status; localStorage.setItem('user', JSON.stringify(userData)); updatePunchButtonUI(data.duty_status); } });
-        socket.on('dutyUpdated', (data) => { fetchStats(); if(userData && ['Don', 'Business_Manager', 'HR_Manager'].includes(userData.role)) fetchAdminUsersList(); });
-        socket.on('shopUpdated', () => { fetchShopItems(); });
-        socket.on('ordersUpdated', () => { fetchOrders(); });
-        socket.on('treasuryUpdated', () => { fetchTreasuryBalance(); });
-
-        function updatePunchButtonUI(status) { const btn = document.getElementById('punchButton'); if(status === 'ON-DUTY') { btn.className = "punch-btn on"; btn.innerText = "[ STATUS: ON-DUTY 🟢 ]"; } else { btn.className = "punch-btn"; btn.innerText = "[ STATUS: OFF-DUTY 🔴 ]"; } }
-
-        async function fetchStats() {
-            const res = await fetch('/api/stats/leaderboard'); const data = await res.json();
-            let lbHtml = ""; data.leaderboard.forEach((u, i) => { lbHtml += `<tr><td>${i+1}</td><td>${u.username}</td><td>${u.role}</td><td>${formatMins(u.hours)}</td><td style="color:${u.duty_status==='ON-DUTY'?'var(--primary)':'var(--danger)'}">${u.duty_status}</td></tr>`; });
-            document.getElementById('tbl-leaderboard').querySelector('tbody').innerHTML = lbHtml;
-            let slHtml = ""; data.slacking.forEach(u => { slHtml += `<tr><td>${u.username}</td><td>${u.role}</td><td style="color:var(--danger);">${formatMins(u.hours)}</td></tr>`; });
-            document.getElementById('tbl-slacking').querySelector('tbody').innerHTML = slHtml;
+        function updatePunchButtonUI(status) {
+            const btn = document.getElementById('punchButton');
+            if(status === 'ON-DUTY') {
+                btn.className = "punch-btn on";
+                btn.innerText = "[ STATUS: ON-DUTY 🟢 ]";
+            } else {
+                btn.className = "punch-btn";
+                btn.innerText = "[ STATUS: OFF-DUTY 🔴 ]";
+            }
         }
 
-        /* ---------------- SHOP & CART SYSTEM ---------------- */
-        async function fetchShopItems() {
-            const res = await fetch('/api/shop/items'); const items = await res.json();
-            let html = "";
-            const isManager = ['Don', 'Business_Manager', 'Chef_Braquage'].includes(userData?.role);
+        // --- Leaderboards Management ---
+        async function loadLeaderboardData() {
+            if(!userToken) return;
+            try {
+                // إضافة الهيدرز لحماية الـ Endpoints وتجنب الـ Unauthorized
+                const res = await fetch('/api/stats/leaderboard', { headers: { 'Authorization': `Bearer ${userToken}` } });
+                const data = await res.json();
+                
+                const lbBody = document.querySelector('#tbl-leaderboard tbody');
+                lbBody.innerHTML = '';
+                data.leaderboard.forEach((u, i) => {
+                    const hrs = (u.hours / 60).toFixed(2);
+                    lbBody.innerHTML += `<tr>
+                        <td><b>#${i+1}</b></td>
+                        <td>${u.username}</td>
+                        <td>${u.role}</td>
+                        <td style="color:var(--primary);">${hrs} ساعة</td>
+                        <td><span style="color:${u.duty_status === 'ON-DUTY' ? 'var(--primary)' : 'var(--danger)'}">${u.duty_status}</span></td>
+                    </tr>`;
+                });
 
-            items.forEach(item => {
-                let adminBtns = "";
-                if(isManager) {
-                    adminBtns = `<div class="admin-controls">
-                        <button class="btn-warning" style="padding:5px;" onclick="editItemPrice('${item._id}')">✏️ تعديل</button>
-                        <button class="btn-danger" style="padding:5px;" onclick="deleteItem('${item._id}')">🗑️ حذف</button>
-                    </div>`;
+                const heistLbBody = document.querySelector('#tbl-heists-leaderboard tbody');
+                heistLbBody.innerHTML = '';
+                data.heists_leaderboard.forEach((u, i) => {
+                    heistLbBody.innerHTML += `<tr>
+                        <td><b>#${i+1}</b></td>
+                        <td>${u.username}</td>
+                        <td>${u.role}</td>
+                        <td style="color:cyan; font-weight:bold;">${u.heists || 0} عملية منجزة</td>
+                    </tr>`;
+                });
+
+                const slackBody = document.querySelector('#tbl-slacking tbody');
+                slackBody.innerHTML = '';
+                data.slacking.forEach(u => {
+                    const hrs = (u.hours / 60).toFixed(2);
+                    slackBody.innerHTML += `<tr>
+                        <td>${u.username}</td>
+                        <td>${u.role}</td>
+                        <td style="color:var(--danger);">${hrs} ساعة</td>
+                    </tr>`;
+                });
+            } catch(err) { console.error("Error loading Leaderboards:", err); }
+        }
+
+        // ================== نظام السرقات والأهداف الأسبوعية المطور ==================
+        async function loadHeistDashboard() {
+            if(!userToken) return;
+            try {
+                const res = await fetch('/api/heist/dashboard', { headers: { 'Authorization': `Bearer ${userToken}` } });
+                const data = await res.json();
+                
+                const goalContainer = document.getElementById('global-goal-container');
+                const toggleVisibilityBtn = document.getElementById('btn-toggle-goal-visibility');
+
+                if(data.visible) {
+                    goalContainer.style.display = 'block';
+                    isGoalVisibleCurrently = true;
+                    if(toggleVisibilityBtn) toggleVisibilityBtn.innerText = "إخفاء الشريط عن الأعضاء";
+                    
+                    const progressPercent = data.target_amount > 0 ? Math.min((data.current_progress / data.target_amount) * 100, 100) : 0;
+                    document.getElementById('goal-progress-bar').style.width = `${progressPercent}%`;
+                    document.getElementById('goal-progress-text').innerText = `${formatMoneyFrontend(data.current_progress)} / ${formatMoneyFrontend(data.target_amount)} $ (${progressPercent.toFixed(1)}%)`;
+                } else {
+                    goalContainer.style.display = 'none';
+                    isGoalVisibleCurrently = false;
+                    if(toggleVisibilityBtn) toggleVisibilityBtn.innerText = "إظهار الشريط للأعضاء";
                 }
+            } catch(err) { console.error(err); }
+        }
 
-                html += `<div class="item-card">
-                    <img src="${item.image_url}" onerror="this.src='https://placehold.co/150x150/0d0d0d/00ff66?text=Cortez'">
-                    <h4>${item.name}</h4>
-                    <p style="color:gold; font-weight:bold;">${formatMoneyFrontend(item.price)} $</p>
-                    
-                    <div style="margin: 10px 0;">
-                        <label style="color:var(--primary); font-size:0.8rem;">الكمية:</label>
-                        <input type="number" id="qty-${item._id}" value="1" min="1" max="100" style="width: 60px; text-align: center; background: #222; color: #00ff66; border: 1px solid #00ff66;">
-                    </div>
-                    
-                    <button onclick="addToCart('${item._id}', '${item.name}', ${item.price})">[ إضافة للسلة 🛒 ]</button>
-                    ${adminBtns}
-                </div>`;
-            });
-            document.getElementById('shop-items-container').innerHTML = html || "<p>لا توجد سلع معروضة حالياً.</p>";
+        async function setWeeklyGoal() {
+            const target = document.getElementById('heist-target-amount').value;
+            const percentage = document.getElementById('heist-payout-percentage').value;
+            if(!target || !percentage) return customAlert("الرجاء إدخال أرقام صحيحة للهدف والنسبة المئوية.");
+
+            try {
+                const res = await fetch('/api/heist/set-goal', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` },
+                    body: JSON.stringify({ target, percentage })
+                });
+                const data = await res.json();
+                if(!res.ok) throw new Error(data.error);
+                
+                customAlert(`تم تحديث الهدف الأسبوعي بنجاح!\nعدد الأعضاء المستحقين: ${data.stats.active_users}\nعمولة الفرد المتوقعة: ${data.stats.payout_per_user}$\nصافي ربح الخزينة: ${data.stats.net_profit}$`);
+            } catch(err) { customAlert(err.message); }
+        }
+
+        async function toggleGoalVisibility() {
+            try {
+                const res = await fetch('/api/heist/toggle-goal', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` },
+                    body: JSON.stringify({ is_visible: !isGoalVisibleCurrently })
+                });
+                const data = await res.json();
+                if(!res.ok) throw new Error(data.error);
+                customAlert(data.msg);
+            } catch(err) { customAlert(err.message); }
+        }
+
+        async function manageHeistType(action) {
+            const name = document.getElementById('new-heist-type-name').value.trim();
+            if(!name) return customAlert("يرجى كتابة اسم العملية.");
+            try {
+                const res = await fetch('/api/heist/types', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` },
+                    body: JSON.stringify({ action, name })
+                });
+                const data = await res.json();
+                if(!res.ok) throw new Error(data.error);
+                customAlert(data.msg);
+                document.getElementById('new-heist-type-name').value = '';
+                loadHeistDropdowns();
+            } catch(err) { customAlert(err.message); }
+        }
+
+        async function setHeistItemPrice() {
+            const name = document.getElementById('heist-item-name').value.trim();
+            const price = document.getElementById('heist-item-price').value;
+            if(!name || !price) return customAlert("يرجى إدخال اسم الغنيمة والسعر.");
+            try {
+                const res = await fetch('/api/heist/items', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` },
+                    body: JSON.stringify({ name, price })
+                });
+                const data = await res.json();
+                if(!res.ok) throw new Error(data.error);
+                customAlert(data.msg);
+                document.getElementById('heist-item-name').value = '';
+                document.getElementById('heist-item-price').value = '';
+                loadHeistDropdowns();
+            } catch(err) { customAlert(err.message); }
+        }
+
+        async function loadHeistDropdowns() {
+            if(!userToken) return;
+            try {
+                const [resTypes, resItems] = await Promise.all([
+                    fetch('/api/heist/types', { headers: { 'Authorization': `Bearer ${userToken}` } }),
+                    fetch('/api/heist/items', { headers: { 'Authorization': `Bearer ${userToken}` } })
+                ]);
+                globalHeistTypes = await resTypes.json();
+                globalHeistItems = await resItems.json();
+
+                const selectType = document.getElementById('sel-heist-type');
+                selectType.innerHTML = '';
+                globalHeistTypes.forEach(t => {
+                    selectType.innerHTML += `<option value="${t.name}">${t.name}</option>`;
+                });
+                
+                resetLootLines();
+            } catch(err) { console.error(err); }
+        }
+
+        function toggleHeistFields(status) {
+            document.getElementById('heist-win-fields').style.display = status === 'Win' ? 'block' : 'none';
+            document.getElementById('heist-loss-fields').style.display = status === 'Loss' ? 'block' : 'none';
+        }
+
+        function resetLootLines() {
+            const container = document.getElementById('loot-items-lines');
+            container.innerHTML = '';
+            addLootLine();
+        }
+
+        function addLootLine() {
+            const container = document.getElementById('loot-items-lines');
+            if(globalHeistItems.length === 0) {
+                container.innerHTML = '<p style="color:#666; font-size:0.8rem;">لا توجد مواد مسعرة في السوق السوداء حالياً.</p>';
+                return;
+            }
+            const lineDiv = document.createElement('div');
+            lineDiv.className = 'loot-line-row';
+            lineDiv.style.display = 'flex';
+            lineDiv.style.gap = '10px';
+            lineDiv.style.marginBottom = '10px';
+
+            let optionsHtml = globalHeistItems.map(item => `<option value="${item.name}">${item.name} (${formatMoneyFrontend(item.price)}$)</option>`).join('');
+            
+            lineDiv.innerHTML = `
+                <select class="heist-loot-name">${optionsHtml}</select>
+                <input type="number" class="heist-loot-qty" placeholder="الكمية المصادرة" value="1">
+                <button onclick="this.parentElement.remove()" class="btn-danger" style="width:auto; padding:5px 10px;">X</button>
+            `;
+            container.appendChild(lineDiv);
+        }
+
+        async function submitHeistReport() {
+            const heist_type = document.getElementById('sel-heist-type').value;
+            const status = document.getElementById('sel-heist-status').value;
+            const partsInput = document.getElementById('heist-participants').value;
+            const participants = partsInput ? partsInput.split(',').map(p => p.trim()).filter(p => p.length > 0) : [];
+            const cash = document.getElementById('heist-cash').value;
+            const loss = document.getElementById('heist-loss').value;
+
+            if(participants.length === 0) return customAlert("يجب تحديد اسم مشارك ميداني واحد على الألق.");
+
+            let items = [];
+            if(status === 'Win' && globalHeistItems.length > 0) {
+                const rows = document.querySelectorAll('.loot-line-row');
+                rows.forEach(r => {
+                    const name = r.querySelector('.heist-loot-name').value;
+                    const quantity = r.querySelector('.heist-loot-qty').value;
+                    if(name && quantity > 0) items.push({ name, quantity });
+                });
+            }
+
+            try {
+                const res = await fetch('/api/heist/submit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` },
+                    body: JSON.stringify({ heist_type, participants, status, cash, loss, items })
+                });
+                const data = await res.json();
+                if(!res.ok) throw new Error(data.error);
+                
+                customAlert(data.msg);
+                document.getElementById('heist-participants').value = '';
+                document.getElementById('heist-cash').value = '0';
+                document.getElementById('heist-loss').value = '0';
+                resetLootLines();
+            } catch(err) { customAlert(err.message); }
+        }
+
+        async function loadHeistLogs() {
+            if(!userToken) return;
+            try {
+                const res = await fetch('/api/heist/logs', { headers: { 'Authorization': `Bearer ${userToken}` } });
+                if(!res.ok) return;
+                const data = await res.json();
+                const tbody = document.querySelector('#tbl-heist-logs tbody');
+                tbody.innerHTML = '';
+                data.forEach(l => {
+                    const valStyle = l.status === 'Win' ? 'color:var(--primary);' : 'color:var(--danger);';
+                    tbody.innerHTML += `<tr>
+                        <td>${l.chef_name}</td>
+                        <td>${l.heist_type}</td>
+                        <td><span style="color:${l.status === 'Win'?'var(--primary)':'var(--danger)'}">${l.status}</span></td>
+                        <td style="font-size:0.8rem;">${l.participants.join(', ')}</td>
+                        <td style="${valStyle}"><b>${formatMoneyFrontend(l.total_value)}$</b></td>
+                        <td style="font-size:0.75rem;">${new Date(l.timestamp).toLocaleString('en-GB')}</td>
+                    </tr>`;
+                });
+            } catch(err) { console.error(err); }
+        }
+
+        // ================== نظام الشوب المالي والسلة والفواتير ==================
+        async function loadShopItems() {
+            try {
+                const res = await fetch('/api/shop/items');
+                const items = await res.json();
+                const container = document.getElementById('shop-items-container');
+                container.innerHTML = '';
+                
+                items.forEach(itm => {
+                    let adminControlsHtml = '';
+                    if(['Business_Manager', 'Chef_Braquage', 'Don'].includes(userData?.role)) {
+                        adminControlsHtml = `
+                            <div class="admin-controls">
+                                <button onclick="editItemPrice('${itm._id}')" class="btn-warning" style="padding:4px 8px; font-size:0.75rem;">تعديل</button>
+                                <button onclick="deleteItemFromShop('${itm._id}')" class="btn-danger" style="padding:4px 8px; font-size:0.75rem;">حذف</button>
+                            </div>`;
+                    }
+
+                    container.innerHTML += `
+                        <div class="item-card">
+                            <img src="${itm.image_url}" onerror="this.src='https://placehold.co/150x150/0d0d0d/00ff66?text=Item'">
+                            <strong style="display:block; margin-bottom:5px;">${itm.name}</strong>
+                            <span style="color:gold; font-weight:bold; display:block;">${formatMoneyFrontend(itm.price)}$</span>
+                            <button onclick="addToCart('${itm.name}', ${itm.price})" style="padding:5px; font-size:0.8rem; margin-top:10px;">إضافة للسلة</button>
+                            ${adminControlsHtml}
+                        </div>`;
+                });
+            } catch(err) { console.error(err); }
         }
 
         async function addItemToShop() {
-            const name = document.getElementById('itm-name').value; const price = document.getElementById('itm-price').value; const image_url = document.getElementById('itm-img').value;
-            const res = await fetch('/api/shop/add-item', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, body: JSON.stringify({ name, price, image_url }) });
-            const data = await res.json(); customAlert(data.msg || data.error);
-            if(res.ok) { document.getElementById('itm-name').value = ''; document.getElementById('itm-price').value = ''; document.getElementById('itm-img').value = ''; }
+            const name = document.getElementById('itm-name').value.trim();
+            const price = document.getElementById('itm-price').value;
+            const image_url = document.getElementById('itm-img').value.trim();
+
+            if(!name || !price) return customAlert("الاسم والسعر مطلوبان لإضافة السلاح أو التجهيز.");
+
+            try {
+                const res = await fetch('/api/shop/add-item', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` },
+                    body: JSON.stringify({ name, price, image_url })
+                });
+                const data = await res.json();
+                if(!res.ok) throw new Error(data.error);
+                customAlert(data.msg);
+                document.getElementById('itm-name').value = '';
+                document.getElementById('itm-price').value = '';
+                document.getElementById('itm-img').value = '';
+            } catch(err) { customAlert(err.message); }
         }
 
-        async function editItemPrice(id) {
-            customPrompt("أدخل السعر الجديد للقطعة ($):", async (newPrice) => {
-                if(newPrice && !isNaN(newPrice)) {
-                    await fetch(`/api/shop/item/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, body: JSON.stringify({ price: Number(newPrice) }) });
-                    fetchShopItems();
-                }
+        function editItemPrice(id) {
+            customPrompt("أدخل السعر الجديد للمنتج ($):", async (newPrice) => {
+                if(!newPrice || isNaN(newPrice)) return;
+                try {
+                    const res = await fetch(`/api/shop/item/${id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` },
+                        body: JSON.stringify({ price: newPrice })
+                    });
+                    const data = await res.json();
+                    if(!res.ok) throw new Error(data.error);
+                    customAlert(data.msg);
+                } catch(err) { customAlert(err.message); }
             });
         }
 
-        async function deleteItem(id) {
-            customConfirm("هل أنت متأكد من حذف هذا المنتج من الشوب نهائياً؟", async (yes) => {
-                if(yes) {
-                    await fetch(`/api/shop/item/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${userToken}` } });
-                    fetchShopItems();
-                }
+        function deleteItemFromShop(id) {
+            customConfirm("هل أنت متأكد تماماً من إزالة هذا المنتج من شوب العصابة نهائياً؟", async (yes) => {
+                if(!yes) return;
+                try {
+                    const res = await fetch(`/api/shop/item/${id}`, {
+                        method: 'DELETE',
+                        headers: { 'Authorization': `Bearer ${userToken}` }
+                    });
+                    const data = await res.json();
+                    if(!res.ok) throw new Error(data.error);
+                    customAlert(data.msg);
+                } catch(err) { customAlert(err.message); }
             });
         }
 
         function toggleCart() {
             const box = document.getElementById('cart-box');
-            box.style.display = box.style.display === 'none' || box.style.display === '' ? 'block' : 'none';
+            box.style.display = box.style.display === 'block' ? 'none' : 'block';
         }
 
-        function addToCart(id, name, price) {
-            const qtyInput = document.getElementById(`qty-${id}`);
-            const quantity = qtyInput ? parseInt(qtyInput.value) : 1;
-
-            const existingItemIndex = cart.findIndex(i => i.id === id);
-            if (existingItemIndex > -1) { cart[existingItemIndex].quantity += quantity; } else { cart.push({ id, name, price, quantity }); }
-            updateCartUI();
+        function addToCart(name, price) {
+            const existing = cart.find(i => i.name === name);
+            if(existing) {
+                existing.quantity += 1;
+            } else {
+                cart.push({ name, price, quantity: 1 });
+            }
+            renderCartUI();
         }
 
-        function removeFromCart(index) { cart.splice(index, 1); updateCartUI(); }
+        function renderCartUI() {
+            document.getElementById('cart-count').innerText = cart.reduce((total, item) => total + item.quantity, 0);
+            const container = document.getElementById('cart-items-container');
+            container.innerHTML = '';
+            let total = 0;
 
-        function updateCartUI() {
-            let totalQty = 0; let total = 0; let html = "";
-            cart.forEach((item, index) => {
-                totalQty += item.quantity;
-                const itemTotal = item.price * item.quantity;
-                total += itemTotal;
-                html += `<div class="cart-item">
-                    <span>${item.quantity}x ${item.name}</span>
-                    <span>
-                        <span style="color:gold;">${formatMoneyFrontend(itemTotal)}$</span> 
-                        <span style="color:var(--danger); cursor:pointer; margin-right:10px;" onclick="removeFromCart(${index})">✖</span>
-                    </span>
-                </div>`;
+            cart.forEach((item, idx) => {
+                const subtotal = item.price * item.quantity;
+                total += subtotal;
+                container.innerHTML += `
+                    <div class="cart-item">
+                        <span>${item.name} (x${item.quantity})</span>
+                        <div>
+                            <span style="color:gold; margin-left:10px;">${formatMoneyFrontend(subtotal)}$</span>
+                            <button onclick="removeFromCart(${idx})" style="width:auto; padding:2px 6px; font-size:0.75rem;" class="btn-danger">X</button>
+                        </div>
+                    </div>`;
             });
-            document.getElementById('cart-count').innerText = totalQty;
-            document.getElementById('cart-items-container').innerHTML = html || "<p style='color:#666;'>السلة فارغة.</p>";
             document.getElementById('cart-total').innerText = formatMoneyFrontend(total);
-            if(cart.length > 0) document.getElementById('cart-box').style.display = 'block';
+        }
+
+        function removeFromCart(idx) {
+            cart.splice(idx, 1);
+            renderCartUI();
         }
 
         async function checkoutCart() {
-            if(cart.length === 0) return customAlert("السلة فارغة!");
-            customConfirm("تأكيد طلب هذه المنتجات من الإدارة؟", async (yes) => {
-                if(!yes) return;
-                const res = await fetch('/api/shop/checkout', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, body: JSON.stringify({ items: cart }) });
-                const data = await res.json(); 
-                customAlert(data.msg || data.error);
-                if(res.ok) { cart = []; updateCartUI(); document.getElementById('cart-box').style.display = 'none'; fetchOrders(); fetchTreasuryBalance(); }
-            });
+            if(cart.length === 0) return customAlert("السلة فارغة حالياً.");
+            try {
+                const res = await fetch('/api/shop/checkout', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` },
+                    body: JSON.stringify({ items: cart })
+                });
+                const data = await res.json();
+                if(!res.ok) throw new Error(data.error);
+                customAlert(data.msg);
+                cart = [];
+                renderCartUI();
+                toggleCart();
+            } catch(err) { customAlert(err.message); }
         }
 
-        /* ---------------- ORDERS & TREASURY ---------------- */
-        async function fetchOrders() {
-            const res = await fetch('/api/shop/orders', { headers: { 'Authorization': `Bearer ${userToken}` } }); 
-            const orders = await res.json();
-            let html = "";
-            const isManager = ['Don', 'Business_Manager', 'Chef_Braquage', 'HR_Manager'].includes(userData?.role);
+        async function loadOrdersData() {
+            if(!userToken) return;
+            try {
+                const res = await fetch('/api/shop/orders', { headers: { 'Authorization': `Bearer ${userToken}` } });
+                const orders = await res.json();
+                const container = document.getElementById('orders-list-container');
+                container.innerHTML = '';
 
-            orders.forEach(o => {
-                let actionBtn = "";
-                if(o.status === 'Pending') {
-                    if(isManager) actionBtn = `<button onclick="confirmPayment('${o._id}')" style="padding:4px 10px; font-size:0.8rem;" class="btn-warning">💵 تأكيد الدفع</button>`;
-                    else actionBtn = `<span style="color:var(--warning);">⏳ قيد المراجعة</span>`;
-                } else {
-                    actionBtn = `<span style="color:var(--primary);">✔️ مدفوع</span>`;
+                orders.forEach(o => {
+                    let itemsSummary = '';
+                    if(o.items && o.items.length > 0) {
+                        itemsSummary = o.items.map(i => `${i.quantity}x ${i.name}`).join(', ');
+                    } else { itemsSummary = `1x ${o.item_name}`; }
+
+                    const total = o.total_price || o.price;
+                    const isPaid = o.status === 'Paid';
+                    
+                    let actionBtn = isPaid ? 
+                        `<span style="color:var(--primary); font-weight:bold;">✔️ مدفوع للترزري</span>` : 
+                        `<button onclick="confirmOrderPayment('${o._id}')" class="btn-success" style="padding:4px 8px; font-size:0.8rem; width:auto;">تأكيد قبض الأموال</button>`;
+
+                    container.innerHTML += `
+                        <div class="card" style="border-color:${isPaid ? '#222' : 'var(--warning)'}; font-size:0.85rem;">
+                            <p style="margin:2px 0;"><b>العضو الطالب:</b> ${o.username}</p>
+                            <p style="margin:2px 0; color:#aaa;"><b>الطلب المادي:</b> ${itemsSummary}</p>
+                            <p style="margin:2px 0;"><b>المبلغ الكلي:</b> <span style="color:gold;">${formatMoneyFrontend(total)}$</span></p>
+                            <div style="margin-top:10px; display:flex; justify-content:space-between; align-items:center;">
+                                <a href="/api/shop/invoice/${o._id}" target="_blank" style="color:cyan; text-decoration:none;">📄 طباعة الفاتورة (BON)</a>
+                                ${actionBtn}
+                            </div>
+                        </div>`;
+                });
+
+                // تأمين جلب الخزينة: فقط الدون والبيزنس مانجر يستطيعون جلبها لمنع الـ 403 Forbidden للشيف
+                if(userData && ['Don', 'Business_Manager'].includes(userData.role)) {
+                    loadTreasuryBalance();
                 }
-                actionBtn += ` <button onclick="downloadInvoice('${o._id}')" style="padding:4px 10px; font-size:0.8rem; background:#0055ff; border:1px solid #fff; color:#fff; width:auto; display:inline-block; margin-right:10px;">📄 طباعة BON</button>`;
+            } catch(err) { console.error(err); }
+        }
 
-                let itemsText = o.items ? o.items.map(i => `${i.quantity || 1}x ${i.name}`).join(' + ') : o.item_name;
-                const displayPrice = formatMoneyFrontend(o.price || o.total_price);
+        async function loadTreasuryBalance() {
+            if(!userToken) return;
+            try {
+                const res = await fetch('/api/treasury/balance', { headers: { 'Authorization': `Bearer ${userToken}` } });
+                if(!res.ok) return;
+                const data = await res.json();
+                document.getElementById('treasury-balance').innerText = data.balance_formatted;
+            } catch(err) { console.error(err); }
+        }
 
-                html += `<div class="card" style="font-size:0.9rem;">
-                    <b>المشتري:</b> ${o.username} | <b>السلع:</b> ${itemsText} <br> 
-                    <b>الإجمالي:</b> <span style="color:gold">${displayPrice}$</span> | ${actionBtn}
-                </div>`;
+        async function resetTreasury() {
+            customConfirm("تحذير أمني: هل تريد تصفير الخزينة العليا للعصابة بالكامل؟", async (yes) => {
+                if(!yes) return;
+                try {
+                    const res = await fetch('/api/treasury/reset', { method: 'POST', headers: { 'Authorization': `Bearer ${userToken}` } });
+                    const data = await res.json();
+                    customAlert(data.msg);
+                } catch(err) { console.error(err); }
             });
-            document.getElementById('orders-list-container').innerHTML = html || "لا توجد طلبات.";
         }
 
-        async function confirmPayment(order_id) {
-            const res = await fetch('/api/shop/confirm-payment', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, body: JSON.stringify({ order_id }) });
-            const data = await res.json(); customAlert(data.msg || data.error); fetchOrders(); fetchTreasuryBalance();
-        }
-
-        function downloadInvoice(order_id) { window.open(`/api/shop/invoice/${order_id}`, '_blank'); }
-
-        async function fetchTreasuryBalance() {
-            if(!['Don', 'Business_Manager', 'Chef_Braquage', 'HR_Manager'].includes(userData?.role)) return;
-            const res = await fetch('/api/treasury/balance', { headers: { 'Authorization': `Bearer ${userToken}` } }); const data = await res.json();
-            document.getElementById('treasury-balance').innerText = data.balance_formatted || data.balance_raw;
-        }
-
-        /* ---------------- HR REQUESTS & ADMIN ACTIONS ---------------- */
+        // ================== نظام الإجازات والتبريرات الإدارية ==================
         async function submitLeave() {
-            const reason = document.getElementById('leave-reason').value; const duration = document.getElementById('leave-days').value;
-            if(!reason || !duration) return customAlert("يرجى تعبئة جميع الحقول.");
-            const res = await fetch('/api/hr/leave', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, body: JSON.stringify({ reason, duration }) });
-            const data = await res.json(); customAlert(data.msg || data.error);
+            const reason = document.getElementById('leave-reason').value.trim();
+            const duration = document.getElementById('leave-days').value;
+            if(!reason || !duration) return customAlert("يرجى تعبئة حقول نموذج الإجازة.");
+            try {
+                const res = await fetch('/api/hr/leave', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` },
+                    body: JSON.stringify({ reason, duration })
+                });
+                const data = await res.json();
+                customAlert(data.msg);
+                document.getElementById('leave-reason').value = '';
+                document.getElementById('leave-days').value = '';
+            } catch(err) { customAlert(err.message); }
         }
 
         async function submitJustify() {
-            const reason = document.getElementById('just-reason').value;
-            if(!reason) return customAlert("يرجى كتابة العذر.");
-            const res = await fetch('/api/hr/justify', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, body: JSON.stringify({ reason }) });
-            const data = await res.json(); customAlert(data.msg || data.error);
+            const reason = document.getElementById('just-reason').value.trim();
+            if(!reason) return customAlert("يرجى كتابة العذر القانوني.");
+            try {
+                const res = await fetch('/api/hr/justify', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` },
+                    body: JSON.stringify({ reason })
+                });
+                const data = await res.json();
+                customAlert(data.msg);
+                document.getElementById('just-reason').value = '';
+            } catch(err) { customAlert(err.message); }
         }
 
-        // --- إصلاح مشكلة ظهور JSON في صفحة التدقيق ---
-        async function fetchHRRequests() {
-            const res = await fetch('/api/hr/requests', { headers: { 'Authorization': `Bearer ${userToken}` } });
-            const data = await res.json();
-            
-            let leavesHtml = "<table><thead><tr><th>العضو</th><th>السبب</th><th>المدة</th><th>التاريخ</th><th>إجراء</th></tr></thead><tbody>";
-            if(data.leaves && data.leaves.length > 0) {
+        async function loadHRRequests() {
+            if(!userToken) return;
+            try {
+                const res = await fetch('/api/hr/requests', { headers: { 'Authorization': `Bearer ${userToken}` } });
+                const data = await res.json();
+                
+                const lContainer = document.getElementById('hr-leaves-list');
+                lContainer.innerHTML = data.leaves.length === 0 ? '<p style="color:#555;">لا توجد طلبات إجازة معلقة.</p>' : '';
                 data.leaves.forEach(l => {
-                    leavesHtml += `<tr><td>${l.username}</td><td>${l.reason}</td><td>${l.duration} أيام</td><td>${new Date(l.timestamp).toLocaleDateString()}</td>
-                    <td><button class="btn-success" style="padding:5px;" onclick="handleHRAction('leave', '${l._id}', 'Approved')">قبول ✔️</button> <button class="btn-danger" style="padding:5px;" onclick="handleHRAction('leave', '${l._id}', 'Rejected')">رفض ❌</button></td></tr>`;
+                    lContainer.innerHTML += `
+                        <div class="card">
+                            <b>العضو:</b> ${l.username} | <b>المدة:</b> ${l.duration} أيام <br>
+                            <b>السبب المذكور:</b> ${l.reason}
+                            <div style="margin-top:10px; display:flex; gap:10px;">
+                                <button onclick="handleHRAction('leave', '${l._id}', 'Approved')" class="btn-success" style="padding:4px;">قبول الإجازة ✔️</button>
+                                <button onclick="handleHRAction('leave', '${l._id}', 'Rejected')" class="btn-danger" style="padding:4px;">رفض الطلب ❌</button>
+                            </div>
+                        </div>`;
                 });
-            } else { leavesHtml += "<tr><td colspan='5' style='text-align:center;'>لا توجد طلبات إجازة معلقة.</td></tr>"; }
-            leavesHtml += "</tbody></table>";
-            document.getElementById('hr-leaves-list').innerHTML = leavesHtml;
 
-            let justsHtml = "<table><thead><tr><th>العضو</th><th>العذر</th><th>التاريخ</th><th>إجراء</th></tr></thead><tbody>";
-            if(data.justifications && data.justifications.length > 0) {
+                const jContainer = document.getElementById('hr-justs-list');
+                jContainer.innerHTML = data.justifications.length === 0 ? '<p style="color:#555;">لا توجد تبريرات غياب معلقة غامضة.</p>' : '';
                 data.justifications.forEach(j => {
-                    justsHtml += `<tr><td>${j.username}</td><td>${j.reason}</td><td>${new Date(j.timestamp).toLocaleDateString()}</td>
-                    <td><button class="btn-success" style="padding:5px;" onclick="handleHRAction('justify', '${j._id}', 'Approved')">قبول ✔️</button> <button class="btn-danger" style="padding:5px;" onclick="handleHRAction('justify', '${j._id}', 'Rejected')">رفض ❌</button></td></tr>`;
+                    jContainer.innerHTML += `
+                        <div class="card">
+                            <b>العضو المتغيب:</b> ${j.username} <br>
+                            <b>العذر القانوني:</b> ${j.reason}
+                            <div style="margin-top:10px; display:flex; gap:10px;">
+                                <button onclick="handleHRAction('justify', '${j._id}', 'Approved')" class="btn-success" style="padding:4px;">اعتماد وتبرير ✔️</button>
+                                <button onclick="handleHRAction('justify', '${j._id}', 'Rejected')" class="btn-danger" style="padding:4px;">إسقاط العذر ❌</button>
+                            </div>
+                        </div>`;
                 });
-            } else { justsHtml += "<tr><td colspan='4' style='text-align:center;'>لا توجد تبريرات غياب معلقة.</td></tr>"; }
-            justsHtml += "</tbody></table>";
-            document.getElementById('hr-justs-list').innerHTML = justsHtml;
+            } catch(err) { console.error(err); }
         }
 
         async function handleHRAction(type, id, action) {
-            await fetch('/api/hr/action', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, body: JSON.stringify({ type, id, action }) });
-            fetchHRRequests();
+            try {
+                const res = await fetch('/api/hr/action', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` },
+                    body: JSON.stringify({ type, id, action })
+                });
+                const data = await res.json();
+                customAlert(data.msg);
+            } catch(err) { customAlert(err.message); }
         }
 
-        async function fetchAdminUsersList() {
-            const res = await fetch('/api/admin/users', { headers: { 'Authorization': `Bearer ${userToken}` } }); const users = await res.json();
-            let html = "";
-            users.forEach(u => {
-                html += `<tr><td>${u.username} ${u.is_blacklisted ? '❌' : ''}</td><td>${u.role}</td><td>${formatMins(u.weekly_hours)}</td><td>${u.warnings}/3</td><td style="color:${u.duty_status==='ON-DUTY'?'var(--primary)':'var(--danger)'}">${u.duty_status}</td>
-                <td><button onclick="changeRolePrompt('${u.username}')" style="padding:5px;" class="btn-warning">تغيير الرتبة</button></td></tr>`;
-            });
-            document.getElementById('tbl-all-users').querySelector('tbody').innerHTML = html;
+        // ================== لوحة تحكم الإدارة وعقوبات الأعضاء ==================
+        async function loadAllUsersTable() {
+            if(!userToken) return;
+            try {
+                const res = await fetch('/api/admin/users', { headers: { 'Authorization': `Bearer ${userToken}` } });
+                const users = await res.json();
+                const tbody = document.querySelector('#tbl-all-users tbody');
+                tbody.innerHTML = '';
+
+                users.forEach(u => {
+                    tbody.innerHTML += `<tr>
+                        <td>${u.username}</td>
+                        <td><span style="color:gold;">${u.role}</span></td>
+                        <td>${(u.weekly_hours / 60).toFixed(2)} س</td>
+                        <td style="color:${u.warnings > 0 ? 'var(--danger)':'#fff'}">${u.warnings}</td>
+                        <td><span style="color:${u.is_blacklisted?'red':'var(--primary)'}">${u.is_blacklisted ? 'BANNED' : u.duty_status}</span></td>
+                        <td>
+                            <select onchange="changeMemberRole('${u.username}', this.value)">
+                                <option value="">اختر رتبة...</option>
+                                <option value="Soldier">Soldier</option>
+                                <option value="HR_Manager">HR Manager</option>
+                                <option value="Chef_Braquage">Chef Braquage</option>
+                                <option value="Business_Manager">Business Manager</option>
+                            </select>
+                        </td>
+                    </tr>`;
+                });
+            } catch(err) { console.error(err); }
         }
 
-        function changeRolePrompt(username) {
-            customPrompt(`أدخل الرتبة الجديدة للعضو ${username}:\n(Don, Business_Manager, Chef_Braquage, HR_Manager, Soldier)`, async (newRole) => {
-                if(newRole) {
-                    const res = await fetch('/api/admin/change-role', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, body: JSON.stringify({ target_username: username, new_role: newRole }) });
-                    const data = await res.json(); customAlert(data.msg || data.error); fetchAdminUsersList();
-                }
-            });
+        async function changeMemberRole(username, new_role) {
+            if(!new_role) return;
+            try {
+                const res = await fetch('/api/admin/change-role', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` },
+                    body: JSON.stringify({ target_username: username, new_role })
+                });
+                const data = await res.json();
+                customAlert(data.msg);
+                loadAllUsersTable();
+            } catch(err) { customAlert(err.message); }
         }
 
         async function applyPenalty() {
-            const target = document.getElementById('target-name').value; const type = document.getElementById('action-type').value; const reason = document.getElementById('action-reason').value;
-            if(!target) return customAlert("الرجاء إدخال اسم العضو.");
-            const res = await fetch('/api/admin/penalty', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` }, body: JSON.stringify({ target_username: target, type, reason }) });
-            const data = await res.json(); customAlert(data.msg || data.error); fetchAdminUsersList();
+            const target_username = document.getElementById('target-name').value.trim();
+            const type = document.getElementById('action-type').value;
+            const reason = document.getElementById('action-reason').value.trim();
+
+            if(!target_username || !reason) return customAlert("حقول اسم العضو والسبب إجبارية لتطبيق العقوبة.");
+            try {
+                const res = await fetch('/api/admin/penalty', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` },
+                    body: JSON.stringify({ target_username, type, reason })
+                });
+                const data = await res.json();
+                if(!res.ok) throw new Error(data.error);
+                customAlert(data.msg);
+                document.getElementById('target-name').value = '';
+                document.getElementById('action-reason').value = '';
+                loadAllUsersTable();
+            } catch(err) { customAlert(err.message); }
         }
 
-        async function fetchArchive() {
-            const res = await fetch('/api/admin/archive', { headers: { 'Authorization': `Bearer ${userToken}` } }); const data = await res.json();
-            let html = "";
-            data.forEach(arch => {
-                html += `<div class="card"><h4>أسبوع: ${new Date(arch.week_date).toLocaleDateString()}</h4><table style="font-size:0.8rem;"><thead><tr><th>العضو</th><th>الرتبة</th><th>الساعات المنجزة</th></tr></thead><tbody>`;
-                arch.records.forEach(r => { html += `<tr><td>${r.username}</td><td>${r.role}</td><td>${formatMins(r.weekly_hours)}</td></tr>`; });
-                html += `</tbody></table></div>`;
-            });
-            document.getElementById('archive-content').innerHTML = html || "<p>لا توجد سجلات مؤرشفة.</p>";
+        function triggerEmergency() {
+            if(!userData) return;
+            socket.emit('triggerEmergency', { username: userData.username });
         }
 
-        // --- دوال القيادة العليا (Don) ---
         async function resetWeeklyHoursAll() {
-            customConfirm("⚠️ تحذير: سيتم أرشفة الأسبوع الحالي وتصفير الساعات لجميع الأفراد. هل أنت متأكد؟", async (yes) => {
+            customConfirm("تحذير مدمر للقيادة العيا: هل تريد أرشفة هذا الأسبوع وتصفير كافة الساعات والسرقات الجارية للبدء من الصفر؟", async (yes) => {
                 if(!yes) return;
-                const res = await fetch('/api/admin/reset-weekly-hours', { method: 'POST', headers: { 'Authorization': `Bearer ${userToken}` } });
-                const data = await res.json(); customAlert(data.msg || data.error);
-                fetchStats(); fetchAdminUsersList(); fetchArchive();
+                try {
+                    const res = await fetch('/api/admin/reset-weekly-hours', { method: 'POST', headers: { 'Authorization': `Bearer ${userToken}` } });
+                    const data = await res.json();
+                    customAlert(data.msg);
+                } catch(err) { console.error(err); }
             });
         }
-        
-        async function resetTreasury() {
-            customConfirm("⚠️ تحذير: هل أنت متأكد من رغبتك في تصفير خزينة العصابة بالكامل؟ لا يمكن التراجع عن هذا الإجراء.", async (yes) => {
-                if(!yes) return;
-                const res = await fetch('/api/treasury/reset', { method: 'POST', headers: { 'Authorization': `Bearer ${userToken}` } });
-                const data = await res.json(); customAlert(data.msg || data.error);
-                fetchTreasuryBalance();
-            });
+
+        async function loadArchiveData() {
+            if(!userToken) return;
+            try {
+                const res = await fetch('/api/admin/archive', { headers: { 'Authorization': `Bearer ${userToken}` } });
+                const archives = await res.json();
+                const container = document.getElementById('archive-content');
+                container.innerHTML = archives.length === 0 ? '<p style="color:#555;">سجل الأرشيف فارغ تماماً حتى الآن.</p>' : '';
+                
+                archives.forEach((arc, index) => {
+                    let recordsHtml = arc.records.map(r => `<li>${r.username} (${r.role}): ${(r.weekly_hours/60).toFixed(2)} ساعة دوام</li>`).join('');
+                    container.innerHTML += `
+                        <div class="card" style="border-color:var(--purple);">
+                            <strong>📦 أسبوع مؤرشف بتاريخ: ${new Date(arc.week_date).toLocaleString('en-GB')}</strong>
+                            <ul style="margin:10px 0; padding-right:20px; font-size:0.85rem; color:#aaa;">${recordsHtml}</ul>
+                        </div>`;
+                });
+            } catch(err) { console.error(err); }
         }
+
+        // ================== مستمعات الـ WebSockets الفورية المحمية بـ Guards ==================
+        socket.on('emergencyAlert', (data) => {
+            document.body.classList.add('emergency-blink');
+            customAlert(`🚨 ${data.message}\nمُفعل الاستنفار: ${data.sender}`, () => {
+                document.body.classList.remove('emergency-blink');
+            });
+        });
+
+        socket.on('dutyUpdated', (data) => {
+            if(!userToken || !userData) return; // حماية السوكيت ضد الـ Null pointer error
+            if(data && data.username === userData.username) {
+                userData.duty_status = data.duty_status;
+                localStorage.setItem('user', JSON.stringify(userData));
+                updatePunchButtonUI(data.duty_status);
+            }
+            loadLeaderboardData();
+            if(['Don', 'HR_Manager', 'Business_Manager'].includes(userData.role)) {
+                loadAllUsersTable();
+            }
+        });
+
+        socket.on('statusResponse', (data) => {
+            if(!userToken || !userData) return;
+            if(data && data.username === userData.username) {
+                userData.duty_status = data.duty_status;
+                localStorage.setItem('user', JSON.stringify(userData));
+                updatePunchButtonUI(data.duty_status);
+            }
+        });
+
+        socket.on('shopUpdated', () => { if(userToken) loadShopItems(); });
+        socket.on('ordersUpdated', () => { if(userToken && ['Don', 'HR_Manager', 'Business_Manager', 'Chef_Braquage'].includes(userData?.role)) loadOrdersData(); });
+        socket.on('treasuryUpdated', () => { if(userToken && ['Don', 'HR_Manager', 'Business_Manager'].includes(userData?.role)) loadTreasuryBalance(); });
+        socket.on('requestUpdated', () => { if(userToken && ['Don', 'HR_Manager', 'Business_Manager'].includes(userData?.role)) loadHRRequests(); });
+        socket.on('goalUpdated', () => { if(userToken) { loadHeistDashboard(); if(['Don', 'HR_Manager'].includes(userData?.role)) loadHeistLogs(); } });
+
+        // التحقق التلقائي من الجلسة عند فتح المتصفح
+        if(userToken && userData) { initAppSession(); }
     </script>
 </body>
 </html>
