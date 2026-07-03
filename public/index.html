@@ -1015,6 +1015,30 @@
             } catch(err) { customAlert(err.message); }
         }
 
+        // ================== دالة الدفع المُضافة حديثاً ==================
+        async function confirmOrderPayment(orderId) {
+            customConfirm("هل أنت متأكد من استلام المبلغ بالكامل وإضافته إلى خزينة العصابة؟", async (yes) => {
+                if(!yes) return;
+                try {
+                    const res = await fetch(`/api/shop/order/${orderId}/pay`, {
+                        method: 'POST',
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${userToken}` 
+                        }
+                    });
+                    const data = await res.json();
+                    if(!res.ok) throw new Error(data.error || "حدث خطأ أثناء تأكيد الدفع.");
+                    
+                    customAlert("✔️ " + (data.msg || "تم تأكيد الدفع وإضافة المبلغ للخزينة بنجاح!"));
+                    
+                    loadOrdersData();
+                } catch(err) { 
+                    customAlert(err.message); 
+                }
+            });
+        }
+
         async function loadOrdersData() {
             if(!userToken) return;
             try {
