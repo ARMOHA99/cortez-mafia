@@ -18,7 +18,7 @@ const PORT = process.env.PORT || 3000;
 const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://moha:cutureire@cluster0.qgk83qz.mongodb.net/cortez?appName=Cluster0';
 
 mongoose.connect(MONGO_URI)
-  .then(() => console.log('✓ Connected Strictly to Cortez DB (v7.5 - Bulletproof Security Update).'))
+  .then(() => console.log('✓ Connected Strictly to Cortez DB (v7.6 - Dynamic Routes Update).'))
   .catch(err => console.error('❌ Database Error:', err));
 
 app.use(cors());
@@ -79,7 +79,6 @@ const OrderSchema = new mongoose.Schema({
 
 const TreasurySchema = new mongoose.Schema({ total_balance: { type: Number, default: 0 } });
 
-// مخططات نظام السرقات
 const HeistTypeSchema = new mongoose.Schema({ name: { type: String, required: true, unique: true } });
 const HeistItemSchema = new mongoose.Schema({ name: { type: String, required: true, unique: true }, price: { type: Number, required: true, default: 0 } });
 const WeeklyGoalSchema = new mongoose.Schema({
@@ -184,7 +183,6 @@ app.post('/api/heist/toggle-goal', verifyAuth(['Don']), async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// 💡 تم تعديل المسار هنا ليكون reset-goal بناءً على طلب الفرونت إند
 app.post('/api/heist/reset-goal', verifyAuth(['Don']), async (req, res) => {
     try {
         await WeeklyGoal.updateMany({}, { current_progress: 0 });
@@ -296,7 +294,7 @@ app.get('/api/heist/logs', verifyAuth(['HR_Manager']), async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ================== مسارات النظام الأساسية المتبقية ==================
+// ================== مسارات النظام الأساسية ==================
 app.post('/api/auth/register', async (req, res) => {
     try {
         const { username, password, discord_id } = req.body;
@@ -384,9 +382,13 @@ app.get('/api/shop/orders', verifyAuth(['Business_Manager', 'Chef_Braquage', 'HR
     catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/shop/confirm-payment', verifyAuth(['Business_Manager']), async (req, res) => {
+// 💡 💡 💡 التحديث الجديد: دعم الـ ID الديناميكي مع POST و PUT لضمان التوافق التام 💡 💡 💡
+const confirmPaymentLogic = async (req, res) => {
     try {
-        const { order_id } = req.body;
+        // نستخرج المعرف (ID) إما من الرابط (البارامترات) أو من جسد الطلب (Body) كاحتياط
+        const order_id = req.params.id || req.body.order_id;
+        if (!order_id) return res.status(400).json({ error: "رقم الطلب غير موجود." });
+
         const order = await Order.findById(order_id);
         if (!order || order.status === 'Paid') return res.status(400).json({ error: "الطلب غير صحيح أو مدفوع مسبقاً." });
         
@@ -399,7 +401,10 @@ app.post('/api/shop/confirm-payment', verifyAuth(['Business_Manager']), async (r
         io.emit('ordersUpdated'); io.emit('treasuryUpdated');
         res.json({ msg: "تم تأكيد الدفع وإضافة المبلغ إلى الخزينة العليا للعصابة." });
     } catch (err) { res.status(500).json({ error: err.message }); }
-});
+};
+
+app.post('/api/shop/order/:id/pay', verifyAuth(['Business_Manager']), confirmPaymentLogic);
+app.put('/api/shop/order/:id/pay', verifyAuth(['Business_Manager']), confirmPaymentLogic);
 
 app.get('/api/treasury/balance', verifyAuth(['Business_Manager']), async (req, res) => {
     try {
@@ -409,6 +414,7 @@ app.get('/api/treasury/balance', verifyAuth(['Business_Manager']), async (req, r
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// دالة تصفير الخزينة التي طلبتها مسبقاً
 app.post('/api/treasury/reset', verifyAuth(['Don']), async (req, res) => {
     try {
         await Treasury.updateOne({}, { total_balance: 0 });
@@ -570,7 +576,7 @@ app.post('/api/hr/action', verifyAuth(['HR_Manager']), async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// صائد الأخطاء: يتعامل مع أي مسار خطأ ويُرجع رسالة JSON (يمنع ظهور رسالة <!DOCTYPE html> مجدداً)
+// صائد الأخطاء: يتعامل مع أي مسار خطأ ويُرجع رسالة JSON
 app.use('/api', (req, res) => {
     res.status(404).json({ error: "المسار غير موجود أو نوع الطلب خاطئ: " + req.originalUrl });
 });
@@ -621,4 +627,4 @@ setInterval(async () => {
     } catch (err) { console.error(err.message); }
 }, 300000); 
 
-server.listen(PORT, () => console.log(`📡 Cortez System v7.5 running safely on port ${PORT}`));
+server.listen(PORT, () => console.log(`📡 Cortez System v7.6 running safely on port ${PORT}`));
