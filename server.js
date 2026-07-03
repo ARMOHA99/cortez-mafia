@@ -18,7 +18,7 @@ const PORT = process.env.PORT || 3000;
 const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://moha:cutureire@cluster0.qgk83qz.mongodb.net/cortez?appName=Cluster0';
 
 mongoose.connect(MONGO_URI)
-  .then(() => console.log('✓ Connected Strictly to Cortez DB (v7.6 - Dynamic Routes Update).'))
+  .then(() => console.log('✓ Connected Strictly to Cortez DB (v7.7 - Fine System Update).'))
   .catch(err => console.error('❌ Database Error:', err));
 
 app.use(cors());
@@ -50,12 +50,15 @@ const UserSchema = new mongoose.Schema({
     weekly_hours: { type: Number, default: 0 },
     warnings: { type: Number, default: 0 },
     is_blacklisted: { type: Boolean, default: false },
-    total_heists: { type: Number, default: 0 } 
+    total_heists: { type: Number, default: 0 },
+    // تحديث v7.7: تتبع الغرامات المالية للعضو
+    fine_amount: { type: Number, default: 0 },
+    fine_reason: { type: String, default: "" }
 });
 
 const LeaveSchema = new mongoose.Schema({ username: String, reason: String, duration: Number, status: { type: String, default: 'Pending' }, timestamp: { type: Date, default: Date.now } });
 const JustificationSchema = new mongoose.Schema({ username: String, reason: String, status: { type: String, default: 'Pending' }, timestamp: { type: Date, default: Date.now } });
-const PenaltyLogSchema = new mongoose.Schema({ target_username: String, admin_username: String, type: String, reason: String, timestamp: { type: Date, default: Date.now } });
+const PenaltyLogSchema = new mongoose.Schema({ target_username: String, admin_username: String, type: String, reason: String, fine_amount: { type: Number, default: 0 }, timestamp: { type: Date, default: Date.now } });
 
 const ArchiveSchema = new mongoose.Schema({ week_date: { type: Date, default: Date.now }, records: Array });
 
@@ -147,7 +150,6 @@ app.post('/api/heist/set-goal', verifyAuth(['Don']), async (req, res) => {
     try {
         const target = Number(req.body.target || 0);
         const percentage = Number(req.body.percentage || 0);
-        
         const activeUsersCount = await User.countDocuments({ is_blacklisted: false, weekly_hours: { $gte: 600 } });
         
         let goal = await WeeklyGoal.findOne();
@@ -313,9 +315,22 @@ app.post('/api/auth/login', async (req, res) => {
         const user = await User.findOne({ username });
         if (!user || !(await bcrypt.compare(password, user.password))) return res.status(400).json({ error: "خطأ في اسم المستخدم أو كلمة المرور." });
         if (user.is_blacklisted) return res.status(403).json({ error: "تم حظرك ومطاردتك من عائلة كورتيز (بلاك ليست)." });
+        
+        // جلب معلومات التوكن مع الغرامات المضافة حديثاً
         const token = jwt.sign({ id: user._id, role: user.role, username: user.username }, JWT_SECRET, { expiresIn: '24h' });
-        res.json({ token, user: { username: user.username, role: user.role, duty_status: user.duty_status } });
+        res.json({ token, user: { username: user.username, role: user.role, duty_status: user.duty_status, fine_amount: user.fine_amount, fine_reason: user.fine_reason } });
     } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// تحديث لتزويد الفرونت إند ببيانات الغرامة الحالية فوراً عند طلب الملف الشخصي
+app.get('/api/auth/me', async (req, res) => {
+    try {
+        const token = req.headers['authorization']?.split(' ')[1];
+        if (!token) return res.status(401).json({ error: "غير مصرح" });
+        const decoded = jwt.verify(token, JWT_SECRET);
+        const user = await User.findById(decoded.id, 'username role duty_status fine_amount fine_reason');
+        res.json(user);
+    } catch { res.status(401).json({ error: "جلسة منتهية" }); }
 });
 
 app.get('/api/users/list', verifyAuth(['Chef_Braquage', 'Business_Manager', 'Don']), async (req, res) => {
@@ -382,10 +397,8 @@ app.get('/api/shop/orders', verifyAuth(['Business_Manager', 'Chef_Braquage', 'HR
     catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// 💡 💡 💡 التحديث الجديد: دعم الـ ID الديناميكي مع POST و PUT لضمان التوافق التام 💡 💡 💡
 const confirmPaymentLogic = async (req, res) => {
     try {
-        // نستخرج المعرف (ID) إما من الرابط (البارامترات) أو من جسد الطلب (Body) كاحتياط
         const order_id = req.params.id || req.body.order_id;
         if (!order_id) return res.status(400).json({ error: "رقم الطلب غير موجود." });
 
@@ -414,7 +427,6 @@ app.get('/api/treasury/balance', verifyAuth(['Business_Manager']), async (req, r
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// دالة تصفير الخزينة التي طلبتها مسبقاً
 app.post('/api/treasury/reset', verifyAuth(['Don']), async (req, res) => {
     try {
         await Treasury.updateOne({}, { total_balance: 0 });
@@ -479,7 +491,7 @@ app.get('/api/shop/invoice/:id', async (req, res) => {
 
 app.get('/api/admin/users', verifyAuth(['HR_Manager']), async (req, res) => {
     try {
-        const users = await User.find({}, 'username role duty_status weekly_hours warnings is_blacklisted');
+        const users = await User.find({}, 'username role duty_status weekly_hours warnings is_blacklisted fine_amount fine_reason');
         res.json(users);
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -511,11 +523,14 @@ app.get('/api/admin/archive', verifyAuth(['HR_Manager']), async (req, res) => {
     catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ================== تحديث v7.7: نظام العقوبات المطور والغرامات المالية ==================
 app.post('/api/admin/penalty', verifyAuth(['HR_Manager']), async (req, res) => {
     try {
-        const { target_username, type, reason } = req.body;
+        const { target_username, type, reason, fine_amount } = req.body;
         const user = await User.findOne({ username: target_username });
         if (!user) return res.status(404).json({ error: "المستخدم غير موجود." });
+
+        let penaltyAmount = 0;
 
         if (type === 'Warning') {
             user.warnings += 1;
@@ -524,11 +539,55 @@ app.post('/api/admin/penalty', verifyAuth(['HR_Manager']), async (req, res) => {
             user.is_blacklisted = true; user.duty_status = 'OFF-DUTY';
         } else if (type === 'Remove_Blacklist') {
             user.is_blacklisted = false; user.warnings = 0;
+        } else if (type === 'Fine') {
+            // إضافة الغرامة المالية الجديدة للعضو
+            penaltyAmount = Number(fine_amount || 0);
+            if (penaltyAmount <= 0) return res.status(400).json({ error: "يرجى تحديد مبلغ الغرامة بشكل صحيح." });
+            user.fine_amount += penaltyAmount;
+            user.fine_reason = reason || "مخالفة القوانين الداخلية";
         }
+        
         await user.save();
-        await new PenaltyLog({ target_username, admin_username: req.user.username, type, reason }).save();
+        await new PenaltyLog({ target_username, admin_username: req.user.username, type, reason, fine_amount: penaltyAmount }).save();
+        
+        // إطلاق تحديث فوري عبر السوكيت ليتأثر حساب العضو فوراً بالواجهة
         io.emit('dutyUpdated', { username: user.username, duty_status: user.duty_status });
-        res.json({ msg: "تم تطبيق الإجراء الإداري الصارم بنجاح." });
+        io.emit('finesUpdated');
+        
+        res.json({ msg: "تم تطبيق الإجراء الإداري وتدوينه بنجاح." });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// جلب قائمة الأشخاص الذين عليهم غرامات فقط (لجدول الإدارة)
+app.get('/api/admin/fines/active', verifyAuth(['HR_Manager']), async (req, res) => {
+    try {
+        const finedUsers = await User.find({ fine_amount: { $gt: 0 } }, 'username role fine_amount fine_reason');
+        res.json(finedUsers);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// زر الإدارة: تأكيد تسلّم ودفع الغرامة يدوياً وتحويلها تلقائياً للخزينة
+app.post('/api/admin/fines/pay', verifyAuth(['HR_Manager']), async (req, res) => {
+    try {
+        const { target_username } = req.body;
+        const user = await User.findOne({ username: target_username });
+        if (!user || user.fine_amount <= 0) return res.status(400).json({ error: "المستخدم ليس لديه أي غرامة معلقة." });
+
+        const amountPaid = user.fine_amount;
+        
+        // تصفير غرامة العضو
+        user.fine_amount = 0;
+        user.fine_reason = "";
+        await user.save();
+
+        // تحويل الأموال تلقائياً إلى الخزينة
+        await Treasury.updateOne({}, { $inc: { total_balance: amountPaid } });
+
+        io.emit('finesUpdated');
+        io.emit('treasuryUpdated');
+        io.emit('dutyUpdated'); // لتحديث التنبيه عند الفرد فوراً
+        
+        res.json({ msg: `تم تسوية الغرامة بنجاح، وتحويل مبلغ ${amountPaid}$ مباشرة إلى خزينة العصابة.` });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -576,7 +635,7 @@ app.post('/api/hr/action', verifyAuth(['HR_Manager']), async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// صائد الأخطاء: يتعامل مع أي مسار خطأ ويُرجع رسالة JSON
+// صائد الأخطاء
 app.use('/api', (req, res) => {
     res.status(404).json({ error: "المسار غير موجود أو نوع الطلب خاطئ: " + req.originalUrl });
 });
@@ -627,4 +686,4 @@ setInterval(async () => {
     } catch (err) { console.error(err.message); }
 }, 300000); 
 
-server.listen(PORT, () => console.log(`📡 Cortez System v7.6 running safely on port ${PORT}`));
+server.listen(PORT, () => console.log(`📡 Cortez System v7.7 running safely on port ${PORT}`));
