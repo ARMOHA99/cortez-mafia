@@ -135,7 +135,6 @@ const verifyAuth = (roles) => {
         if (!token) return res.status(401).json({ error: "غير مصرح بالدخول." });
         try {
             const decoded = jwt.verify(token, JWT_SECRET);
-            // 💡 تصحيح الخطأ: فصلنا صلاحيات الـ HR والـ Business Manager نهائياً. الدون له صلاحية مطلقة.
             const hasAccess = roles.includes(decoded.role) || decoded.role === 'Don';
             if (!hasAccess) return res.status(403).json({ error: "رتبتك لا تسمح بالدخول إلى هذا القسم." });
             req.user = decoded; next();
@@ -185,8 +184,8 @@ app.post('/api/heist/toggle-goal', verifyAuth(['Don']), async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// 💡 مسار لتصفير شريط الأهداف فقط
-app.post('/api/heist/reset-progress', verifyAuth(['Don']), async (req, res) => {
+// 💡 تم تعديل المسار هنا ليكون reset-goal بناءً على طلب الفرونت إند
+app.post('/api/heist/reset-goal', verifyAuth(['Don']), async (req, res) => {
     try {
         await WeeklyGoal.updateMany({}, { current_progress: 0 });
         io.emit('goalUpdated');
@@ -321,7 +320,6 @@ app.post('/api/auth/login', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// 💡 إضافة مسار جلب أسماء الأعضاء للقائمة المنسدلة في استمارة السرقة
 app.get('/api/users/list', verifyAuth(['Chef_Braquage', 'Business_Manager', 'Don']), async (req, res) => {
     try {
         const users = await User.find({ is_blacklisted: false }, 'username');
@@ -334,7 +332,6 @@ app.get('/api/shop/items', async (req, res) => {
     catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// 💡 سحب الصلاحيات من الـ Chef Braquage وتخصيصها للـ Business Manager والدون فقط
 app.post('/api/shop/add-item', verifyAuth(['Business_Manager']), async (req, res) => {
     try {
         const { name, price, image_url } = req.body;
@@ -481,7 +478,6 @@ app.get('/api/admin/users', verifyAuth(['HR_Manager']), async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// 💡 حماية رتبة البوس: منع ترقية أي شخص لرتبة Don وحصر الترقية في الـ HR
 app.post('/api/admin/change-role', verifyAuth(['HR_Manager']), async (req, res) => {
     try {
         const { target_username, new_role } = req.body;
@@ -574,7 +570,7 @@ app.post('/api/hr/action', verifyAuth(['HR_Manager']), async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// 💡 [الإضافة الجديدة]: معالجة مسارات الـ API غير الموجودة لإرجاع JSON بدلاً من HTML
+// صائد الأخطاء: يتعامل مع أي مسار خطأ ويُرجع رسالة JSON (يمنع ظهور رسالة <!DOCTYPE html> مجدداً)
 app.use('/api', (req, res) => {
     res.status(404).json({ error: "المسار غير موجود أو نوع الطلب خاطئ: " + req.originalUrl });
 });
