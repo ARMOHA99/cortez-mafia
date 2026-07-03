@@ -185,7 +185,7 @@ app.post('/api/heist/toggle-goal', verifyAuth(['Don']), async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// 💡 إضافة زر جديد: مسار لتصفير شريط الأهداف فقط
+// 💡 مسار لتصفير شريط الأهداف فقط
 app.post('/api/heist/reset-progress', verifyAuth(['Don']), async (req, res) => {
     try {
         await WeeklyGoal.updateMany({}, { current_progress: 0 });
@@ -572,6 +572,11 @@ app.post('/api/hr/action', verifyAuth(['HR_Manager']), async (req, res) => {
         if (type === 'justify') await Justification.findByIdAndUpdate(id, { status: action });
         io.emit('requestUpdated'); res.json({ msg: "تم تحديث حالة الطلب والبت فيه." });
     } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// 💡 [الإضافة الجديدة]: معالجة مسارات الـ API غير الموجودة لإرجاع JSON بدلاً من HTML
+app.use('/api', (req, res) => {
+    res.status(404).json({ error: "المسار غير موجود أو نوع الطلب خاطئ: " + req.originalUrl });
 });
 
 // ---------------- Sockets ----------------
