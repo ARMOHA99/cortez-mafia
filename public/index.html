@@ -115,15 +115,15 @@
             <div style="font-size:0.8rem; text-align:center; margin-bottom:20px; color:#666;">
                 العضو: <span id="user-display" style="color:#fff;">-</span> | <span id="role-display" style="color:gold;">-</span>
             </div>
-            <button class="menu-btn active" onclick="changeTab('panel-dashboard', this)">⏱️ ساعة الدوام والتسجيل</button>
-            <button class="menu-btn" onclick="changeTab('panel-heists', this)">⚔️ العمليات والأهداف الأسبوعية</button>
-            <button class="menu-btn" onclick="changeTab('panel-leaderboard', this)">🏆 جدول المتصدرين أسبوعياً</button>
-            <button class="menu-btn" onclick="changeTab('panel-shop', this)">🛒 شوب العصابة المالي</button>
-            <button class="menu-btn" onclick="changeTab('panel-requests', this)">📝 تقديم الإجازات والتبريرات</button>
-            <button class="menu-btn" id="nav-hr" style="display:none; color:orange;" onclick="changeTab('panel-hr-review', this)">🕵️‍♂️ لوحة تدقيق الـ HR</button>
-            <button class="menu-btn" id="nav-archive" style="display:none; color:var(--purple);" onclick="changeTab('panel-archive', this)">📚 سجل الأرشيف التاريخي</button>
-            <button class="menu-btn" id="nav-don" style="display:none; color:cyan;" onclick="changeTab('panel-don-control', this)">👑 لوحة التحكم العليا</button>
-            <button class="menu-btn" style="color:var(--danger); margin-top:auto;" onclick="logout()">🚪 تسجيل الخروج</button>
+            <button class="menu-btn active" onclick="changeTab('panel-dashboard', this)">⏱️ ON-OFF</button>
+            <button class="menu-btn" onclick="changeTab('panel-heists', this)">⚔️OPERTION</button>
+            <button class="menu-btn" onclick="changeTab('panel-leaderboard', this)">🏆PRESENCE</button>
+            <button class="menu-btn" onclick="changeTab('panel-shop', this)">🛒 SHOP</button>
+            <button class="menu-btn" onclick="changeTab('panel-requests', this)">📝 ABSENCE-CONGE</button>
+            <button class="menu-btn" id="nav-hr" style="display:none; color:orange;" onclick="changeTab('panel-hr-review', this)">🕵 GRH</button>
+            <button class="menu-btn" id="nav-archive" style="display:none; color:var(--purple);" onclick="changeTab('panel-archive', this)">📚 PRESENCE LOG</button>
+            <button class="menu-btn" id="nav-don" style="display:none; color:cyan;" onclick="changeTab('panel-don-control', this)">👑 BOSS</button>
+            <button class="menu-btn" style="color:var(--danger); margin-top:auto;" onclick="logout()">🚪 LOG OUT</button>
         </div>
 
         <div class="main-content">
@@ -1013,6 +1013,30 @@
                 renderCartUI();
                 toggleCart();
             } catch(err) { customAlert(err.message); }
+        }
+
+        // ================== دالة الدفع المُضافة حديثاً ==================
+        async function confirmOrderPayment(orderId) {
+            customConfirm("هل أنت متأكد من استلام المبلغ بالكامل وإضافته إلى خزينة العصابة؟", async (yes) => {
+                if(!yes) return;
+                try {
+                    const res = await fetch(`/api/shop/order/${orderId}/pay`, {
+                        method: 'POST',
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${userToken}` 
+                        }
+                    });
+                    const data = await res.json();
+                    if(!res.ok) throw new Error(data.error || "حدث خطأ أثناء تأكيد الدفع.");
+                    
+                    customAlert("✔️ " + (data.msg || "تم تأكيد الدفع وإضافة المبلغ للخزينة بنجاح!"));
+                    
+                    loadOrdersData();
+                } catch(err) { 
+                    customAlert(err.message); 
+                }
+            });
         }
 
         async function loadOrdersData() {
