@@ -18,7 +18,7 @@ const PORT = process.env.PORT || 3000;
 const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://moha:cutureire@cluster0.qgk83qz.mongodb.net/cortez?appName=Cluster0';
 
 mongoose.connect(MONGO_URI)
-  .then(() => console.log('✓ Connected Strictly to Cortez DB (v7.7 - Fine System Update).'))
+  .then(() => console.log('✓ Connected Strictly to Cortez DB (v7.8 - Fine System Update).'))
   .catch(err => console.error('❌ Database Error:', err));
 
 app.use(cors());
@@ -51,7 +51,6 @@ const UserSchema = new mongoose.Schema({
     warnings: { type: Number, default: 0 },
     is_blacklisted: { type: Boolean, default: false },
     total_heists: { type: Number, default: 0 },
-    // تحديث v7.7: تتبع الغرامات المالية للعضو
     fine_amount: { type: Number, default: 0 },
     fine_reason: { type: String, default: "" }
 });
@@ -277,6 +276,7 @@ app.post('/api/heist/submit', verifyAuth(['Chef_Braquage', 'Business_Manager', '
         
         io.emit('goalUpdated');
         io.emit('dutyUpdated'); 
+        io.emit('heistLogged'); // إشعار لحظي لكل الأعضاء لوضع التقرير أمامهم
         res.json({ msg: "تم تدوين العملية الميدانية بنجاح، وتحديث شريط الأهداف واللوقات." });
     } catch (err) { res.status(500).json({ error: "خطأ في معالجة بيانات العملية: " + err.message }); }
 });
@@ -289,7 +289,7 @@ app.get('/api/heist/dashboard', verifyAuth(['Don', 'Business_Manager', 'Chef_Bra
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/api/heist/logs', verifyAuth(['HR_Manager']), async (req, res) => {
+app.get('/api/heist/logs', verifyAuth(['Don', 'HR_Manager', 'Business_Manager', 'Chef_Braquage', 'Soldier']), async (req, res) => {
     try {
         const logs = await HeistLog.find().sort({ timestamp: -1 });
         res.json(logs);
@@ -316,13 +316,11 @@ app.post('/api/auth/login', async (req, res) => {
         if (!user || !(await bcrypt.compare(password, user.password))) return res.status(400).json({ error: "خطأ في اسم المستخدم أو كلمة المرور." });
         if (user.is_blacklisted) return res.status(403).json({ error: "تم حظرك ومطاردتك من عائلة كورتيز (بلاك ليست)." });
         
-        // جلب معلومات التوكن مع الغرامات المضافة حديثاً
         const token = jwt.sign({ id: user._id, role: user.role, username: user.username }, JWT_SECRET, { expiresIn: '24h' });
         res.json({ token, user: { username: user.username, role: user.role, duty_status: user.duty_status, fine_amount: user.fine_amount, fine_reason: user.fine_reason } });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// تحديث لتزويد الفرونت إند ببيانات الغرامة الحالية فوراً عند طلب الملف الشخصي
 app.get('/api/auth/me', async (req, res) => {
     try {
         const token = req.headers['authorization']?.split(' ')[1];
@@ -489,14 +487,14 @@ app.get('/api/shop/invoice/:id', async (req, res) => {
     } catch (err) { res.status(500).send("خطأ في جلب الفاتورة: " + err.message); }
 });
 
-app.get('/api/admin/users', verifyAuth(['HR_Manager']), async (req, res) => {
+app.get('/api/admin/users', verifyAuth(['HR_Manager', 'Don']), async (req, res) => {
     try {
         const users = await User.find({}, 'username role duty_status weekly_hours warnings is_blacklisted fine_amount fine_reason');
         res.json(users);
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/admin/change-role', verifyAuth(['HR_Manager']), async (req, res) => {
+app.post('/api/admin/change-role', verifyAuth(['HR_Manager', 'Don']), async (req, res) => {
     try {
         const { target_username, new_role } = req.body;
         if (new_role === 'Don') return res.status(403).json({ error: "لا يمكن منح رتبة البوس (Don) لأي شخص!" });
@@ -518,13 +516,12 @@ app.post('/api/admin/reset-weekly-hours', verifyAuth(['Don']), async (req, res) 
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/api/admin/archive', verifyAuth(['HR_Manager']), async (req, res) => {
+app.get('/api/admin/archive', verifyAuth(['HR_Manager', 'Don']), async (req, res) => {
     try { const archives = await Archive.find().sort({ week_date: -1 }); res.json(archives); } 
     catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ================== تحديث v7.7: نظام العقوبات المطور والغرامات المالية ==================
-app.post('/api/admin/penalty', verifyAuth(['HR_Manager']), async (req, res) => {
+app.post('/api/admin/penalty', verifyAuth(['HR_Manager', 'Don']), async (req, res) => {
     try {
         const { target_username, type, reason, fine_amount } = req.body;
         const user = await User.findOne({ username: target_username });
@@ -540,7 +537,6 @@ app.post('/api/admin/penalty', verifyAuth(['HR_Manager']), async (req, res) => {
         } else if (type === 'Remove_Blacklist') {
             user.is_blacklisted = false; user.warnings = 0;
         } else if (type === 'Fine') {
-            // إضافة الغرامة المالية الجديدة للعضو
             penaltyAmount = Number(fine_amount || 0);
             if (penaltyAmount <= 0) return res.status(400).json({ error: "يرجى تحديد مبلغ الغرامة بشكل صحيح." });
             user.fine_amount += penaltyAmount;
@@ -550,7 +546,6 @@ app.post('/api/admin/penalty', verifyAuth(['HR_Manager']), async (req, res) => {
         await user.save();
         await new PenaltyLog({ target_username, admin_username: req.user.username, type, reason, fine_amount: penaltyAmount }).save();
         
-        // إطلاق تحديث فوري عبر السوكيت ليتأثر حساب العضو فوراً بالواجهة
         io.emit('dutyUpdated', { username: user.username, duty_status: user.duty_status });
         io.emit('finesUpdated');
         
@@ -558,16 +553,14 @@ app.post('/api/admin/penalty', verifyAuth(['HR_Manager']), async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// جلب قائمة الأشخاص الذين عليهم غرامات فقط (لجدول الإدارة)
-app.get('/api/admin/fines/active', verifyAuth(['HR_Manager']), async (req, res) => {
+app.get('/api/admin/fines/active', verifyAuth(['HR_Manager', 'Don']), async (req, res) => {
     try {
         const finedUsers = await User.find({ fine_amount: { $gt: 0 } }, 'username role fine_amount fine_reason');
         res.json(finedUsers);
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// زر الإدارة: تأكيد تسلّم ودفع الغرامة يدوياً وتحويلها تلقائياً للخزينة
-app.post('/api/admin/fines/pay', verifyAuth(['HR_Manager']), async (req, res) => {
+app.post('/api/admin/fines/pay', verifyAuth(['HR_Manager', 'Don']), async (req, res) => {
     try {
         const { target_username } = req.body;
         const user = await User.findOne({ username: target_username });
@@ -575,17 +568,15 @@ app.post('/api/admin/fines/pay', verifyAuth(['HR_Manager']), async (req, res) =>
 
         const amountPaid = user.fine_amount;
         
-        // تصفير غرامة العضو
         user.fine_amount = 0;
         user.fine_reason = "";
         await user.save();
 
-        // تحويل الأموال تلقائياً إلى الخزينة
         await Treasury.updateOne({}, { $inc: { total_balance: amountPaid } });
 
         io.emit('finesUpdated');
         io.emit('treasuryUpdated');
-        io.emit('dutyUpdated'); // لتحديث التنبيه عند الفرد فوراً
+        io.emit('dutyUpdated'); 
         
         res.json({ msg: `تم تسوية الغرامة بنجاح، وتحويل مبلغ ${amountPaid}$ مباشرة إلى خزينة العصابة.` });
     } catch (err) { res.status(500).json({ error: err.message }); }
@@ -618,7 +609,7 @@ app.post('/api/hr/justify', verifyAuth(['Soldier', 'HR_Manager', 'Chef_Braquage'
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/api/hr/requests', verifyAuth(['HR_Manager']), async (req, res) => {
+app.get('/api/hr/requests', verifyAuth(['HR_Manager', 'Don']), async (req, res) => {
     try {
         const leaves = await Leave.find({ status: 'Pending' });
         const justifications = await Justification.find({ status: 'Pending' });
@@ -626,7 +617,7 @@ app.get('/api/hr/requests', verifyAuth(['HR_Manager']), async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/hr/action', verifyAuth(['HR_Manager']), async (req, res) => {
+app.post('/api/hr/action', verifyAuth(['HR_Manager', 'Don']), async (req, res) => {
     try {
         const { type, id, action } = req.body;
         if (type === 'leave') await Leave.findByIdAndUpdate(id, { status: action });
@@ -686,4 +677,4 @@ setInterval(async () => {
     } catch (err) { console.error(err.message); }
 }, 300000); 
 
-server.listen(PORT, () => console.log(`📡 Cortez System v7.7 running safely on port ${PORT}`));
+server.listen(PORT, () => console.log(`📡 Cortez System v7.8 running safely on port ${PORT}`));
