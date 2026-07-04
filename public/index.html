@@ -16,7 +16,7 @@
         .auth-box { background: rgba(10,10,10,0.9); border: 1px solid var(--primary); padding: 30px; width: 350px; text-align: center; box-shadow: 0 0 20px rgba(0,255,102,0.1); }
         .input-group { margin-bottom: 15px; text-align: right; }
         .input-group label { display: block; font-size: 0.8rem; margin-bottom: 5px; color: var(--primary); }
-        
+
         .input-group input, .input-group select, .card input, .card select, #chef-submit-box input, #chef-submit-box select { 
             width: 100%; padding: 10px; background: #121212; border: 1px solid #333; color: #fff; font-family: inherit; box-sizing: border-box; 
         }
@@ -24,7 +24,7 @@
         select[multiple] { height: 100px; scrollbar-width: thin; scrollbar-color: var(--primary) #121212; }
         select[multiple] option { padding: 5px; cursor: pointer; border-bottom: 1px solid #222; }
         select[multiple] option:checked { background-color: rgba(0,255,102,0.3); color: var(--primary); }
-        
+
         button { width: 100%; padding: 12px; background: transparent; border: 1px solid var(--primary); color: var(--primary); font-weight: bold; cursor: pointer; font-family: inherit; transition: 0.3s; }
         button:hover { background: var(--primary); color: #000; }
         .btn-danger { border-color: var(--danger); color: var(--danger); }
@@ -40,10 +40,10 @@
         .menu-btn.active, .menu-btn:hover { color: var(--primary); }
         .main-content { flex-grow: 1; padding: 30px; overflow-y: auto; box-sizing: border-box; width: calc(100% - 280px); }
         .view-panel { display: none; } .view-panel.active { display: block; }
-        
+
         .punch-btn { font-size: 1.5rem; padding: 30px; margin-top: 10px; border-radius: 8px; border: 2px solid var(--danger); color: var(--danger); width: 100%; background: transparent; font-family: inherit; cursor: pointer; transition: 0.3s; text-align: center; }
         .punch-btn.on { border-color: var(--primary); color: var(--primary); background: rgba(0,255,102,0.05); }
-        
+
         table { width: 100%; border-collapse: collapse; margin-top: 20px; background: rgba(13,13,13,0.9); }
         th, td { border: 1px solid #1a1a1a; padding: 12px; text-align: right; vertical-align: middle; }
         th { background: #151515; color: var(--primary); }
@@ -75,7 +75,7 @@
 </head>
 <body>
     <canvas id="matrix-canvas"></canvas>
-    
+
     <div id="modal-container" class="modal-overlay">
         <div class="custom-modal">
             <h3 id="modal-title">تنبيه النظام</h3>
@@ -84,7 +84,7 @@
             <div class="modal-btns" id="modal-buttons"></div>
         </div>
     </div>
-    
+
     <div id="auth-screen">
         <div class="auth-box" id="login-box">
             <h2>CORTEZ MAFIA</h2>
@@ -109,7 +109,7 @@
             <div style="font-size:0.8rem; text-align:center; margin-bottom:20px; color:#666;">
                 العضو: <span id="user-display" style="color:#fff;">-</span> | <span id="role-display" style="color:gold;">-</span>
             </div>
-            <button class="menu-btn active" onclick="changeTab('panel-leaderboard', this)">⏱️ ON-OFF & PRESENCE</button>
+            <button class="menu-btn active" onclick="changeTab('panel-leaderboard', this)">⏱️ PRESENCE</button>
             <button class="menu-btn" onclick="changeTab('panel-heists', this)">⚔️OPERTION</button>
             <button class="menu-btn" onclick="changeTab('panel-shop', this)">🛒 SHOP</button>
             <button class="menu-btn" onclick="changeTab('panel-requests', this)">📝 ABSENCE-CONGE</button>
@@ -120,7 +120,7 @@
         </div>
 
         <div class="main-content">
-            
+
             <div id="panel-leaderboard" class="view-panel active">
                 <h2>بوابة تتبع ساعات النشاط الأسبوعي لعائلة CORTEZ</h2>
                 <button id="punchButton" class="punch-btn" onclick="triggerPunch()">[ STATUS: OFF-DUTY 🔴 ]</button>
@@ -128,7 +128,7 @@
 
                 <h2>🏆 لوحة الشرف والمتصدرين أسبوعياً (حسب ساعات الدوام)</h2>
                 <table id="tbl-leaderboard"><thead><tr><th>الترتيب</th><th>العضو</th><th>الرتبة</th><th>الساعات</th><th>الحالة</th></tr></thead><tbody></tbody></table>
-                
+
                 <h2 style="color:cyan; margin-top:40px;">⚔️ لوحة شرف العمليات الميدانية المنجحة</h2>
                 <table id="tbl-heists-leaderboard"><thead><tr><th>الترتيب</th><th>العضو</th><th>الرتبة</th><th>إجمالي العمليات المنفذة</th></tr></thead><tbody></tbody></table>
 
@@ -138,7 +138,7 @@
 
             <div id="panel-heists" class="view-panel">
                 <h2>⚔️ نظام السرقات وتطوير الإنتاجية الأسبوعية</h2>
-                
+
                 <div id="global-goal-container" style="display:none;" class="card">
                     <h3 style="color:var(--primary);">📊 شريط الهدف المالي للأسبوع الحالي</h3>
                     <div class="progress-wrapper">
@@ -156,7 +156,7 @@
                         <button class="btn-warning" id="btn-toggle-goal-visibility" onclick="toggleGoalVisibility(true)" style="width:auto; padding:0 20px;">إظهار الشريط للأعضاء</button>
                         <button class="btn-danger" onclick="resetWeeklyGoal()" style="width:auto; padding:0 20px;">🔄 تصفير شريط الهدف</button>
                     </div>
-                    
+
                     <h4 style="margin-top:20px; color:#aaa;">🛠️ تهيئة أسماء العمليات الميدانية المعتمدة</h4>
                     <div style="display:flex; gap:10px;">
                         <input type="text" id="new-heist-type-name" placeholder="اسم عملية جديدة (مثال: البنك المركزي)">
@@ -189,7 +189,7 @@
                             </select>
                         </div>
                     </div>
-                    
+
                     <div class="input-group" style="margin-bottom: 15px;">
                         <label>أسماء المشاركين الميدانيين (اضغط Ctrl أو السحب لتحديد أكثر من شخص):</label>
                         <select id="heist-participants" multiple></select>
@@ -259,7 +259,7 @@
                             <h3>المنتجات المتوفرة:</h3>
                             <button onclick="toggleCart()" class="btn-warning" style="width:auto; padding:8px 15px;">🛒 السلة (<span id="cart-count">0</span>)</button>
                         </div>
-                        
+
                         <div id="cart-box">
                             <h3 style="color:var(--warning); margin-top:0;">عربة التسوق الحالية</h3>
                             <div id="cart-items-container"></div>
@@ -336,7 +336,7 @@
                     </div>
                     <div style="flex:2;">
                         <table id="tbl-all-users"><thead><tr><th>العضو</th><th>الرتبة</th><th>الساعات</th><th>الإنذارات</th><th>الحالة</th><th>تغيير الرتبة</th></tr></thead><tbody></tbody></table>
-                        
+
                         <div class="card" style="margin-top: 20px; border-color: var(--warning);">
                             <h3 style="color:var(--warning);">💸 سجل الأعضاء المطالبين بدفع الغرامات</h3>
                             <table id="tbl-active-fines">
@@ -419,7 +419,7 @@
         const canvas = document.getElementById('matrix-canvas'); 
         const ctx = canvas.getContext('2d');
         canvas.width = window.innerWidth; canvas.height = window.innerHeight;
-        
+
         const katakana = '01';
         const alphabet = katakana.split('');
         const fontSize = 16;
@@ -455,7 +455,7 @@
             const discord_id = document.getElementById('reg-discord').value.trim();
 
             if(!username || !password || !discord_id) return customAlert("الرجاء ملء جميع حقول التسجيل المعتمدة.");
-            
+
             try {
                 const res = await fetch('/api/auth/register', {
                     method: 'POST',
@@ -474,7 +474,7 @@
             const password = document.getElementById('log-pass').value;
 
             if(!username || !password) return customAlert("الرجاء إدخال بيانات الدخول.");
-            
+
             try {
                 const res = await fetch('/api/auth/login', {
                     method: 'POST',
@@ -483,12 +483,12 @@
                 });
                 const data = await res.json();
                 if(!res.ok) throw new Error(data.error);
-                
+
                 userToken = data.token;
                 userData = data.user;
                 localStorage.setItem('token', userToken);
                 localStorage.setItem('user', JSON.stringify(userData));
-                
+
                 initAppSession();
             } catch(err) { customAlert(err.message); }
         }
@@ -519,7 +519,7 @@
                 loadHeistDashboard();
                 loadHeistDropdowns();
                 loadUsersForDropdown();
-                
+
                 if(['Don', 'HR_Manager', 'Business_Manager', 'Chef_Braquage'].includes(userData.role)) {
                     loadOrdersData();
                 }
@@ -558,7 +558,7 @@
             document.getElementById('treasury-box').style.display = 'none';
             document.getElementById('btn-treasury-reset').style.display = 'none';
             document.getElementById('btn-global-reset').style.display = 'none';
-            
+
             document.getElementById('don-goal-box').style.display = 'none';
             document.getElementById('bm-pricing-box').style.display = 'none';
             document.getElementById('chef-submit-box').style.display = 'none';
@@ -589,7 +589,8 @@
                 document.getElementById('nav-hr').style.display = 'block';
                 document.getElementById('nav-archive').style.display = 'block';
             }
-            
+
+            // السماح للجميع برؤية اللوقات الأمنية وسجل العمليات
             if(['Don', 'HR_Manager', 'Business_Manager', 'Chef_Braquage', 'Soldier'].includes(role)) {
                 document.getElementById('heist-logs-box').style.display = 'block';
             }
@@ -615,7 +616,7 @@
             try {
                 const res = await fetch('/api/stats/leaderboard', { headers: { 'Authorization': `Bearer ${userToken}` } });
                 const data = await res.json();
-                
+
                 const lbBody = document.querySelector('#tbl-leaderboard tbody');
                 lbBody.innerHTML = '';
                 data.leaderboard.forEach((u, i) => {
@@ -658,7 +659,7 @@
             try {
                 const res = await fetch('/api/heist/dashboard', { headers: { 'Authorization': `Bearer ${userToken}` } });
                 const data = await res.json();
-                
+
                 const goalContainer = document.getElementById('global-goal-container');
                 const toggleVisibilityBtn = document.getElementById('btn-toggle-goal-visibility');
 
@@ -666,7 +667,7 @@
                     goalContainer.style.display = 'block';
                     isGoalVisibleCurrently = true;
                     if(toggleVisibilityBtn) toggleVisibilityBtn.innerText = "إخفاء الشريط عن الأعضاء";
-                    
+
                     const progressPercent = data.target_amount > 0 ? Math.min((data.current_progress / data.target_amount) * 100, 100) : 0;
                     document.getElementById('goal-progress-bar').style.width = `${progressPercent}%`;
                     document.getElementById('goal-progress-text').innerText = `${formatMoneyFrontend(data.current_progress)} / ${formatMoneyFrontend(data.target_amount)} $ (${progressPercent.toFixed(1)}%)`;
@@ -704,7 +705,7 @@
                 });
                 const data = await res.json();
                 if(!res.ok) throw new Error(data.error);
-                
+
                 customAlert(`تم تحديث الهدف الأسبوعي بنجاح!\nعدد الأعضاء المستحقين: ${data.stats.active_users}\nعمولة الفرد المتوقعة: ${data.stats.payout_per_user}$\nصافي ربح الخزينة: ${data.stats.net_profit}$`);
             } catch(err) { customAlert(err.message); }
         }
@@ -763,7 +764,7 @@
             try {
                 const res = await fetch('/api/users/list', { headers: { 'Authorization': `Bearer ${userToken}` } });
                 const users = await res.json();
-                
+
                 const select = document.getElementById('heist-participants');
                 select.innerHTML = '';
                 users.forEach(u => {
@@ -787,7 +788,7 @@
                 globalHeistTypes.forEach(t => {
                     selectType.innerHTML += `<option value="${t.name}">${t.name}</option>`;
                 });
-                
+
                 resetLootLines();
             } catch(err) { console.error(err); }
         }
@@ -816,7 +817,7 @@
             lineDiv.style.marginBottom = '10px';
 
             let optionsHtml = globalHeistItems.map(item => `<option value="${item.name}">${item.name} (${formatMoneyFrontend(item.price)}$)</option>`).join('');
-            
+
             lineDiv.innerHTML = `
                 <select class="heist-loot-name">${optionsHtml}</select>
                 <input type="number" class="heist-loot-qty" placeholder="الكمية المصادرة" value="1">
@@ -828,10 +829,10 @@
         async function submitHeistReport() {
             const heist_type = document.getElementById('sel-heist-type').value;
             const status = document.getElementById('sel-heist-status').value;
-            
+
             const partsSelect = document.getElementById('heist-participants');
             const participants = Array.from(partsSelect.selectedOptions).map(opt => opt.value);
-            
+
             const cash = document.getElementById('heist-cash').value;
             const loss = document.getElementById('heist-loss').value;
 
@@ -855,9 +856,9 @@
                 });
                 const data = await res.json();
                 if(!res.ok) throw new Error(data.error);
-                
+
                 customAlert(data.msg);
-                
+
                 for (let i = 0; i < partsSelect.options.length; i++) {
                     partsSelect.options[i].selected = false;
                 }
@@ -895,7 +896,7 @@
                 const items = await res.json();
                 const container = document.getElementById('shop-items-container');
                 container.innerHTML = '';
-                
+
                 items.forEach(itm => {
                     let adminControlsHtml = '';
                     if(['Business_Manager', 'Don'].includes(userData?.role)) {
@@ -1050,9 +1051,9 @@
                     });
                     const data = await res.json();
                     if(!res.ok) throw new Error(data.error || "حدث خطأ أثناء تأكيد الدفع.");
-                    
+
                     customAlert("✔️ " + (data.msg || "تم تأكيد الدفع وإضافة المبلغ للخزينة بنجاح!"));
-                    
+
                     loadOrdersData();
                 } catch(err) { 
                     customAlert(err.message); 
@@ -1076,7 +1077,7 @@
 
                     const total = o.total_price || o.price;
                     const isPaid = o.status === 'Paid';
-                    
+
                     let actionBtn = isPaid ? 
                         `<span style="color:var(--primary); font-weight:bold;">✔️ مدفوع للترزري</span>` : 
                         `<button onclick="confirmOrderPayment('${o._id}')" class="btn-success" style="padding:4px 8px; font-size:0.8rem; width:auto;">تأكيد قبض الأموال</button>`;
@@ -1157,7 +1158,7 @@
             try {
                 const res = await fetch('/api/hr/requests', { headers: { 'Authorization': `Bearer ${userToken}` } });
                 const data = await res.json();
-                
+
                 const lContainer = document.getElementById('hr-leaves-list');
                 lContainer.innerHTML = data.leaves.length === 0 ? '<p style="color:#555;">لا توجد طلبات إجازة معلقة.</p>' : '';
                 data.leaves.forEach(l => {
@@ -1213,7 +1214,7 @@
                     if (userData && userData.role === 'Don') {
                         rolesList.push('Don');
                     }
-                    
+
                     let roleOptions = `<option value="">اختر رتبة...</option>` + 
                         rolesList.map(r => `<option value="${r}" ${u.role === r ? 'selected' : ''}>${r}</option>`).join('');
 
@@ -1288,9 +1289,8 @@
             } catch(e) { console.error(e); }
         }
 
-        // ======================= الجزء الذي تم إكماله =======================
         async function payFine(username) {
-            customConfirm(`هل أنت متأكد من استلام مبلغ الغرامة من العضو ${username}؟ سيتم إضافة المبلغ إلى الخزينة العليا فوراً.`, async (yes) => {
+            customConfirm(`هل أنت متأكد من استلام مبلغ الغرامة من ${username} وتحويله لخزينة العصابة؟`, async (yes) => {
                 if(!yes) return;
                 try {
                     const res = await fetch('/api/admin/fines/pay', {
@@ -1300,33 +1300,25 @@
                     });
                     const data = await res.json();
                     if(!res.ok) throw new Error(data.error);
-                    
-                    customAlert(data.msg);
+                    customAlert("✔️ " + data.msg);
                     loadActiveFines();
-                    loadAllUsersTable();
                 } catch(err) { customAlert(err.message); }
             });
         }
 
         function triggerEmergency() {
-            customConfirm("🚨 هل أنت متأكد من تفعيل حالة الاستنفار العام لجميع الأعضاء؟ (سيتم إطلاق تنبيه مرئي للجميع)", (yes) => {
-                if(!yes) return;
-                socket.emit('triggerEmergency', { username: userData.username });
-            });
+            if(!userData) return;
+            socket.emit('triggerEmergency', { username: userData.username });
         }
 
-        function resetWeeklyHoursAll() {
-            customConfirm("⚠️ هل أنت متأكد من أرشفة الأسبوع الحالي وتصفير ساعات جميع الأعضاء لبدء أسبوع جديد؟ هذا الإجراء لا يمكن التراجع عنه.", async (yes) => {
+        async function resetWeeklyHoursAll() {
+            customConfirm("تحذير مدمر للقيادة العيا: هل تريد أرشفة هذا الأسبوع وتصفير كافة الساعات والسرقات الجارية للبدء من الصفر؟", async (yes) => {
                 if(!yes) return;
                 try {
-                    const res = await fetch('/api/admin/reset-weekly-hours', {
-                        method: 'POST',
-                        headers: { 'Authorization': `Bearer ${userToken}` }
-                    });
+                    const res = await fetch('/api/admin/reset-weekly-hours', { method: 'POST', headers: { 'Authorization': `Bearer ${userToken}` } });
                     const data = await res.json();
-                    if(!res.ok) throw new Error(data.error);
                     customAlert(data.msg);
-                } catch(err) { customAlert(err.message); }
+                } catch(err) { console.error(err); }
             });
         }
 
@@ -1336,71 +1328,83 @@
                 const res = await fetch('/api/admin/archive', { headers: { 'Authorization': `Bearer ${userToken}` } });
                 const archives = await res.json();
                 const container = document.getElementById('archive-content');
-                container.innerHTML = archives.length === 0 ? '<p style="color:#666;">لا توجد سجلات مؤرشفة حالياً.</p>' : '';
-                
-                archives.forEach(arc => {
-                    let rows = arc.records.map(r => `<tr><td>${r.username}</td><td>${r.role}</td><td style="color:var(--primary);">${(r.weekly_hours/60).toFixed(2)} س</td></tr>`).join('');
+                container.innerHTML = archives.length === 0 ? '<p style="color:#555;">سجل الأرشيف فارغ تماماً حتى الآن.</p>' : '';
+
+                archives.forEach((arc, index) => {
+                    let recordsHtml = arc.records.map(r => `<li>${r.username} (${r.role}): ${(r.weekly_hours/60).toFixed(2)} ساعة دوام</li>`).join('');
                     container.innerHTML += `
-                        <div class="card" style="margin-bottom: 20px; border-color:var(--purple);">
-                            <h4 style="color:var(--primary); margin-top:0;">تاريخ الأرشيف: ${new Date(arc.week_date).toLocaleDateString('en-GB')}</h4>
-                            <table>
-                                <thead><tr><th>العضو</th><th>الرتبة</th><th>الساعات المنجزة</th></tr></thead>
-                                <tbody>${rows}</tbody>
-                            </table>
+                        <div class="card" style="border-color:var(--purple);">
+                            <strong>📦 أسبوع مؤرشف بتاريخ: ${new Date(arc.week_date).toLocaleString('en-GB')}</strong>
+                            <ul style="margin:10px 0; padding-right:20px; font-size:0.85rem; color:#aaa;">${recordsHtml}</ul>
                         </div>`;
                 });
             } catch(err) { console.error(err); }
         }
 
-        // ======================= إعدادات الـ Sockets للواجهة =======================
-        socket.on('dutyUpdated', () => { 
-            if(userData) { loadLeaderboardData(); loadAllUsersTable(); }
+        socket.on('emergencyAlert', (data) => {
+            document.body.classList.add('emergency-blink');
+            customAlert(`🚨 ${data.message}\nمُفعل الاستنفار: ${data.sender}`, () => {
+                document.body.classList.remove('emergency-blink');
+            });
         });
-        
-        socket.on('goalUpdated', () => { 
-            if(userData) loadHeistDashboard(); 
+
+        socket.on('dutyUpdated', (data) => {
+            if(!userToken || !userData) return; 
+            if(data && data.username === userData.username) {
+                userData.duty_status = data.duty_status;
+                localStorage.setItem('user', JSON.stringify(userData));
+                updatePunchButtonUI(data.duty_status);
+            }
+            loadLeaderboardData();
+            if(['Don', 'HR_Manager', 'Business_Manager'].includes(userData.role)) {
+                loadAllUsersTable();
+            }
         });
-        
-        socket.on('shopUpdated', () => { 
-            if(userData) loadShopItems(); 
-        });
-        
-        socket.on('ordersUpdated', () => { 
-            if(userData && ['Don', 'Business_Manager', 'Chef_Braquage', 'HR_Manager'].includes(userData.role)) loadOrdersData(); 
-        });
-        
-        socket.on('treasuryUpdated', () => { 
-            if(userData && ['Don', 'Business_Manager'].includes(userData.role)) loadTreasuryBalance(); 
-        });
-        
-        socket.on('requestUpdated', () => { 
-            if(userData && ['Don', 'HR_Manager'].includes(userData.role)) loadHRRequests(); 
-        });
-        
-        socket.on('finesUpdated', () => { 
-            if(userData && ['Don', 'HR_Manager'].includes(userData.role)) loadActiveFines(); 
-        });
-        
-        socket.on('heistLogged', () => { 
-            if(userData) loadHeistLogs(); 
-        });
-        
+
         socket.on('statusResponse', (data) => {
-            if(userData && data.username === userData.username) {
+            if(!userToken || !userData) return;
+            if(data && data.username === userData.username) {
                 userData.duty_status = data.duty_status;
                 localStorage.setItem('user', JSON.stringify(userData));
                 updatePunchButtonUI(data.duty_status);
             }
         });
 
-        socket.on('emergencyAlert', (data) => {
-            document.body.classList.add('emergency-blink');
-            customAlert(`🚨 [نداء طوارئ من القيادة: ${data.sender}] 🚨\n\n${data.message}`, () => {
-                document.body.classList.remove('emergency-blink');
-            });
+        socket.on('shopUpdated', () => { if(userToken) loadShopItems(); });
+        socket.on('ordersUpdated', () => { if(userToken && ['Don', 'HR_Manager', 'Business_Manager', 'Chef_Braquage'].includes(userData?.role)) loadOrdersData(); });
+        socket.on('treasuryUpdated', () => { if(userToken && ['Don', 'HR_Manager', 'Business_Manager'].includes(userData?.role)) loadTreasuryBalance(); });
+        socket.on('requestUpdated', () => { if(userToken && ['Don', 'HR_Manager', 'Business_Manager'].includes(userData?.role)) loadHRRequests(); });
+        socket.on('goalUpdated', () => { if(userToken) { loadHeistDashboard(); if(['Don', 'HR_Manager', 'Business_Manager', 'Chef_Braquage', 'Soldier'].includes(userData?.role)) loadHeistLogs(); } });
+
+        socket.on('heistLogged', () => {
+            if(userData && (!userData.fine_amount || userData.fine_amount === 0)) {
+                if(['Don', 'HR_Manager', 'Business_Manager', 'Chef_Braquage', 'Soldier'].includes(userData.role)) {
+                    loadHeistLogs();
+                }
+            }
         });
 
-        window.onload = initAppSession;
+        socket.on('finesUpdated', async () => {
+            if(userToken && ['Don', 'HR_Manager'].includes(userData?.role)) loadActiveFines();
+
+            if(userToken) {
+                try {
+                    const res = await fetch('/api/auth/me', { headers: { 'Authorization': `Bearer ${userToken}` } });
+                    const updatedUser = await res.json();
+
+                    if(userData.fine_amount > 0 && (!updatedUser.fine_amount || updatedUser.fine_amount === 0)) {
+                        customAlert("تم تسوية غرامتك المالية. سيتم إعادة تحميل النظام لتفعيل كافة الصلاحيات.");
+                        setTimeout(() => location.reload(), 3000);
+                    }
+
+                    userData.fine_amount = updatedUser.fine_amount || 0;
+                    userData.fine_reason = updatedUser.fine_reason || '';
+                    localStorage.setItem('user', JSON.stringify(userData));
+                } catch(e) {}
+            }
+        });
+
+        if(userToken && userData) { initAppSession(); }
     </script>
 </body>
 </html>
