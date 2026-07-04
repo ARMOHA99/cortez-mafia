@@ -109,7 +109,7 @@
             <div style="font-size:0.8rem; text-align:center; margin-bottom:20px; color:#666;">
                 العضو: <span id="user-display" style="color:#fff;">-</span> | <span id="role-display" style="color:gold;">-</span>
             </div>
-            <button class="menu-btn active" onclick="changeTab('panel-leaderboard', this)">⏱️ PRESENCE</button>
+            <button class="menu-btn active" onclick="changeTab('panel-leaderboard', this)">⏱️ ON-OFF & PRESENCE</button>
             <button class="menu-btn" onclick="changeTab('panel-heists', this)">⚔️OPERTION</button>
             <button class="menu-btn" onclick="changeTab('panel-shop', this)">🛒 SHOP</button>
             <button class="menu-btn" onclick="changeTab('panel-requests', this)">📝 ABSENCE-CONGE</button>
@@ -590,7 +590,6 @@
                 document.getElementById('nav-archive').style.display = 'block';
             }
             
-            // السماح للجميع برؤية اللوقات الأمنية وسجل العمليات
             if(['Don', 'HR_Manager', 'Business_Manager', 'Chef_Braquage', 'Soldier'].includes(role)) {
                 document.getElementById('heist-logs-box').style.display = 'block';
             }
@@ -1289,8 +1288,9 @@
             } catch(e) { console.error(e); }
         }
 
+        // ======================= الجزء الذي تم إكماله =======================
         async function payFine(username) {
-            customConfirm(`هل أنت متأكد من استلام مبلغ الغرامة من ${username} وتحويله لخزينة العصابة؟`, async (yes) => {
+            customConfirm(`هل أنت متأكد من استلام مبلغ الغرامة من العضو ${username}؟ سيتم إضافة المبلغ إلى الخزينة العليا فوراً.`, async (yes) => {
                 if(!yes) return;
                 try {
                     const res = await fetch('/api/admin/fines/pay', {
@@ -1300,25 +1300,33 @@
                     });
                     const data = await res.json();
                     if(!res.ok) throw new Error(data.error);
-                    customAlert("✔️ " + data.msg);
+                    
+                    customAlert(data.msg);
                     loadActiveFines();
+                    loadAllUsersTable();
                 } catch(err) { customAlert(err.message); }
             });
         }
 
         function triggerEmergency() {
-            if(!userData) return;
-            socket.emit('triggerEmergency', { username: userData.username });
+            customConfirm("🚨 هل أنت متأكد من تفعيل حالة الاستنفار العام لجميع الأعضاء؟ (سيتم إطلاق تنبيه مرئي للجميع)", (yes) => {
+                if(!yes) return;
+                socket.emit('triggerEmergency', { username: userData.username });
+            });
         }
 
-        async function resetWeeklyHoursAll() {
-            customConfirm("تحذير مدمر للقيادة العيا: هل تريد أرشفة هذا الأسبوع وتصفير كافة الساعات والسرقات الجارية للبدء من الصفر؟", async (yes) => {
+        function resetWeeklyHoursAll() {
+            customConfirm("⚠️ هل أنت متأكد من أرشفة الأسبوع الحالي وتصفير ساعات جميع الأعضاء لبدء أسبوع جديد؟ هذا الإجراء لا يمكن التراجع عنه.", async (yes) => {
                 if(!yes) return;
                 try {
-                    const res = await fetch('/api/admin/reset-weekly-hours', { method: 'POST', headers: { 'Authorization': `Bearer ${userToken}` } });
+                    const res = await fetch('/api/admin/reset-weekly-hours', {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${userToken}` }
+                    });
                     const data = await res.json();
+                    if(!res.ok) throw new Error(data.error);
                     customAlert(data.msg);
-                } catch(err) { console.error(err); }
+                } catch(err) { customAlert(err.message); }
             });
         }
 
@@ -1328,83 +1336,71 @@
                 const res = await fetch('/api/admin/archive', { headers: { 'Authorization': `Bearer ${userToken}` } });
                 const archives = await res.json();
                 const container = document.getElementById('archive-content');
-                container.innerHTML = archives.length === 0 ? '<p style="color:#555;">سجل الأرشيف فارغ تماماً حتى الآن.</p>' : '';
+                container.innerHTML = archives.length === 0 ? '<p style="color:#666;">لا توجد سجلات مؤرشفة حالياً.</p>' : '';
                 
-                archives.forEach((arc, index) => {
-                    let recordsHtml = arc.records.map(r => `<li>${r.username} (${r.role}): ${(r.weekly_hours/60).toFixed(2)} ساعة دوام</li>`).join('');
+                archives.forEach(arc => {
+                    let rows = arc.records.map(r => `<tr><td>${r.username}</td><td>${r.role}</td><td style="color:var(--primary);">${(r.weekly_hours/60).toFixed(2)} س</td></tr>`).join('');
                     container.innerHTML += `
-                        <div class="card" style="border-color:var(--purple);">
-                            <strong>📦 أسبوع مؤرشف بتاريخ: ${new Date(arc.week_date).toLocaleString('en-GB')}</strong>
-                            <ul style="margin:10px 0; padding-right:20px; font-size:0.85rem; color:#aaa;">${recordsHtml}</ul>
+                        <div class="card" style="margin-bottom: 20px; border-color:var(--purple);">
+                            <h4 style="color:var(--primary); margin-top:0;">تاريخ الأرشيف: ${new Date(arc.week_date).toLocaleDateString('en-GB')}</h4>
+                            <table>
+                                <thead><tr><th>العضو</th><th>الرتبة</th><th>الساعات المنجزة</th></tr></thead>
+                                <tbody>${rows}</tbody>
+                            </table>
                         </div>`;
                 });
             } catch(err) { console.error(err); }
         }
 
+        // ======================= إعدادات الـ Sockets للواجهة =======================
+        socket.on('dutyUpdated', () => { 
+            if(userData) { loadLeaderboardData(); loadAllUsersTable(); }
+        });
+        
+        socket.on('goalUpdated', () => { 
+            if(userData) loadHeistDashboard(); 
+        });
+        
+        socket.on('shopUpdated', () => { 
+            if(userData) loadShopItems(); 
+        });
+        
+        socket.on('ordersUpdated', () => { 
+            if(userData && ['Don', 'Business_Manager', 'Chef_Braquage', 'HR_Manager'].includes(userData.role)) loadOrdersData(); 
+        });
+        
+        socket.on('treasuryUpdated', () => { 
+            if(userData && ['Don', 'Business_Manager'].includes(userData.role)) loadTreasuryBalance(); 
+        });
+        
+        socket.on('requestUpdated', () => { 
+            if(userData && ['Don', 'HR_Manager'].includes(userData.role)) loadHRRequests(); 
+        });
+        
+        socket.on('finesUpdated', () => { 
+            if(userData && ['Don', 'HR_Manager'].includes(userData.role)) loadActiveFines(); 
+        });
+        
+        socket.on('heistLogged', () => { 
+            if(userData) loadHeistLogs(); 
+        });
+        
+        socket.on('statusResponse', (data) => {
+            if(userData && data.username === userData.username) {
+                userData.duty_status = data.duty_status;
+                localStorage.setItem('user', JSON.stringify(userData));
+                updatePunchButtonUI(data.duty_status);
+            }
+        });
+
         socket.on('emergencyAlert', (data) => {
             document.body.classList.add('emergency-blink');
-            customAlert(`🚨 ${data.message}\nمُفعل الاستنفار: ${data.sender}`, () => {
+            customAlert(`🚨 [نداء طوارئ من القيادة: ${data.sender}] 🚨\n\n${data.message}`, () => {
                 document.body.classList.remove('emergency-blink');
             });
         });
 
-        socket.on('dutyUpdated', (data) => {
-            if(!userToken || !userData) return; 
-            if(data && data.username === userData.username) {
-                userData.duty_status = data.duty_status;
-                localStorage.setItem('user', JSON.stringify(userData));
-                updatePunchButtonUI(data.duty_status);
-            }
-            loadLeaderboardData();
-            if(['Don', 'HR_Manager', 'Business_Manager'].includes(userData.role)) {
-                loadAllUsersTable();
-            }
-        });
-
-        socket.on('statusResponse', (data) => {
-            if(!userToken || !userData) return;
-            if(data && data.username === userData.username) {
-                userData.duty_status = data.duty_status;
-                localStorage.setItem('user', JSON.stringify(userData));
-                updatePunchButtonUI(data.duty_status);
-            }
-        });
-
-        socket.on('shopUpdated', () => { if(userToken) loadShopItems(); });
-        socket.on('ordersUpdated', () => { if(userToken && ['Don', 'HR_Manager', 'Business_Manager', 'Chef_Braquage'].includes(userData?.role)) loadOrdersData(); });
-        socket.on('treasuryUpdated', () => { if(userToken && ['Don', 'HR_Manager', 'Business_Manager'].includes(userData?.role)) loadTreasuryBalance(); });
-        socket.on('requestUpdated', () => { if(userToken && ['Don', 'HR_Manager', 'Business_Manager'].includes(userData?.role)) loadHRRequests(); });
-        socket.on('goalUpdated', () => { if(userToken) { loadHeistDashboard(); if(['Don', 'HR_Manager', 'Business_Manager', 'Chef_Braquage', 'Soldier'].includes(userData?.role)) loadHeistLogs(); } });
-
-        socket.on('heistLogged', () => {
-            if(userData && (!userData.fine_amount || userData.fine_amount === 0)) {
-                if(['Don', 'HR_Manager', 'Business_Manager', 'Chef_Braquage', 'Soldier'].includes(userData.role)) {
-                    loadHeistLogs();
-                }
-            }
-        });
-
-        socket.on('finesUpdated', async () => {
-            if(userToken && ['Don', 'HR_Manager'].includes(userData?.role)) loadActiveFines();
-            
-            if(userToken) {
-                try {
-                    const res = await fetch('/api/auth/me', { headers: { 'Authorization': `Bearer ${userToken}` } });
-                    const updatedUser = await res.json();
-                    
-                    if(userData.fine_amount > 0 && (!updatedUser.fine_amount || updatedUser.fine_amount === 0)) {
-                        customAlert("تم تسوية غرامتك المالية. سيتم إعادة تحميل النظام لتفعيل كافة الصلاحيات.");
-                        setTimeout(() => location.reload(), 3000);
-                    }
-                    
-                    userData.fine_amount = updatedUser.fine_amount || 0;
-                    userData.fine_reason = updatedUser.fine_reason || '';
-                    localStorage.setItem('user', JSON.stringify(userData));
-                } catch(e) {}
-            }
-        });
-
-        if(userToken && userData) { initAppSession(); }
+        window.onload = initAppSession;
     </script>
 </body>
 </html>
