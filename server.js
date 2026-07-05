@@ -308,7 +308,7 @@ app.get('/api/heist/dashboard', verifyAuth(['Don', 'Business_Manager', 'Chef_Bra
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/api/heist/logs', verifyAuth(['GRH']), async (req, res) => {
+app.get('/api/heist/logs', verifyAuth(['GRH', 'Soldat']), async (req, res) => {
     try {
         const logs = await HeistLog.find().sort({ timestamp: -1 });
         res.json(logs);
