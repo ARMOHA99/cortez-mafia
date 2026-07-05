@@ -44,7 +44,10 @@ const UserSchema = new mongoose.Schema({
     username: { type: String, required: true, unique: true },
     password: { type: String, required: true },
     discord_id: { type: String, required: true },
-    role: { type: String, enum: ['Don', 'Business_Manager', 'Chef_Braquage', 'GRH', 'Soldat', 'Gang_Supervisor'], default: 'Soldat' },
+    role: { type: String, enum: ['Don', 'Business_Manager', 'Chef_Braquage', 'GRH', 'Soldat', 'Gang_Supervisor', 'Gang_Member'], default: 'Soldat' },
+    // تحديث: نظام أعضاء العصابات الخارجيين (منفصل عن أعضاء المافيا)
+    gang_name: { type: String, default: '' },
+    account_status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'approved' },
     duty_status: { type: String, enum: ['ON-DUTY', 'OFF-DUTY'], default: 'OFF-DUTY' },
     last_punch_in: { type: Date },
     weekly_hours: { type: Number, default: 0 },
@@ -136,10 +139,42 @@ const WeeklyGoal = mongoose.model('WeeklyGoal', WeeklyGoalSchema);
 const HeistLog = mongoose.model('HeistLog', HeistLogSchema);
 const Gang = mongoose.model('Gang', GangSchema);
 
+// ================== تحديث: نظام شوب أعضاء العصابات (منفصل تماماً عن شوب المافيا) ==================
+const GangShopItemSchema = new mongoose.Schema({
+    name: { type: String, required: true },
+    buy_price: { type: Number, required: true },  // السعر اللي يشتريه عضو العصابة من المافيا
+    sell_price: { type: Number, required: true }, // السعر اللي تشتريه المافيا من عضو العصابة (يفترض أقل من buy_price)
+    image_url: { type: String, default: 'https://placehold.co/150x150/1a1a1a/ffaa00?text=Item' },
+    created_by: String,
+    timestamp: { type: Date, default: Date.now }
+});
+
+const GangOrderSchema = new mongoose.Schema({
+    gang_member_username: String,
+    gang_name: String,
+    items_bought: { type: Array, default: [] }, // [{name, quantity, unit_price, total}]
+    items_sold: { type: Array, default: [] },   // [{name, quantity, unit_price, total}]
+    total_buy_value: { type: Number, default: 0 },
+    total_sell_value: { type: Number, default: 0 },
+    net_amount: { type: Number, default: 0 }, // موجب = صافي دخل لخزينة المافيا، سالب = صافي خارج منها
+    status: { type: String, enum: ['Pending', 'Confirmed'], default: 'Pending' },
+    timestamp: { type: Date, default: Date.now }
+});
+
+const GangTreasurySchema = new mongoose.Schema({ total_balance: { type: Number, default: 0 } });
+
+const GangShopItem = mongoose.model('GangShopItem', GangShopItemSchema);
+const GangOrder = mongoose.model('GangOrder', GangOrderSchema);
+const GangTreasury = mongoose.model('GangTreasury', GangTreasurySchema);
+
 async function initSystemDB() {
     try {
         const treasuryCount = await Treasury.countDocuments({});
         if (treasuryCount === 0) { await new Treasury({ total_balance: 0 }).save(); }
+
+        // تحديث: تهيئة خزينة شوب العصابات المستقلة
+        const gangTreasuryCount = await GangTreasury.countDocuments({});
+        if (gangTreasuryCount === 0) { await new GangTreasury({ total_balance: 0 }).save(); }
         
         const goalCount = await WeeklyGoal.countDocuments({});
         if (goalCount === 0) { await new WeeklyGoal({ target_amount: 0, payout_percentage: 0, current_progress: 0, is_visible: false }).save(); }
@@ -328,16 +363,42 @@ app.post('/api/auth/register', async (req, res) => {
     } catch (err) { res.status(400).json({ error: "اسم المستخدم مسجل مسبقاً بالتنظيم." }); }
 });
 
+// ================== تحديث: تسجيل جديد ومنفصل لأعضاء العصابات (يحتاج موافقة GRH أو الدون) ==================
+app.post('/api/gang-auth/register', async (req, res) => {
+    try {
+        const { username, password, gang_name, discord_id } = req.body;
+        if (!username || !password || !gang_name) return res.status(400).json({ error: "اسم المستخدم وكلمة المرور واسم العصابة كلها مطلوبة." });
+
+        const existing = await User.findOne({ username });
+        if (existing) return res.status(400).json({ error: "اسم المستخدم مستخدم مسبقاً." });
+
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const newUser = new User({
+            username, password: hashedPassword, discord_id: discord_id ? String(discord_id) : 'N/A',
+            role: 'Gang_Member', gang_name, account_status: 'pending'
+        });
+        await newUser.save();
+        io.emit('gangMemberPending');
+        res.status(201).json({ msg: "تم إرسال طلبك بنجاح. يرجى انتظار موافقة قيادة المافيا لتفعيل حسابك." });
+    } catch (err) { res.status(400).json({ error: "حدث خطأ أثناء التسجيل، تأكد من اسم المستخدم." }); }
+});
+
 app.post('/api/auth/login', async (req, res) => {
     try {
         const { username, password } = req.body;
         const user = await User.findOne({ username });
         if (!user || !(await bcrypt.compare(password, user.password))) return res.status(400).json({ error: "خطأ في اسم المستخدم أو كلمة المرور." });
         if (user.is_blacklisted) return res.status(403).json({ error: "تم حظرك ومطاردتك من عائلة كورتيز (بلاك ليست)." });
+
+        // تحديث: عضو العصابة لازم يكون حسابه "approved" من GRH أو الدون قبل ما يقدر يدخل
+        if (user.role === 'Gang_Member') {
+            if (user.account_status === 'pending') return res.status(403).json({ error: "حسابك لسا بانتظار موافقة قيادة المافيا. حاول لاحقاً." });
+            if (user.account_status === 'rejected') return res.status(403).json({ error: "تم رفض طلب انضمامك لهذا النظام." });
+        }
         
         // جلب معلومات التوكن مع الغرامات المضافة حديثاً
         const token = jwt.sign({ id: user._id, role: user.role, username: user.username }, JWT_SECRET, { expiresIn: '24h' });
-        res.json({ token, user: { username: user.username, role: user.role, duty_status: user.duty_status, fine_amount: user.fine_amount, fine_reason: user.fine_reason } });
+        res.json({ token, user: { username: user.username, role: user.role, gang_name: user.gang_name, duty_status: user.duty_status, fine_amount: user.fine_amount, fine_reason: user.fine_reason } });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -714,6 +775,158 @@ app.delete('/api/gangs/:id', verifyAuth(['Gang_Supervisor']), async (req, res) =
         if (!deleted) return res.status(404).json({ error: "العصابة غير موجودة أو محذوفة مسبقاً." });
         io.emit('gangsUpdated');
         res.json({ msg: "تم حذف العصابة من نظام التتبع بنجاح." });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ================== تحديث: الموافقة على تسجيل أعضاء العصابات (GRH أو الدون) ==================
+app.get('/api/admin/gang-members/pending', verifyAuth(['GRH']), async (req, res) => {
+    try {
+        const pending = await User.find({ role: 'Gang_Member', account_status: 'pending' }, 'username gang_name discord_id timestamp');
+        res.json(pending);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/admin/gang-members/review', verifyAuth(['GRH']), async (req, res) => {
+    try {
+        const { target_username, decision } = req.body;
+        if (!['approve', 'reject'].includes(decision)) return res.status(400).json({ error: "قرار غير صالح." });
+
+        const user = await User.findOne({ username: target_username, role: 'Gang_Member' });
+        if (!user) return res.status(404).json({ error: "الحساب غير موجود." });
+
+        user.account_status = decision === 'approve' ? 'approved' : 'rejected';
+        await user.save();
+        io.emit('gangMemberPending');
+        res.json({ msg: decision === 'approve' ? `تم تفعيل حساب ${target_username} بنجاح.` : `تم رفض طلب ${target_username}.` });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ================== تحديث: شوب أعضاء العصابات (منفصل كلياً عن شوب المافيا) ==================
+// القراءة مفتوحة (نفس منطق شوب المافيا)؛ الإدارة حصراً على Business_Manager
+app.get('/api/gang-shop/items', async (req, res) => {
+    try { const items = await GangShopItem.find().sort({ timestamp: -1 }); res.json(items); }
+    catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/gang-shop/add-item', verifyAuth(['Business_Manager']), async (req, res) => {
+    try {
+        const { name, buy_price, sell_price, image_url } = req.body;
+        if (!name || buy_price === undefined || sell_price === undefined) return res.status(400).json({ error: "الاسم وسعر الشراء وسعر البيع كلها مطلوبة." });
+        const newItem = new GangShopItem({ name, buy_price: Number(buy_price), sell_price: Number(sell_price), image_url, created_by: req.user.username });
+        await newItem.save();
+        io.emit('gangShopUpdated');
+        res.status(201).json({ msg: "تمت إضافة المنتج إلى شوب العصابات بنجاح." });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.put('/api/gang-shop/item/:id', verifyAuth(['Business_Manager']), async (req, res) => {
+    try {
+        const { name, buy_price, sell_price, image_url } = req.body;
+        const update = {};
+        if (name !== undefined) update.name = name;
+        if (buy_price !== undefined) update.buy_price = Number(buy_price);
+        if (sell_price !== undefined) update.sell_price = Number(sell_price);
+        if (image_url !== undefined) update.image_url = image_url;
+        await GangShopItem.findByIdAndUpdate(req.params.id, update);
+        io.emit('gangShopUpdated');
+        res.json({ msg: "تم تعديل المنتج بنجاح." });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete('/api/gang-shop/item/:id', verifyAuth(['Business_Manager']), async (req, res) => {
+    try {
+        await GangShopItem.findByIdAndDelete(req.params.id);
+        io.emit('gangShopUpdated');
+        res.json({ msg: "تم حذف المنتج بنجاح." });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// تنفيذ عملية شراء/بيع/مقايضة من طرف عضو العصابة — الأسعار تُحسب من قاعدة البيانات حصراً (أمان، ما نثق بأي سعر قادم من العميل)
+app.post('/api/gang-shop/checkout', verifyAuth(['Gang_Member']), async (req, res) => {
+    try {
+        const { items_bought, items_sold } = req.body;
+        if ((!items_bought || items_bought.length === 0) && (!items_sold || items_sold.length === 0)) {
+            return res.status(400).json({ error: "لم يتم تحديد أي منتج للشراء أو البيع." });
+        }
+
+        const catalog = await GangShopItem.find();
+        const findItem = (name) => catalog.find(c => c.name === name);
+
+        let total_buy_value = 0;
+        const processedBought = (items_bought || []).map(i => {
+            const catalogItem = findItem(i.name);
+            if (!catalogItem) throw new Error(`المنتج "${i.name}" غير موجود بالكتالوج.`);
+            const qty = Math.max(1, parseInt(i.quantity) || 1);
+            const total = catalogItem.buy_price * qty;
+            total_buy_value += total;
+            return { name: i.name, quantity: qty, unit_price: catalogItem.buy_price, total };
+        });
+
+        let total_sell_value = 0;
+        const processedSold = (items_sold || []).map(i => {
+            const catalogItem = findItem(i.name);
+            if (!catalogItem) throw new Error(`المنتج "${i.name}" غير موجود بالكتالوج.`);
+            const qty = Math.max(1, parseInt(i.quantity) || 1);
+            const total = catalogItem.sell_price * qty;
+            total_sell_value += total;
+            return { name: i.name, quantity: qty, unit_price: catalogItem.sell_price, total };
+        });
+
+        const net_amount = total_buy_value - total_sell_value;
+        const user = await User.findOne({ username: req.user.username });
+
+        const newOrder = new GangOrder({
+            gang_member_username: req.user.username,
+            gang_name: user ? user.gang_name : '',
+            items_bought: processedBought, items_sold: processedSold,
+            total_buy_value, total_sell_value, net_amount, status: 'Pending'
+        });
+        await newOrder.save();
+        io.emit('gangOrdersUpdated');
+        res.status(201).json({ msg: "تم رفع طلبك للإدارة، يرجى إتمام التسليم داخل المدينة مع مسؤول العصابات." });
+    } catch (err) { res.status(400).json({ error: err.message }); }
+});
+
+app.get('/api/gang-shop/my-orders', verifyAuth(['Gang_Member']), async (req, res) => {
+    try {
+        const orders = await GangOrder.find({ gang_member_username: req.user.username }).sort({ timestamp: -1 });
+        res.json(orders);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/gang-shop/orders', verifyAuth(['Business_Manager']), async (req, res) => {
+    try { const orders = await GangOrder.find().sort({ timestamp: -1 }); res.json(orders); }
+    catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/gang-shop/order/:id/confirm', verifyAuth(['Business_Manager']), async (req, res) => {
+    try {
+        const order = await GangOrder.findById(req.params.id);
+        if (!order || order.status === 'Confirmed') return res.status(400).json({ error: "الطلب غير صحيح أو مؤكد مسبقاً." });
+
+        order.status = 'Confirmed';
+        await order.save();
+        await GangTreasury.updateOne({}, { $inc: { total_balance: order.net_amount } });
+
+        io.emit('gangOrdersUpdated'); io.emit('gangTreasuryUpdated');
+        res.json({ msg: "تم تأكيد إتمام العملية وتحديث خزينة شوب العصابات." });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/gang-shop/treasury', verifyAuth(['Business_Manager']), async (req, res) => {
+    try {
+        const treasury = await GangTreasury.findOne({});
+        const balance = treasury ? treasury.total_balance : 0;
+        res.json({ balance_raw: balance, balance_formatted: formatMoneyShort(balance) });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// تصفير خزينة شوب العصابات حصراً على الدون، بنفس منطق تصفير الخزينة الرئيسية
+app.post('/api/gang-shop/treasury/reset', verifyAuth(['Don']), async (req, res) => {
+    try {
+        await GangTreasury.updateOne({}, { total_balance: 0 });
+        io.emit('gangTreasuryUpdated');
+        res.json({ msg: "تم تصفير خزينة شوب العصابات بالكامل." });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
