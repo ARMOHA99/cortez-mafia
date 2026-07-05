@@ -66,20 +66,42 @@
 
         /* Cart Styles */
         #cart-box { background: #111; border: 1px solid var(--warning); padding: 15px; margin-top: 20px; display: none; }
-        .cart-item { display: flex; justify-content: space-between; border-bottom: 1px solid #333; padding: 5px 0; }
+        .cart-item { display: flex; justify-content: space-between; align-items:center; border-bottom: 1px solid #333; padding: 5px 0; }
+        .qty-selector { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 8px; }
+        .qty-selector button { width: 28px; height: 28px; padding: 0; font-size: 1rem; flex: none; }
+        .qty-selector input { width: 45px; text-align: center; padding: 4px; margin: 0; }
+        .cart-qty-controls { display: flex; align-items: center; gap: 6px; }
+        .cart-qty-controls button { width: auto; padding: 2px 8px; font-size: 0.8rem; }
 
         /* Gang Tracking Styles */
         .gang-card { background: #0a0a0a; border: 1px solid #222; padding: 15px; border-radius: 4px; cursor: pointer; transition: 0.3s; text-align: right; }
         .gang-card:hover { border-color: var(--primary); box-shadow: 0 0 10px rgba(0,255,102,0.2); transform: translateY(-2px); }
         .loyalty-bar-wrapper { background: #111; border: 1px solid #333; height: 8px; border-radius: 4px; overflow: hidden; margin-top: 4px; }
         .loyalty-bar-fill { height: 100%; transition: width 0.3s ease; }
-        #gang-map-container { position: relative; width: 100%; max-width: 650px; margin: 10px auto; border: 1px solid var(--primary); overflow: hidden; user-select: none; background: #000; }
-        #gang-map-container.editable { cursor: crosshair; }
-        #gang-map-img { width: 100%; display: block; pointer-events: none; }
-        #gang-map-pin { position: absolute; display: none; font-size: 1.6rem; transform: translate(-50%, -100%); filter: drop-shadow(0 0 4px #000); pointer-events: none; }
-        .gang-modal-box { width: 650px; max-width: 95%; max-height: 88vh; overflow-y: auto; text-align: right; }
+
+        .gang-modal-box { width: 980px; max-width: 96vw; max-height: 90vh; overflow-y: auto; text-align: right; }
         .gang-modal-box .input-group { text-align: right; }
         .gang-modal-box .modal-btns { margin-top: 20px; }
+        /* row-reverse + الخريطة أول عنصر بالـ DOM = تظهر يسار دائماً حتى مع RTL */
+        .gang-modal-flex { display: flex; flex-direction: row-reverse; gap: 20px; align-items: flex-start; flex-wrap: wrap; }
+        .gang-map-side { flex: 1.5; min-width: 280px; }
+        .gang-details-side { flex: 1; min-width: 230px; padding-top: 4px; }
+
+        #gang-map-viewport { position: relative; width: 100%; height: 500px; border: 1px solid var(--primary); overflow: hidden; background: #000; touch-action: none; }
+        #gang-map-viewport.editable { cursor: crosshair; }
+        #gang-map-viewport.panning { cursor: grabbing; }
+        #gang-map-world { position: absolute; top: 0; left: 0; width: 100%; height: 100%; transform-origin: 0 0; }
+        #gang-map-img { width: 100%; height: 100%; display: block; object-fit: contain; background:#000; pointer-events: none; user-select: none; }
+        #gang-map-pin { position: absolute; display: none; font-size: 2rem; transform-origin: 50% 100%; filter: drop-shadow(0 0 4px #000); pointer-events: none; }
+        .map-zoom-controls { position: absolute; bottom: 10px; left: 10px; display: flex; flex-direction: column; gap: 4px; z-index: 5; }
+        .map-zoom-controls button { width: 34px; height: 34px; padding: 0; font-size: 1.1rem; background: rgba(0,0,0,0.75); }
+        .map-hint { font-size: 0.75rem; color: #888; margin-top: 6px; text-align: center; }
+
+        @media (max-width: 720px) {
+            .gang-modal-flex { flex-direction: column; }
+            #gang-map-viewport { height: 320px; }
+        }
+
 
         /* Custom Modal Styles */
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 2000; justify-content: center; align-items: center; }
@@ -151,6 +173,14 @@
         <div class="main-content">
             <div id="panel-dashboard" class="view-panel active">
                 <h2>بوابة تتبع ساعات النشاط الأسبوعي لعائلة CORTEZ</h2>
+
+                <div id="my-fine-alert" class="card" style="display:none; border-color:var(--danger); background:rgba(255,51,51,0.08); text-align:right;">
+                    <h3 style="color:var(--danger); margin-top:0;">⚠️ لديك غرامة مالية مستحقة</h3>
+                    <p style="margin:8px 0;">المبلغ المطلوب: <b style="color:gold;" id="my-fine-amount">0$</b></p>
+                    <p style="margin:8px 0;">السبب: <span id="my-fine-reason">-</span></p>
+                    <p style="font-size:0.8rem; color:#999; margin:8px 0 0 0;">يرجى تسليم المبلغ للإدارة داخل المدينة لتسوية الغرامة.</p>
+                </div>
+
                 <button id="punchButton" class="punch-btn" onclick="triggerPunch()">[ STATUS: OFF-DUTY 🔴 ]</button>
             </div>
 
@@ -357,18 +387,28 @@
                         <h3 style="color:var(--warning);">⚡ إجراء عقوبة أو تعديل الرتبة</h3>
                         <div class="input-group"><label>اسم المستخدم:</label><input type="text" id="target-name"></div>
                         <div class="input-group"><label>نوع الإجراء:</label>
-                            <select id="action-type">
+                            <select id="action-type" onchange="toggleFineAmountField()">
                                 <option value="Warning">WARN (+1)</option>
                                 <option value="Blacklist">BLACK LIST❌</option>
                                 <option value="Remove_Blacklist">REMOVE BLACK LIST</option>
+                                <option value="Fine">غرامة مالية 💰</option>
                             </select>
                         </div>
+                        <div class="input-group" id="fine-amount-group" style="display:none;"><label>مبلغ الغرامة ($):</label><input type="number" id="action-fine-amount"></div>
                         <div class="input-group"><label>السبب:</label><input type="text" id="action-reason"></div>
                         <button class="btn-warning" onclick="applyPenalty()">تنفيذ الإجراء</button>
                     </div>
                     <div style="flex:2;">
                         <table id="tbl-all-users"><thead><tr><th>العضو</th><th>الرتبة</th><th>الساعات</th><th>الإنذارات</th><th>الحالة</th><th>تغيير الرتبة</th></tr></thead><tbody></tbody></table>
                     </div>
+                </div>
+
+                <div class="card" style="margin-top:20px; border-color:var(--danger);">
+                    <h3 style="color:var(--danger);">💰 الأعضاء الذين عليهم غرامات معلقة</h3>
+                    <table id="tbl-active-fines">
+                        <thead><tr><th>العضو</th><th>الرتبة</th><th>المبلغ</th><th>السبب</th><th>الإجراء</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
                 </div>
             </div>
         </div>
@@ -386,7 +426,7 @@
         // ================== إعدادات نظام تتبع العصابات ==================
         // تنويه: هذا رابط صورة placeholder مؤقت فقط. استبدله برابط صورة خريطة GTA الخاصة بسيرفركم
         // (ارفعوها على استضافة خاصة بكم)، لأنه لا يمكن تضمين خرائط رسمية من اللعبة مباشرة هنا لأسباب حقوق الملكية.
-        const GTA_MAP_IMAGE_URL = 'https://cdn.discordapp.com/attachments/1272537618436980798/1523163621280972880/wp9851552-gta-v-map-wallpapers.jpg?ex=6a4b1c2a&is=6a49caaa&hm=eaea1aff3757e119b446dde997d88a81d1a25de256b0c93a0ff4da80982a75aa&';
+        const GTA_MAP_IMAGE_URL = 'https://placehold.co/1000x1000/111111/00ff66?text=ضع+رابط+خريطة+GTA+هنا';
         let allGangsData = [];
         let gangDraftPosition = null; // {x, y} بالنسبة المئوية أثناء الإضافة أو التعديل
 
@@ -543,6 +583,7 @@
 
             updatePunchButtonUI(userData.duty_status);
             configureRolePermissions(userData.role);
+            renderFineAlert(); // تحديث: عرض تنبيه الغرامة الشخصية إن وُجدت فوراً عند الدخول
             
             loadLeaderboardData();
             loadShopItems();
@@ -558,8 +599,9 @@
                 loadAllUsersTable();
                 loadHRRequests();
                 loadArchiveData();
+                loadActiveFinesTable();
             }
-            if(['Don', 'GRH'].includes(userData.role)) {
+            if(['Don', 'GRH', 'Soldat'].includes(userData.role)) {
                 loadHeistLogs();
             }
         }
@@ -612,6 +654,10 @@
             if(role === 'Gang_Supervisor') {
                 // تحديث: صلاحية إضافة/تعديل/حذف خانات العصابات حصرية على هذه الرتبة (والدون تلقائياً)
                 document.getElementById('add-gang-box').style.display = 'inline-block';
+            }
+            if(role === 'Soldat') {
+                // تحديث: منح رتبة Soldat صلاحية رؤية سجل العمليات الميدانية واللوقات الأمنية (بدون أي تعديل)
+                document.getElementById('heist-logs-box').style.display = 'block';
             }
         }
 
@@ -941,7 +987,12 @@
                             <img src="${itm.image_url}" onerror="this.src='https://placehold.co/150x150/0d0d0d/00ff66?text=Item'">
                             <strong style="display:block; margin-bottom:5px;">${itm.name}</strong>
                             <span style="color:gold; font-weight:bold; display:block;">${formatMoneyFrontend(itm.price)}$</span>
-                            <button onclick="addToCart('${itm.name}', ${itm.price})" style="padding:5px; font-size:0.8rem; margin-top:10px;">إضافة للسلة</button>
+                            <div class="qty-selector">
+                                <button type="button" onclick="adjustCardQty('${itm._id}', -1)">−</button>
+                                <input type="number" id="qty-${itm._id}" value="1" min="1">
+                                <button type="button" onclick="adjustCardQty('${itm._id}', 1)">+</button>
+                            </div>
+                            <button onclick="addToCart('${itm.name}', ${itm.price}, '${itm._id}')" style="padding:5px; font-size:0.8rem; margin-top:10px;">إضافة للسلة</button>
                             ${adminControlsHtml}
                         </div>`;
                 });
@@ -1006,13 +1057,24 @@
             box.style.display = box.style.display === 'block' ? 'none' : 'block';
         }
 
-        function addToCart(name, price) {
+        function adjustCardQty(itemId, delta) {
+            const input = document.getElementById(`qty-${itemId}`);
+            if(!input) return;
+            const newVal = Math.max(1, (parseInt(input.value) || 1) + delta);
+            input.value = newVal;
+        }
+
+        function addToCart(name, price, itemId) {
+            const qtyInput = itemId ? document.getElementById(`qty-${itemId}`) : null;
+            const qty = qtyInput ? Math.max(1, parseInt(qtyInput.value) || 1) : 1;
+
             const existing = cart.find(i => i.name === name);
             if(existing) {
-                existing.quantity += 1;
+                existing.quantity += qty;
             } else {
-                cart.push({ name, price, quantity: 1 });
+                cart.push({ name, price, quantity: qty });
             }
+            if(qtyInput) qtyInput.value = 1; // إعادة تصفير محدد الكمية بعد الإضافة للسلة
             renderCartUI();
         }
 
@@ -1027,14 +1089,24 @@
                 total += subtotal;
                 container.innerHTML += `
                     <div class="cart-item">
-                        <span>${item.name} (x${item.quantity})</span>
-                        <div>
-                            <span style="color:gold; margin-left:10px;">${formatMoneyFrontend(subtotal)}$</span>
-                            <button onclick="removeFromCart(${idx})" style="width:auto; padding:2px 6px; font-size:0.75rem;" class="btn-danger">X</button>
+                        <span>${item.name}</span>
+                        <div class="cart-qty-controls">
+                            <button class="btn-warning" onclick="changeCartQty(${idx}, -1)">−</button>
+                            <span style="min-width:18px; text-align:center; display:inline-block;">${item.quantity}</span>
+                            <button class="btn-warning" onclick="changeCartQty(${idx}, 1)">+</button>
+                            <span style="color:gold; margin-right:8px; min-width:70px; display:inline-block; text-align:left;">${formatMoneyFrontend(subtotal)}$</span>
+                            <button onclick="removeFromCart(${idx})" class="btn-danger">X</button>
                         </div>
                     </div>`;
             });
             document.getElementById('cart-total').innerText = formatMoneyFrontend(total);
+        }
+
+        function changeCartQty(idx, delta) {
+            if(!cart[idx]) return;
+            cart[idx].quantity += delta;
+            if(cart[idx].quantity <= 0) cart.splice(idx, 1);
+            renderCartUI();
         }
 
         function removeFromCart(idx) {
@@ -1195,16 +1267,160 @@
         }
 
         // وضع العرض فقط: خريطة + معلومات، بدون أي تحكم بالتعديل (للأعضاء العاديين)
+        // حالة الزوم والتحريك الحالية للخريطة (تُصفّر كل ما يُفتح المودال)
+        let mapViewState = { scale: 1, tx: 0, ty: 0 };
+        let mapPointerStart = null; // {x, y, tx, ty} لحظة بداية الضغط، لتمييز السحب عن الضغطة العادية
+        let mapDidDrag = false;
+        let mapIsEditable = false; // بوضع الإدارة: الضغطة (بدون سحب) تحدد موقع العصابة
+
+        function applyMapTransform() {
+            const world = document.getElementById('gang-map-world');
+            const pin = document.getElementById('gang-map-pin');
+            if(!world) return;
+            world.style.transform = `translate(${mapViewState.tx}px, ${mapViewState.ty}px) scale(${mapViewState.scale})`;
+            // نعاكس تكبير الخريطة على الدبوس حتى يضل بنفس الحجم المرئي دائماً (شبيه بخرائط جوجل)
+            if(pin && pin.style.display === 'block') {
+                pin.style.transform = `translate(-50%, -100%) scale(${1 / mapViewState.scale})`;
+            }
+        }
+
+        function clampMapView() {
+            const viewport = document.getElementById('gang-map-viewport');
+            const world = document.getElementById('gang-map-world');
+            if(!viewport || !world) return;
+            const vw = viewport.clientWidth, vh = viewport.clientHeight;
+            const scaledW = world.offsetWidth * mapViewState.scale;
+            const scaledH = world.offsetHeight * mapViewState.scale;
+            const minTx = Math.min(0, vw - scaledW);
+            const minTy = Math.min(0, vh - scaledH);
+            mapViewState.tx = Math.max(minTx, Math.min(0, mapViewState.tx));
+            mapViewState.ty = Math.max(minTy, Math.min(0, mapViewState.ty));
+        }
+
+        function resetMapView() {
+            mapViewState = { scale: 1, tx: 0, ty: 0 };
+            applyMapTransform();
+        }
+
+        // زوم حول نقطة معينة (مركز الخريطة افتراضياً عند الضغط على أزرار +/−، أو موقع المؤشر عند عجلة الفأرة)
+        function zoomMapBy(factor, cursorX, cursorY) {
+            const viewport = document.getElementById('gang-map-viewport');
+            if(!viewport) return;
+            if(cursorX === undefined) {
+                cursorX = viewport.clientWidth / 2;
+                cursorY = viewport.clientHeight / 2;
+            }
+            const newScale = Math.max(1, Math.min(5, mapViewState.scale * factor));
+            const ratio = newScale / mapViewState.scale;
+            mapViewState.tx = cursorX - (cursorX - mapViewState.tx) * ratio;
+            mapViewState.ty = cursorY - (cursorY - mapViewState.ty) * ratio;
+            mapViewState.scale = newScale;
+            clampMapView();
+            applyMapTransform();
+        }
+
+        function handleMapWheel(e) {
+            e.preventDefault();
+            const rect = e.currentTarget.getBoundingClientRect();
+            const cursorX = e.clientX - rect.left;
+            const cursorY = e.clientY - rect.top;
+            zoomMapBy(e.deltaY < 0 ? 1.2 : 1/1.2, cursorX, cursorY);
+        }
+
+        function handleMapPointerDown(e) {
+            mapPointerStart = { x: e.clientX, y: e.clientY, tx: mapViewState.tx, ty: mapViewState.ty };
+            mapDidDrag = false;
+            e.currentTarget.setPointerCapture(e.pointerId);
+        }
+
+        function handleMapPointerMove(e) {
+            if(!mapPointerStart) return;
+            const dx = e.clientX - mapPointerStart.x;
+            const dy = e.clientY - mapPointerStart.y;
+            if(Math.abs(dx) > 4 || Math.abs(dy) > 4) mapDidDrag = true;
+            if(mapDidDrag) {
+                mapViewState.tx = mapPointerStart.tx + dx;
+                mapViewState.ty = mapPointerStart.ty + dy;
+                clampMapView();
+                applyMapTransform();
+                document.getElementById('gang-map-viewport')?.classList.add('panning');
+            }
+        }
+
+        function handleMapPointerUp(e) {
+            document.getElementById('gang-map-viewport')?.classList.remove('panning');
+            if(!mapPointerStart) return;
+            if(!mapDidDrag && mapIsEditable) placeMarkerAtEvent(e);
+            mapPointerStart = null;
+        }
+
+        // يعكس تحويل الزوم/التحريك الحالي ليرجع لموقع الضغطة الحقيقي فوق الصورة الأصلية (% ثابتة بغض النظر عن حالة الزوم)
+        function placeMarkerAtEvent(e) {
+            const viewport = document.getElementById('gang-map-viewport');
+            const world = document.getElementById('gang-map-world');
+            const rect = viewport.getBoundingClientRect();
+            const clickX = e.clientX - rect.left;
+            const clickY = e.clientY - rect.top;
+
+            const worldX = (clickX - mapViewState.tx) / mapViewState.scale;
+            const worldY = (clickY - mapViewState.ty) / mapViewState.scale;
+
+            let xPct = Math.max(0, Math.min(100, (worldX / world.offsetWidth) * 100));
+            let yPct = Math.max(0, Math.min(100, (worldY / world.offsetHeight) * 100));
+
+            gangDraftPosition = { x: xPct.toFixed(2), y: yPct.toFixed(2) };
+            positionPin(gangDraftPosition.x, gangDraftPosition.y);
+        }
+
+        function positionPin(xPct, yPct) {
+            const pin = document.getElementById('gang-map-pin');
+            if(!pin) return;
+            pin.style.display = 'block';
+            pin.style.left = xPct + '%';
+            pin.style.top = yPct + '%';
+            pin.style.transform = `translate(-50%, -100%) scale(${1 / mapViewState.scale})`;
+        }
+
+        // نعيد ربط أحداث التفاعل في كل مرة (العنصر يُنشأ من جديد عبر innerHTML، فما فيه خطر تراكم مستمعين مكررين)
+        function attachMapInteractionHandlers() {
+            const viewport = document.getElementById('gang-map-viewport');
+            if(!viewport) return;
+            viewport.addEventListener('wheel', handleMapWheel, { passive: false });
+            viewport.addEventListener('pointerdown', handleMapPointerDown);
+            viewport.addEventListener('pointermove', handleMapPointerMove);
+            viewport.addEventListener('pointerup', handleMapPointerUp);
+            viewport.addEventListener('pointerleave', handleMapPointerUp);
+        }
+
+        function buildGangMapHtml(editable) {
+            return `
+                <div id="gang-map-viewport" class="${editable ? 'editable' : ''}">
+                    <div id="gang-map-world">
+                        <img id="gang-map-img" src="${GTA_MAP_IMAGE_URL}" draggable="false">
+                        <div id="gang-map-pin">📍</div>
+                    </div>
+                    <div class="map-zoom-controls">
+                        <button type="button" onclick="zoomMapBy(1.3)">+</button>
+                        <button type="button" onclick="zoomMapBy(1/1.3)">−</button>
+                        <button type="button" onclick="resetMapView()">⤾</button>
+                    </div>
+                </div>
+                <p class="map-hint">${editable ? '📍 اضغط لتحديد الموقع • 🖱️ اسحب للتحرك • 🔍 عجلة الفأرة للتكبير' : '🖱️ اسحب للتحرك • 🔍 عجلة الفأرة للتكبير'}</p>`;
+        }
+
+        // وضع العرض فقط: خريطة + معلومات، بدون أي تحكم بالتعديل (للأعضاء العاديين)
         function openGangViewModal(gang) {
+            mapIsEditable = false;
             const color = loyaltyColorFor(gang.loyalty_percentage);
             document.getElementById('gang-modal-title').innerText = `📍 ${gang.name}`;
             document.getElementById('gang-modal-body').innerHTML = `
-                <p style="margin:6px 0;"><b>📻 تردد الراديو:</b> ${gang.radio_frequency || 'غير محدد'}</p>
-                <p style="margin:6px 0;"><b>🤝 نسبة الولاء:</b> <span style="color:${color}; font-weight:bold;">${gang.loyalty_percentage}%</span></p>
-                ${gang.notes ? `<p style="margin:6px 0;"><b>📝 ملاحظات:</b> ${gang.notes}</p>` : ''}
-                <div id="gang-map-container">
-                    <img id="gang-map-img" src="${GTA_MAP_IMAGE_URL}" draggable="false">
-                    <div id="gang-map-pin" style="display:block; left:${gang.map_x}%; top:${gang.map_y}%;">📍</div>
+                <div class="gang-modal-flex">
+                    <div class="gang-map-side">${buildGangMapHtml(false)}</div>
+                    <div class="gang-details-side">
+                        <p style="margin:6px 0;"><b>📻 تردد الراديو:</b> ${gang.radio_frequency || 'غير محدد'}</p>
+                        <p style="margin:6px 0;"><b>🤝 نسبة الولاء:</b> <span style="color:${color}; font-weight:bold;">${gang.loyalty_percentage}%</span></p>
+                        ${gang.notes ? `<p style="margin:6px 0;"><b>📝 ملاحظات:</b> ${gang.notes}</p>` : ''}
+                    </div>
                 </div>`;
 
             const actionsEl = document.getElementById('gang-modal-actions');
@@ -1216,27 +1432,29 @@
             actionsEl.appendChild(closeBtn);
 
             document.getElementById('gang-modal-overlay').style.display = 'flex';
+            resetMapView();
+            attachMapInteractionHandlers();
+            positionPin(gang.map_x, gang.map_y);
         }
 
         // وضع الإدارة: إضافة عصابة جديدة (gang = null) أو تعديل عصابة موجودة (Gang Supervisor / Don فقط)
         function openGangManageModal(gang) {
             const isNew = !gang;
+            mapIsEditable = true;
             gangDraftPosition = isNew ? null : { x: gang.map_x, y: gang.map_y };
 
             document.getElementById('gang-modal-title').innerText = isNew ? '➕ إضافة عصابة جديدة' : `✏️ تعديل بيانات: ${gang.name}`;
             document.getElementById('gang-modal-body').innerHTML = `
-                <div class="input-group"><label>اسم العصابة:</label><input type="text" id="gm-name" value="${isNew ? '' : gang.name}"></div>
-                <div class="input-group"><label>تردد الراديو:</label><input type="text" id="gm-radio" value="${isNew ? '' : (gang.radio_frequency || '')}"></div>
-                <div class="input-group">
-                    <label>نسبة الولاء: <span id="gm-loyalty-val">${isNew ? 50 : gang.loyalty_percentage}</span>%</label>
-                    <input type="range" min="0" max="100" id="gm-loyalty" value="${isNew ? 50 : gang.loyalty_percentage}" oninput="document.getElementById('gm-loyalty-val').innerText = this.value">
-                </div>
-                <div class="input-group"><label>ملاحظات إضافية:</label><input type="text" id="gm-notes" value="${isNew ? '' : (gang.notes || '')}"></div>
-                <div class="input-group">
-                    <label>📍 اضغط على الخريطة لتحديد موقع العصابة بالضبط:</label>
-                    <div id="gang-map-container" class="editable" onclick="handleMapClick(event)">
-                        <img id="gang-map-img" src="${GTA_MAP_IMAGE_URL}" draggable="false">
-                        <div id="gang-map-pin" style="${gangDraftPosition ? `display:block; left:${gangDraftPosition.x}%; top:${gangDraftPosition.y}%;` : 'display:none;'}">📍</div>
+                <div class="gang-modal-flex">
+                    <div class="gang-map-side">${buildGangMapHtml(true)}</div>
+                    <div class="gang-details-side">
+                        <div class="input-group"><label>اسم العصابة:</label><input type="text" id="gm-name" value="${isNew ? '' : gang.name}"></div>
+                        <div class="input-group"><label>تردد الراديو:</label><input type="text" id="gm-radio" value="${isNew ? '' : (gang.radio_frequency || '')}"></div>
+                        <div class="input-group">
+                            <label>نسبة الولاء: <span id="gm-loyalty-val">${isNew ? 50 : gang.loyalty_percentage}</span>%</label>
+                            <input type="range" min="0" max="100" id="gm-loyalty" value="${isNew ? 50 : gang.loyalty_percentage}" oninput="document.getElementById('gm-loyalty-val').innerText = this.value">
+                        </div>
+                        <div class="input-group"><label>ملاحظات إضافية:</label><input type="text" id="gm-notes" value="${isNew ? '' : (gang.notes || '')}"></div>
                     </div>
                 </div>`;
 
@@ -1264,20 +1482,9 @@
             actionsEl.appendChild(cancelBtn);
 
             document.getElementById('gang-modal-overlay').style.display = 'flex';
-        }
-
-        // يحسب موقع الضغطة كنسبة مئوية من أبعاد الصورة (وليس بكسل ثابت) حتى يبقى الموقع صحيحاً على كل الشاشات
-        function handleMapClick(e) {
-            const container = document.getElementById('gang-map-container');
-            const rect = container.getBoundingClientRect();
-            const xPct = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
-            const yPct = Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100));
-            gangDraftPosition = { x: xPct.toFixed(2), y: yPct.toFixed(2) };
-
-            const pin = document.getElementById('gang-map-pin');
-            pin.style.display = 'block';
-            pin.style.left = gangDraftPosition.x + '%';
-            pin.style.top = gangDraftPosition.y + '%';
+            resetMapView();
+            attachMapInteractionHandlers();
+            if(gangDraftPosition) positionPin(gangDraftPosition.x, gangDraftPosition.y);
         }
 
         async function saveGang(existingId) {
@@ -1322,6 +1529,7 @@
         function closeGangModal() {
             document.getElementById('gang-modal-overlay').style.display = 'none';
             gangDraftPosition = null;
+            mapViewState = { scale: 1, tx: 0, ty: 0 };
         }
 
         // ================== نظام الإجازات والتبريرات الإدارية ==================
@@ -1454,25 +1662,103 @@
             } catch(err) { customAlert(err.message); }
         }
 
+        function toggleFineAmountField() {
+            const type = document.getElementById('action-type').value;
+            document.getElementById('fine-amount-group').style.display = (type === 'Fine') ? 'block' : 'none';
+        }
+
         async function applyPenalty() {
             const target_username = document.getElementById('target-name').value.trim();
             const type = document.getElementById('action-type').value;
             const reason = document.getElementById('action-reason').value.trim();
+            const fine_amount = document.getElementById('action-fine-amount').value;
 
             if(!target_username || !reason) return customAlert("حقول اسم العضو والسبب إجبارية لتطبيق العقوبة.");
+            if(type === 'Fine' && (!fine_amount || Number(fine_amount) <= 0)) return customAlert("يرجى تحديد مبلغ الغرامة بشكل صحيح.");
+
             try {
                 const res = await fetch('/api/admin/penalty', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` },
-                    body: JSON.stringify({ target_username, type, reason })
+                    body: JSON.stringify({ target_username, type, reason, fine_amount })
                 });
                 const data = await res.json();
                 if(!res.ok) throw new Error(data.error);
                 customAlert(data.msg);
                 document.getElementById('target-name').value = '';
                 document.getElementById('action-reason').value = '';
+                document.getElementById('action-fine-amount').value = '';
                 loadAllUsersTable();
+                loadActiveFinesTable();
             } catch(err) { customAlert(err.message); }
+        }
+
+        async function loadActiveFinesTable() {
+            if(!userToken) return;
+            try {
+                const res = await fetch('/api/admin/fines/active', { headers: { 'Authorization': `Bearer ${userToken}` } });
+                const users = await res.json();
+                const tbody = document.querySelector('#tbl-active-fines tbody');
+                if(!tbody) return;
+                tbody.innerHTML = '';
+
+                if(users.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" style="color:#555;">لا توجد أي غرامات معلقة حالياً.</td></tr>';
+                    return;
+                }
+                users.forEach(u => {
+                    tbody.innerHTML += `<tr>
+                        <td>${u.username}</td>
+                        <td><span style="color:gold;">${u.role}</span></td>
+                        <td style="color:var(--danger); font-weight:bold;">${formatMoneyFrontend(u.fine_amount)}$</td>
+                        <td>${u.fine_reason || '-'}</td>
+                        <td><button class="btn-success" style="width:auto; padding:5px 12px; font-size:0.8rem;" onclick="payMemberFine('${u.username}')">✔️ تم الدفع</button></td>
+                    </tr>`;
+                });
+            } catch(err) { console.error(err); }
+        }
+
+        function payMemberFine(username) {
+            customConfirm(`هل تأكدت من استلام الغرامة من العضو ${username} وتريد تسويتها؟`, async (yes) => {
+                if(!yes) return;
+                try {
+                    const res = await fetch('/api/admin/fines/pay', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` },
+                        body: JSON.stringify({ target_username: username })
+                    });
+                    const data = await res.json();
+                    if(!res.ok) throw new Error(data.error);
+                    customAlert(data.msg);
+                    loadActiveFinesTable();
+                } catch(err) { customAlert(err.message); }
+            });
+        }
+
+        function renderFineAlert() {
+            const box = document.getElementById('my-fine-alert');
+            if(!box || !userData) return;
+            if(userData.fine_amount && userData.fine_amount > 0) {
+                box.style.display = 'block';
+                document.getElementById('my-fine-amount').innerText = formatMoneyFrontend(userData.fine_amount) + '$';
+                document.getElementById('my-fine-reason').innerText = userData.fine_reason || 'غير محدد';
+            } else {
+                box.style.display = 'none';
+            }
+        }
+
+        async function refreshUserFineStatus() {
+            if(!userToken) return;
+            try {
+                const res = await fetch('/api/auth/me', { headers: { 'Authorization': `Bearer ${userToken}` } });
+                const me = await res.json();
+                if(me && !me.error) {
+                    userData.fine_amount = me.fine_amount;
+                    userData.fine_reason = me.fine_reason;
+                    localStorage.setItem('user', JSON.stringify(userData));
+                    renderFineAlert();
+                }
+            } catch(err) { console.error(err); }
         }
 
         function triggerEmergency() {
@@ -1542,10 +1828,15 @@
 
         socket.on('shopUpdated', () => { if(userToken) loadShopItems(); });
         socket.on('gangsUpdated', () => { if(userToken) loadGangs(); });
+        socket.on('finesUpdated', () => {
+            if(!userToken) return;
+            refreshUserFineStatus();
+            if(['Don', 'GRH', 'Business_Manager'].includes(userData?.role)) loadActiveFinesTable();
+        });
         socket.on('ordersUpdated', () => { if(userToken && ['Don', 'GRH', 'Business_Manager', 'Chef_Braquage'].includes(userData?.role)) loadOrdersData(); });
         socket.on('treasuryUpdated', () => { if(userToken && ['Don', 'GRH', 'Business_Manager'].includes(userData?.role)) loadTreasuryBalance(); });
         socket.on('requestUpdated', () => { if(userToken && ['Don', 'GRH', 'Business_Manager'].includes(userData?.role)) loadHRRequests(); });
-        socket.on('goalUpdated', () => { if(userToken) { loadHeistDashboard(); if(['Don', 'GRH'].includes(userData?.role)) loadHeistLogs(); } });
+        socket.on('goalUpdated', () => { if(userToken) { loadHeistDashboard(); if(['Don', 'GRH', 'Soldat'].includes(userData?.role)) loadHeistLogs(); } });
 
         // التحقق التلقائي من الجلسة عند فتح المتصفح
         if(userToken && userData) { initAppSession(); }
