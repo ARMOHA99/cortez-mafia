@@ -165,6 +165,7 @@
             <button class="menu-btn" onclick="changeTab('panel-requests', this)">📝 ABSENCE-CONGE</button>
             <button class="menu-btn" onclick="changeTab('panel-gangs', this)">🗺️ GANGS TRACKING</button>
             <button class="menu-btn" id="nav-hr" style="display:none; color:orange;" onclick="changeTab('panel-hr-review', this)">🕵 GRH</button>
+            <button class="menu-btn" id="nav-gang-shop-admin" style="display:none; color:#ff66cc;" onclick="changeTab('panel-gang-shop-admin', this)">🏴 GANG SHOP ADMIN</button>
             <button class="menu-btn" id="nav-archive" style="display:none; color:var(--purple);" onclick="changeTab('panel-archive', this)">📚 PRESENCE LOG</button>
             <button class="menu-btn" id="nav-don" style="display:none; color:cyan;" onclick="changeTab('panel-don-control', this)">👑 BOSS</button>
             <button class="menu-btn" style="color:var(--danger); margin-top:auto;" onclick="logout()">🚪 LOG OUT</button>
@@ -368,6 +369,49 @@
                 <h3>تبريرات الغياب:</h3><div id="hr-justs-list"></div>
             </div>
 
+            <div id="panel-gang-shop-admin" class="view-panel">
+                <h2 style="color:#ff66cc;">🏴 إدارة أعضاء وشوب العصابات</h2>
+
+                <div id="gang-approvals-section" style="display:none;" class="card">
+                    <h3 style="color:var(--warning);">📥 طلبات انضمام بانتظار الموافقة</h3>
+                    <table id="tbl-gang-pending">
+                        <thead><tr><th>اسم المستخدم</th><th>العصابة</th><th>Discord ID</th><th>الإجراء</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+
+                <div id="gang-shop-manage-section" style="display:none;">
+                    <div class="card">
+                        <h3 style="color:var(--primary);">➕ إضافة منتج لشوب العصابات</h3>
+                        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                            <input type="text" id="gs-name" placeholder="اسم المنتج">
+                            <input type="number" id="gs-buy-price" placeholder="سعر الشراء (من المافيا) $">
+                            <input type="number" id="gs-sell-price" placeholder="سعر البيع (للمافيا) $">
+                            <input type="text" id="gs-img" placeholder="رابط الصورة (اختياري)">
+                            <button onclick="addGangShopItem()" style="width:auto; padding:0 20px;">إضافة</button>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <h3 style="color:var(--primary);">📦 كتالوج شوب العصابات الحالي</h3>
+                        <div id="gang-shop-catalog-container" class="shop-grid"></div>
+                    </div>
+
+                    <div class="card">
+                        <h3 style="color:var(--warning);">📋 سجل عمليات شوب العصابات</h3>
+                        <table id="tbl-gang-orders">
+                            <thead><tr><th>العضو</th><th>العصابة</th><th>شراء</th><th>بيع</th><th>الصافي</th><th>الحالة</th><th>الإجراء</th></tr></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+
+                    <div class="card" style="border-color:gold;">
+                        <h3 style="color:gold;">💰 خزينة شوب العصابات: <span id="gang-treasury-balance">0$</span></h3>
+                        <button id="btn-gang-treasury-reset" class="btn-danger" style="display:none; width:auto; padding:10px 20px;" onclick="resetGangTreasury()">🔄 تصفير خزينة شوب العصابات</button>
+                    </div>
+                </div>
+            </div>
+
             <div id="panel-archive" class="view-panel">
                 <h2 style="color:var(--purple);">📚 الأرشيف التاريخي للأسابيع السابقة</h2>
                 <div id="archive-content" style="margin-top:20px;"></div>
@@ -426,7 +470,7 @@
         // ================== إعدادات نظام تتبع العصابات ==================
         // تنويه: هذا رابط صورة placeholder مؤقت فقط. استبدله برابط صورة خريطة GTA الخاصة بسيرفركم
         // (ارفعوها على استضافة خاصة بكم)، لأنه لا يمكن تضمين خرائط رسمية من اللعبة مباشرة هنا لأسباب حقوق الملكية.
-        const GTA_MAP_IMAGE_URL = 'https://cdn.discordapp.com/attachments/1272537618436980798/1523163621280972880/wp9851552-gta-v-map-wallpapers.jpg?ex=6a4b1c2a&is=6a49caaa&hm=eaea1aff3757e119b446dde997d88a81d1a25de256b0c93a0ff4da80982a75aa&';
+        const GTA_MAP_IMAGE_URL = 'https://placehold.co/1000x1000/111111/00ff66?text=ضع+رابط+خريطة+GTA+هنا';
         let allGangsData = [];
         let gangDraftPosition = null; // {x, y} بالنسبة المئوية أثناء الإضافة أو التعديل
 
@@ -604,6 +648,14 @@
             if(['Don', 'GRH', 'Soldat'].includes(userData.role)) {
                 loadHeistLogs();
             }
+            if(['Don', 'GRH'].includes(userData.role)) {
+                loadGangPendingApprovals();
+            }
+            if(['Don', 'Business_Manager'].includes(userData.role)) {
+                loadGangShopCatalog();
+                loadGangOrders();
+                loadGangTreasuryBalance();
+            }
         }
 
         function configureRolePermissions(role) {
@@ -620,6 +672,10 @@
             document.getElementById('chef-submit-box').style.display = 'none';
             document.getElementById('heist-logs-box').style.display = 'none';
             document.getElementById('add-gang-box').style.display = 'none';
+            document.getElementById('nav-gang-shop-admin').style.display = 'none';
+            document.getElementById('gang-approvals-section').style.display = 'none';
+            document.getElementById('gang-shop-manage-section').style.display = 'none';
+            document.getElementById('btn-gang-treasury-reset').style.display = 'none';
 
             if(role === 'Don') {
                 document.getElementById('nav-hr').style.display = 'block';
@@ -634,6 +690,10 @@
                 document.getElementById('treasury-box').style.display = 'block'; // تعديل 3: رؤية الخزينة للدون
                 document.getElementById('bm-pricing-box').style.display = 'block';
                 document.getElementById('add-gang-box').style.display = 'inline-block'; // تحديث: الدون له صلاحية كاملة على نظام العصابات
+                document.getElementById('nav-gang-shop-admin').style.display = 'block';
+                document.getElementById('gang-approvals-section').style.display = 'block';
+                document.getElementById('gang-shop-manage-section').style.display = 'block';
+                document.getElementById('btn-gang-treasury-reset').style.display = 'inline-block';
             }
             if(role === 'Business_Manager') {
                 // تعديل 2: تم حظر البيزنس مانجر من رؤية لوحة الـ HR والـ Archive
@@ -641,6 +701,8 @@
                 document.getElementById('treasury-box').style.display = 'block';
                 document.getElementById('bm-pricing-box').style.display = 'block';
                 document.getElementById('chef-submit-box').style.display = 'block';
+                document.getElementById('nav-gang-shop-admin').style.display = 'block';
+                document.getElementById('gang-shop-manage-section').style.display = 'block';
             }
             if(role === 'Chef_Braquage') {
                 // تعديل 1: تم سحب add-item-box (صلاحية تعديل وإضافة الشوب) من الشيف
@@ -650,6 +712,8 @@
                 document.getElementById('nav-hr').style.display = 'block';
                 document.getElementById('nav-archive').style.display = 'block';
                 document.getElementById('heist-logs-box').style.display = 'block';
+                document.getElementById('nav-gang-shop-admin').style.display = 'block';
+                document.getElementById('gang-approvals-section').style.display = 'block';
             }
             if(role === 'Gang_Supervisor') {
                 // تحديث: صلاحية إضافة/تعديل/حذف خانات العصابات حصرية على هذه الرتبة (والدون تلقائياً)
@@ -1532,6 +1596,204 @@
             mapViewState = { scale: 1, tx: 0, ty: 0 };
         }
 
+        // ================== تحديث: لوحة إدارة تسجيل أعضاء العصابات (GRH / الدون) ==================
+        async function loadGangPendingApprovals() {
+            if(!userToken) return;
+            try {
+                const res = await fetch('/api/admin/gang-members/pending', { headers: { 'Authorization': `Bearer ${userToken}` } });
+                const list = await res.json();
+                const tbody = document.querySelector('#tbl-gang-pending tbody');
+                if(!tbody) return;
+                tbody.innerHTML = '';
+
+                if(list.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" style="color:#555;">لا توجد طلبات انضمام بانتظار الموافقة حالياً.</td></tr>';
+                    return;
+                }
+                list.forEach(u => {
+                    tbody.innerHTML += `<tr>
+                        <td>${u.username}</td>
+                        <td><span style="color:var(--warning);">${u.gang_name}</span></td>
+                        <td>${u.discord_id || '-'}</td>
+                        <td>
+                            <button class="btn-success" style="width:auto; padding:5px 10px; font-size:0.75rem;" onclick="reviewGangMember('${u.username}','approve')">✔️ قبول</button>
+                            <button class="btn-danger" style="width:auto; padding:5px 10px; font-size:0.75rem;" onclick="reviewGangMember('${u.username}','reject')">✖️ رفض</button>
+                        </td>
+                    </tr>`;
+                });
+            } catch(err) { console.error(err); }
+        }
+
+        function reviewGangMember(username, decision) {
+            const msg = decision === 'approve' ? `تأكيد قبول طلب انضمام "${username}"؟` : `تأكيد رفض طلب انضمام "${username}"؟`;
+            customConfirm(msg, async (yes) => {
+                if(!yes) return;
+                try {
+                    const res = await fetch('/api/admin/gang-members/review', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` },
+                        body: JSON.stringify({ target_username: username, decision })
+                    });
+                    const data = await res.json();
+                    if(!res.ok) throw new Error(data.error);
+                    customAlert(data.msg);
+                    loadGangPendingApprovals();
+                } catch(err) { customAlert(err.message); }
+            });
+        }
+
+        // ================== تحديث: إدارة كتالوج شوب العصابات (Business_Manager / الدون) ==================
+        async function loadGangShopCatalog() {
+            if(!userToken) return;
+            try {
+                const res = await fetch('/api/gang-shop/items', { headers: { 'Authorization': `Bearer ${userToken}` } });
+                const items = await res.json();
+                const container = document.getElementById('gang-shop-catalog-container');
+                if(!container) return;
+                container.innerHTML = '';
+
+                items.forEach(itm => {
+                    container.innerHTML += `
+                        <div class="item-card">
+                            <img src="${itm.image_url}" onerror="this.src='https://placehold.co/150x150/1a1a1a/ffaa00?text=Item'">
+                            <strong style="display:block; margin-bottom:5px;">${itm.name}</strong>
+                            <span style="color:var(--primary); display:block; font-size:0.85rem;">شراء: ${formatMoneyFrontend(itm.buy_price)}$</span>
+                            <span style="color:var(--danger); display:block; font-size:0.85rem;">بيع: ${formatMoneyFrontend(itm.sell_price)}$</span>
+                            <div class="admin-controls">
+                                <button onclick="editGangShopItem('${itm._id}')" class="btn-warning" style="padding:4px 8px; font-size:0.75rem;">تعديل</button>
+                                <button onclick="deleteGangShopItem('${itm._id}')" class="btn-danger" style="padding:4px 8px; font-size:0.75rem;">حذف</button>
+                            </div>
+                        </div>`;
+                });
+            } catch(err) { console.error(err); }
+        }
+
+        async function addGangShopItem() {
+            const name = document.getElementById('gs-name').value.trim();
+            const buy_price = document.getElementById('gs-buy-price').value;
+            const sell_price = document.getElementById('gs-sell-price').value;
+            const image_url = document.getElementById('gs-img').value.trim();
+
+            if(!name || !buy_price || !sell_price) return customAlert("الاسم وسعر الشراء وسعر البيع كلها مطلوبة.");
+
+            try {
+                const res = await fetch('/api/gang-shop/add-item', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` },
+                    body: JSON.stringify({ name, buy_price, sell_price, image_url })
+                });
+                const data = await res.json();
+                if(!res.ok) throw new Error(data.error);
+                customAlert(data.msg);
+                document.getElementById('gs-name').value = '';
+                document.getElementById('gs-buy-price').value = '';
+                document.getElementById('gs-sell-price').value = '';
+                document.getElementById('gs-img').value = '';
+            } catch(err) { customAlert(err.message); }
+        }
+
+        function editGangShopItem(id) {
+            customPrompt("أدخل سعر الشراء الجديد (من المافيا) $:", async (newBuyPrice) => {
+                if(!newBuyPrice || isNaN(newBuyPrice)) return;
+                customPrompt("أدخل سعر البيع الجديد (للمافيا) $:", async (newSellPrice) => {
+                    if(!newSellPrice || isNaN(newSellPrice)) return;
+                    try {
+                        const res = await fetch(`/api/gang-shop/item/${id}`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` },
+                            body: JSON.stringify({ buy_price: newBuyPrice, sell_price: newSellPrice })
+                        });
+                        const data = await res.json();
+                        if(!res.ok) throw new Error(data.error);
+                        customAlert(data.msg);
+                    } catch(err) { customAlert(err.message); }
+                });
+            });
+        }
+
+        function deleteGangShopItem(id) {
+            customConfirm("هل أنت متأكد من حذف هذا المنتج من شوب العصابات نهائياً؟", async (yes) => {
+                if(!yes) return;
+                try {
+                    const res = await fetch(`/api/gang-shop/item/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${userToken}` } });
+                    const data = await res.json();
+                    if(!res.ok) throw new Error(data.error);
+                    customAlert(data.msg);
+                    loadGangShopCatalog();
+                } catch(err) { customAlert(err.message); }
+            });
+        }
+
+        async function loadGangOrders() {
+            if(!userToken) return;
+            try {
+                const res = await fetch('/api/gang-shop/orders', { headers: { 'Authorization': `Bearer ${userToken}` } });
+                const orders = await res.json();
+                const tbody = document.querySelector('#tbl-gang-orders tbody');
+                if(!tbody) return;
+                tbody.innerHTML = '';
+
+                if(orders.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" style="color:#555;">لا توجد أي عمليات مسجلة حتى الآن.</td></tr>';
+                    return;
+                }
+                orders.forEach(o => {
+                    const boughtStr = o.items_bought.length ? o.items_bought.map(i => `${i.quantity}x ${i.name}`).join(', ') : '-';
+                    const soldStr = o.items_sold.length ? o.items_sold.map(i => `${i.quantity}x ${i.name}`).join(', ') : '-';
+                    const netColor = o.net_amount >= 0 ? 'var(--primary)' : 'var(--danger)';
+                    const actionHtml = o.status === 'Pending'
+                        ? `<button class="btn-success" style="width:auto; padding:5px 10px; font-size:0.75rem;" onclick="confirmGangOrder('${o._id}')">تأكيد التسليم</button>`
+                        : `<span style="color:var(--primary);">✔️ مؤكد</span>`;
+
+                    tbody.innerHTML += `<tr>
+                        <td>${o.gang_member_username}</td>
+                        <td>${o.gang_name || '-'}</td>
+                        <td style="font-size:0.8rem;">${boughtStr}</td>
+                        <td style="font-size:0.8rem;">${soldStr}</td>
+                        <td style="color:${netColor}; font-weight:bold;">${formatMoneyFrontend(o.net_amount)}$</td>
+                        <td>${o.status === 'Pending' ? 'معلّق' : 'مؤكد'}</td>
+                        <td>${actionHtml}</td>
+                    </tr>`;
+                });
+            } catch(err) { console.error(err); }
+        }
+
+        function confirmGangOrder(id) {
+            customConfirm("هل تأكدت من إتمام تسليم الأشياء/الفلوس مع العضو فعلياً بالمدينة؟", async (yes) => {
+                if(!yes) return;
+                try {
+                    const res = await fetch(`/api/gang-shop/order/${id}/confirm`, { method: 'POST', headers: { 'Authorization': `Bearer ${userToken}` } });
+                    const data = await res.json();
+                    if(!res.ok) throw new Error(data.error);
+                    customAlert(data.msg);
+                    loadGangOrders();
+                    loadGangTreasuryBalance();
+                } catch(err) { customAlert(err.message); }
+            });
+        }
+
+        async function loadGangTreasuryBalance() {
+            if(!userToken) return;
+            try {
+                const res = await fetch('/api/gang-shop/treasury', { headers: { 'Authorization': `Bearer ${userToken}` } });
+                const data = await res.json();
+                const el = document.getElementById('gang-treasury-balance');
+                if(el) el.innerText = formatMoneyFrontend(data.balance_raw) + '$';
+            } catch(err) { console.error(err); }
+        }
+
+        function resetGangTreasury() {
+            customConfirm("تحذير: هل تريد تصفير خزينة شوب العصابات بالكامل؟ هذا الإجراء لا يمكن التراجع عنه.", async (yes) => {
+                if(!yes) return;
+                try {
+                    const res = await fetch('/api/gang-shop/treasury/reset', { method: 'POST', headers: { 'Authorization': `Bearer ${userToken}` } });
+                    const data = await res.json();
+                    customAlert(data.msg);
+                    loadGangTreasuryBalance();
+                } catch(err) { console.error(err); }
+            });
+        }
+
         // ================== نظام الإجازات والتبريرات الإدارية ==================
         async function submitLeave() {
             const reason = document.getElementById('leave-reason').value.trim();
@@ -1833,6 +2095,10 @@
             refreshUserFineStatus();
             if(['Don', 'GRH', 'Business_Manager'].includes(userData?.role)) loadActiveFinesTable();
         });
+        socket.on('gangMemberPending', () => { if(userToken && ['Don','GRH'].includes(userData?.role)) loadGangPendingApprovals(); });
+        socket.on('gangShopUpdated', () => { if(userToken && ['Don','Business_Manager'].includes(userData?.role)) loadGangShopCatalog(); });
+        socket.on('gangOrdersUpdated', () => { if(userToken && ['Don','Business_Manager'].includes(userData?.role)) loadGangOrders(); });
+        socket.on('gangTreasuryUpdated', () => { if(userToken && ['Don','Business_Manager'].includes(userData?.role)) loadGangTreasuryBalance(); });
         socket.on('ordersUpdated', () => { if(userToken && ['Don', 'GRH', 'Business_Manager', 'Chef_Braquage'].includes(userData?.role)) loadOrdersData(); });
         socket.on('treasuryUpdated', () => { if(userToken && ['Don', 'GRH', 'Business_Manager'].includes(userData?.role)) loadTreasuryBalance(); });
         socket.on('requestUpdated', () => { if(userToken && ['Don', 'GRH', 'Business_Manager'].includes(userData?.role)) loadHRRequests(); });
