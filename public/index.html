@@ -118,13 +118,20 @@
         .gm-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
         .gm-header .who { font-size: 0.9rem; color: #999; }
         .gm-header .who b { color: var(--primary); }
-        .gs-price-row { font-size: 0.8rem; display: flex; justify-content: space-between; padding: 2px 0; }
         .gs-buy-color { color: var(--primary); }
         .gs-sell-color { color: var(--danger); }
-        .gs-qty-row { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-top: 8px; }
-        .gs-qty-row label { font-size: 0.75rem; color: #aaa; margin: 0; }
-        .gs-qty-row input { width: 55px; text-align: center; padding: 5px; margin: 0; }
         #gm-summary-bar { position: sticky; bottom: 10px; border-color: var(--primary); z-index: 10; }
+        .gm-mode-tabs { display: flex; gap: 10px; margin: 15px 0; }
+        .gm-mode-tabs button { flex: 1; padding: 14px; font-size: 1rem; }
+        .gm-mode-tabs button.active { background: var(--primary); color: #000; }
+        .gm-catalog-grid { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 20px; }
+        .gm-catalog-grid .item-card { padding: 20px; }
+        .gm-catalog-grid .item-card img { height: 170px; }
+        .gm-catalog-grid .item-card strong { font-size: 1.05rem; }
+        .gm-price-big { font-size: 1.3rem; font-weight: bold; display: block; margin: 10px 0; }
+        .gm-qty-control { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 10px; }
+        .gm-qty-control button { width: 38px; height: 38px; padding: 0; font-size: 1.2rem; flex: none; }
+        .gm-qty-control input { width: 65px; text-align: center; padding: 8px; font-size: 1rem; }
         .summary-row { display: flex; justify-content: space-between; font-size: 0.9rem; padding: 3px 0; }
         #gm-net-amount { font-weight: bold; font-size: 1.1rem; }
     </style>
@@ -188,8 +195,12 @@
 
             <div class="card">
                 <h3 style="color:var(--primary);">🛒 كتالوج التبادل مع المافيا</h3>
-                <p style="font-size:0.8rem; color:#888;">حدد كمية "أشتري" لما تبي تاخذه من المافيا، أو "أبيع" لما تبي تعطيه لهم. تقدر تسوي الاثنين بنفس العملية (مقايضة).</p>
-                <div id="gm-catalog-container" class="shop-grid"></div>
+                <p style="font-size:0.8rem; color:#888;">اختر أشتري أو أبيع، وحدد الكمية لكل منتج تبيه. تقدر تبدّل بين التبويبين وتضيف من الاثنين بنفس العملية (مقايضة) قبل ما تضغط تنفيذ.</p>
+                <div class="gm-mode-tabs">
+                    <button id="gm-tab-buy" class="active" onclick="switchGmMode('buy')">🛒 أشتري من المافيا</button>
+                    <button id="gm-tab-sell" onclick="switchGmMode('sell')">💰 أبيع للمافيا</button>
+                </div>
+                <div id="gm-catalog-container" class="shop-grid gm-catalog-grid"></div>
             </div>
 
             <div id="gm-summary-bar" class="card">
@@ -702,6 +713,10 @@
         }
 
         // ================== تحديث: جلسة عضو العصابة (بعد الدمج — واجهة منفصلة داخل نفس الملف) ==================
+        let gmCatalogData = [];
+        let gmCart = {}; // { itemName: { buyQty, sellQty } } — تبقى محفوظة حتى لو بدّل بين تبويب الشراء والبيع
+        let gmMode = 'buy'; // 'buy' | 'sell'
+
         function initGangMemberSession() {
             document.getElementById('gang-member-screen').style.display = 'block';
             document.getElementById('who-username-gm').innerText = userData.username;
@@ -713,38 +728,66 @@
         async function loadGangShopCatalogForMember() {
             try {
                 const res = await fetch('/api/gang-shop/items');
-                const catalog = await res.json();
-                const container = document.getElementById('gm-catalog-container');
-                if(!container) return;
-                container.innerHTML = '';
-
-                if(catalog.length === 0) {
-                    container.innerHTML = '<p style="color:#555;">لا توجد منتجات بالكتالوج حالياً.</p>';
-                    return;
-                }
-                catalog.forEach(itm => {
-                    container.innerHTML += `
-                        <div class="item-card" data-name="${itm.name}" data-buy="${itm.buy_price}" data-sell="${itm.sell_price}">
-                            <img src="${itm.image_url}" onerror="this.src='https://placehold.co/150x150/1a1a1a/ffaa00?text=Item'">
-                            <strong style="display:block; margin-bottom:5px;">${itm.name}</strong>
-                            <div class="gs-price-row"><span class="gs-buy-color">شراء</span><span class="gs-buy-color">${formatMoneyFrontend(itm.buy_price)}$</span></div>
-                            <div class="gs-price-row"><span class="gs-sell-color">بيع</span><span class="gs-sell-color">${formatMoneyFrontend(itm.sell_price)}$</span></div>
-                            <div class="gs-qty-row"><label>أشتري</label><input type="number" class="gs-buy-qty" min="0" value="0" oninput="updateGangShopSummary()"></div>
-                            <div class="gs-qty-row"><label>أبيع</label><input type="number" class="gs-sell-qty" min="0" value="0" oninput="updateGangShopSummary()"></div>
-                        </div>`;
-                });
+                gmCatalogData = await res.json();
+                gmCatalogData.forEach(itm => { if(!gmCart[itm.name]) gmCart[itm.name] = { buyQty: 0, sellQty: 0 }; });
+                renderGmCatalog();
             } catch(err) { console.error(err); }
+        }
+
+        function switchGmMode(mode) {
+            gmMode = mode;
+            document.getElementById('gm-tab-buy').classList.toggle('active', mode === 'buy');
+            document.getElementById('gm-tab-sell').classList.toggle('active', mode === 'sell');
+            renderGmCatalog();
+        }
+
+        function renderGmCatalog() {
+            const container = document.getElementById('gm-catalog-container');
+            if(!container) return;
+            container.innerHTML = '';
+
+            if(gmCatalogData.length === 0) {
+                container.innerHTML = '<p style="color:#555;">لا توجد منتجات بالكتالوج حالياً.</p>';
+                return;
+            }
+            gmCatalogData.forEach(itm => {
+                const price = gmMode === 'buy' ? itm.buy_price : itm.sell_price;
+                const qty = gmMode === 'buy' ? gmCart[itm.name].buyQty : gmCart[itm.name].sellQty;
+                const colorClass = gmMode === 'buy' ? 'gs-buy-color' : 'gs-sell-color';
+                container.innerHTML += `
+                    <div class="item-card">
+                        <img src="${itm.image_url}" onerror="this.src='https://placehold.co/150x150/1a1a1a/ffaa00?text=Item'">
+                        <strong>${itm.name}</strong>
+                        <span class="gm-price-big ${colorClass}">${formatMoneyFrontend(price)}$</span>
+                        <div class="gm-qty-control">
+                            <button type="button" onclick="adjustGmQty('${itm.name}', -1)">−</button>
+                            <input type="number" min="0" value="${qty}" onchange="setGmQty('${itm.name}', this.value)">
+                            <button type="button" onclick="adjustGmQty('${itm.name}', 1)">+</button>
+                        </div>
+                    </div>`;
+            });
+        }
+
+        function adjustGmQty(name, delta) {
+            const key = gmMode === 'buy' ? 'buyQty' : 'sellQty';
+            gmCart[name][key] = Math.max(0, gmCart[name][key] + delta);
+            renderGmCatalog();
+            updateGangShopSummary();
+        }
+
+        function setGmQty(name, value) {
+            const key = gmMode === 'buy' ? 'buyQty' : 'sellQty';
+            gmCart[name][key] = Math.max(0, parseInt(value) || 0);
+            updateGangShopSummary();
         }
 
         function updateGangShopSummary() {
             let totalBuy = 0, totalSell = 0;
-            document.querySelectorAll('#gang-member-screen .item-card').forEach(card => {
-                const buyPrice = Number(card.dataset.buy);
-                const sellPrice = Number(card.dataset.sell);
-                const buyQty = Math.max(0, parseInt(card.querySelector('.gs-buy-qty').value) || 0);
-                const sellQty = Math.max(0, parseInt(card.querySelector('.gs-sell-qty').value) || 0);
-                totalBuy += buyPrice * buyQty;
-                totalSell += sellPrice * sellQty;
+            gmCatalogData.forEach(itm => {
+                const c = gmCart[itm.name];
+                if(!c) return;
+                totalBuy += itm.buy_price * c.buyQty;
+                totalSell += itm.sell_price * c.sellQty;
             });
             const net = totalBuy - totalSell;
             document.getElementById('gm-total-buy').innerText = formatMoneyFrontend(totalBuy) + '$';
@@ -756,12 +799,11 @@
 
         async function submitGangShopOrder() {
             const items_bought = [], items_sold = [];
-            document.querySelectorAll('#gang-member-screen .item-card').forEach(card => {
-                const name = card.dataset.name;
-                const buyQty = Math.max(0, parseInt(card.querySelector('.gs-buy-qty').value) || 0);
-                const sellQty = Math.max(0, parseInt(card.querySelector('.gs-sell-qty').value) || 0);
-                if(buyQty > 0) items_bought.push({ name, quantity: buyQty });
-                if(sellQty > 0) items_sold.push({ name, quantity: sellQty });
+            gmCatalogData.forEach(itm => {
+                const c = gmCart[itm.name];
+                if(!c) return;
+                if(c.buyQty > 0) items_bought.push({ name: itm.name, quantity: c.buyQty });
+                if(c.sellQty > 0) items_sold.push({ name: itm.name, quantity: c.sellQty });
             });
             if(items_bought.length === 0 && items_sold.length === 0) return customAlert("حدد كمية شراء أو بيع لمنتج واحد على الأقل.");
 
@@ -774,7 +816,8 @@
                 const data = await res.json();
                 if(!res.ok) throw new Error(data.error);
                 customAlert(data.msg);
-                document.querySelectorAll('#gang-member-screen .gs-buy-qty, #gang-member-screen .gs-sell-qty').forEach(inp => inp.value = 0);
+                gmCatalogData.forEach(itm => { gmCart[itm.name] = { buyQty: 0, sellQty: 0 }; });
+                renderGmCatalog();
                 updateGangShopSummary();
                 loadMyGangOrders();
             } catch(err) { customAlert(err.message); }
