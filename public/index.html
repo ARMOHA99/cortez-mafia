@@ -121,6 +121,8 @@
         .gs-buy-color { color: var(--primary); }
         .gs-sell-color { color: var(--danger); }
         #gm-summary-bar { position: sticky; bottom: 10px; border-color: var(--primary); z-index: 10; }
+        /* إصلاح: كانت الشاشة تنكمش لحجم محتواها بدل تاخذ العرض كامل لأن body عندها display:flex */
+        #gang-member-screen { display: none; width: 100%; height: 100%; overflow-y: auto; box-sizing: border-box; }
         .gm-mode-tabs { display: flex; gap: 10px; margin: 15px 0; }
         .gm-mode-tabs button { flex: 1; padding: 14px; font-size: 1rem; }
         .gm-mode-tabs button.active { background: var(--primary); color: #000; }
@@ -452,8 +454,13 @@
                 <div id="gang-shop-manage-section" style="display:none;">
                     <div class="card">
                         <h3 style="color:var(--primary);">➕ إضافة منتج لشوب العصابات</h3>
-                        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
                             <input type="text" id="gs-name" placeholder="اسم المنتج">
+                            <select id="gs-type" onchange="toggleGsPriceFields()">
+                                <option value="both">شراء وبيع (الاثنين)</option>
+                                <option value="buy_only">شراء فقط (المافيا تبيعه)</option>
+                                <option value="sell_only">بيع فقط (المافيا تشتريه)</option>
+                            </select>
                             <input type="number" id="gs-buy-price" placeholder="سعر الشراء (من المافيا) $">
                             <input type="number" id="gs-sell-price" placeholder="سعر البيع (للمافيا) $">
                             <input type="text" id="gs-img" placeholder="رابط الصورة (اختياري)">
@@ -746,11 +753,16 @@
             if(!container) return;
             container.innerHTML = '';
 
-            if(gmCatalogData.length === 0) {
-                container.innerHTML = '<p style="color:#555;">لا توجد منتجات بالكتالوج حالياً.</p>';
+            const relevant = gmCatalogData.filter(itm => {
+                if(gmMode === 'buy') return itm.item_type === 'buy_only' || itm.item_type === 'both';
+                return itm.item_type === 'sell_only' || itm.item_type === 'both';
+            });
+
+            if(relevant.length === 0) {
+                container.innerHTML = `<p style="color:#555;">لا توجد منتجات متاحة لل${gmMode === 'buy' ? 'شراء' : 'بيع'} حالياً.</p>`;
                 return;
             }
-            gmCatalogData.forEach(itm => {
+            relevant.forEach(itm => {
                 const price = gmMode === 'buy' ? itm.buy_price : itm.sell_price;
                 const qty = gmMode === 'buy' ? gmCart[itm.name].buyQty : gmCart[itm.name].sellQty;
                 const colorClass = gmMode === 'buy' ? 'gs-buy-color' : 'gs-sell-color';
@@ -1886,22 +1898,29 @@
         }
 
         // ================== تحديث: إدارة كتالوج شوب العصابات (Business_Manager / الدون) ==================
+        let gangShopAdminCatalog = [];
+
         async function loadGangShopCatalog() {
             if(!userToken) return;
             try {
                 const res = await fetch('/api/gang-shop/items', { headers: { 'Authorization': `Bearer ${userToken}` } });
-                const items = await res.json();
+                gangShopAdminCatalog = await res.json();
                 const container = document.getElementById('gang-shop-catalog-container');
                 if(!container) return;
                 container.innerHTML = '';
 
-                items.forEach(itm => {
+                gangShopAdminCatalog.forEach(itm => {
+                    const typeLabel = itm.item_type === 'buy_only' ? '🛒 شراء فقط' : (itm.item_type === 'sell_only' ? '💰 بيع فقط' : '🔄 شراء وبيع');
+                    let priceHtml = '';
+                    if(itm.item_type === 'buy_only' || itm.item_type === 'both') priceHtml += `<span style="color:var(--primary); display:block; font-size:0.85rem;">شراء: ${formatMoneyFrontend(itm.buy_price)}$</span>`;
+                    if(itm.item_type === 'sell_only' || itm.item_type === 'both') priceHtml += `<span style="color:var(--danger); display:block; font-size:0.85rem;">بيع: ${formatMoneyFrontend(itm.sell_price)}$</span>`;
+
                     container.innerHTML += `
                         <div class="item-card">
                             <img src="${itm.image_url}" onerror="this.src='https://placehold.co/150x150/1a1a1a/ffaa00?text=Item'">
                             <strong style="display:block; margin-bottom:5px;">${itm.name}</strong>
-                            <span style="color:var(--primary); display:block; font-size:0.85rem;">شراء: ${formatMoneyFrontend(itm.buy_price)}$</span>
-                            <span style="color:var(--danger); display:block; font-size:0.85rem;">بيع: ${formatMoneyFrontend(itm.sell_price)}$</span>
+                            <span style="color:#888; font-size:0.75rem; display:block; margin-bottom:5px;">${typeLabel}</span>
+                            ${priceHtml}
                             <div class="admin-controls">
                                 <button onclick="editGangShopItem('${itm._id}')" class="btn-warning" style="padding:4px 8px; font-size:0.75rem;">تعديل</button>
                                 <button onclick="deleteGangShopItem('${itm._id}')" class="btn-danger" style="padding:4px 8px; font-size:0.75rem;">حذف</button>
@@ -1911,19 +1930,28 @@
             } catch(err) { console.error(err); }
         }
 
+        function toggleGsPriceFields() {
+            const type = document.getElementById('gs-type').value;
+            document.getElementById('gs-buy-price').style.display = (type === 'sell_only') ? 'none' : 'inline-block';
+            document.getElementById('gs-sell-price').style.display = (type === 'buy_only') ? 'none' : 'inline-block';
+        }
+
         async function addGangShopItem() {
             const name = document.getElementById('gs-name').value.trim();
+            const item_type = document.getElementById('gs-type').value;
             const buy_price = document.getElementById('gs-buy-price').value;
             const sell_price = document.getElementById('gs-sell-price').value;
             const image_url = document.getElementById('gs-img').value.trim();
 
-            if(!name || !buy_price || !sell_price) return customAlert("الاسم وسعر الشراء وسعر البيع كلها مطلوبة.");
+            if(!name) return customAlert("اسم المنتج مطلوب.");
+            if((item_type === 'buy_only' || item_type === 'both') && !buy_price) return customAlert("سعر الشراء مطلوب لهذا النوع من المنتجات.");
+            if((item_type === 'sell_only' || item_type === 'both') && !sell_price) return customAlert("سعر البيع مطلوب لهذا النوع من المنتجات.");
 
             try {
                 const res = await fetch('/api/gang-shop/add-item', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` },
-                    body: JSON.stringify({ name, buy_price, sell_price, image_url })
+                    body: JSON.stringify({ name, item_type, buy_price, sell_price, image_url })
                 });
                 const data = await res.json();
                 if(!res.ok) throw new Error(data.error);
@@ -1935,23 +1963,73 @@
             } catch(err) { customAlert(err.message); }
         }
 
+        // تحديث: تعديل المنتج صار بمودال واحد كامل بدل أسئلة متسلسلة، ويحترم نوع المنتج (شراء فقط/بيع فقط/الاثنين)
         function editGangShopItem(id) {
-            customPrompt("أدخل سعر الشراء الجديد (من المافيا) $:", async (newBuyPrice) => {
-                if(!newBuyPrice || isNaN(newBuyPrice)) return;
-                customPrompt("أدخل سعر البيع الجديد (للمافيا) $:", async (newSellPrice) => {
-                    if(!newSellPrice || isNaN(newSellPrice)) return;
-                    try {
-                        const res = await fetch(`/api/gang-shop/item/${id}`, {
-                            method: 'PUT',
-                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` },
-                            body: JSON.stringify({ buy_price: newBuyPrice, sell_price: newSellPrice })
-                        });
-                        const data = await res.json();
-                        if(!res.ok) throw new Error(data.error);
-                        customAlert(data.msg);
-                    } catch(err) { customAlert(err.message); }
+            const itm = gangShopAdminCatalog.find(i => i._id === id);
+            if(!itm) return;
+
+            document.getElementById('gang-modal-title').innerText = `✏️ تعديل: ${itm.name}`;
+            document.getElementById('gang-modal-body').innerHTML = `
+                <div class="input-group"><label>اسم المنتج:</label><input type="text" id="ed-gs-name" value="${itm.name}"></div>
+                <div class="input-group">
+                    <label>نوع المنتج:</label>
+                    <select id="ed-gs-type" onchange="toggleEdGsPriceFields()">
+                        <option value="both" ${itm.item_type === 'both' ? 'selected' : ''}>شراء وبيع (الاثنين)</option>
+                        <option value="buy_only" ${itm.item_type === 'buy_only' ? 'selected' : ''}>شراء فقط (المافيا تبيعه)</option>
+                        <option value="sell_only" ${itm.item_type === 'sell_only' ? 'selected' : ''}>بيع فقط (المافيا تشتريه)</option>
+                    </select>
+                </div>
+                <div class="input-group" id="ed-gs-buy-group"><label>سعر الشراء (من المافيا) $:</label><input type="number" id="ed-gs-buy-price" value="${itm.buy_price || ''}"></div>
+                <div class="input-group" id="ed-gs-sell-group"><label>سعر البيع (للمافيا) $:</label><input type="number" id="ed-gs-sell-price" value="${itm.sell_price || ''}"></div>
+                <div class="input-group"><label>رابط الصورة:</label><input type="text" id="ed-gs-img" value="${itm.image_url || ''}"></div>
+            `;
+            toggleEdGsPriceFields();
+
+            const actionsEl = document.getElementById('gang-modal-actions');
+            actionsEl.innerHTML = '';
+            const saveBtn = document.createElement('button');
+            saveBtn.className = 'btn-success';
+            saveBtn.innerText = 'حفظ التعديلات';
+            saveBtn.onclick = () => saveGangShopItemEdit(id);
+            actionsEl.appendChild(saveBtn);
+            const cancelBtn = document.createElement('button');
+            cancelBtn.className = 'btn-danger';
+            cancelBtn.innerText = 'إلغاء';
+            cancelBtn.onclick = closeGangModal;
+            actionsEl.appendChild(cancelBtn);
+
+            document.getElementById('gang-modal-overlay').style.display = 'flex';
+        }
+
+        function toggleEdGsPriceFields() {
+            const type = document.getElementById('ed-gs-type').value;
+            document.getElementById('ed-gs-buy-group').style.display = (type === 'sell_only') ? 'none' : 'block';
+            document.getElementById('ed-gs-sell-group').style.display = (type === 'buy_only') ? 'none' : 'block';
+        }
+
+        async function saveGangShopItemEdit(id) {
+            const name = document.getElementById('ed-gs-name').value.trim();
+            const item_type = document.getElementById('ed-gs-type').value;
+            const buy_price = document.getElementById('ed-gs-buy-price').value;
+            const sell_price = document.getElementById('ed-gs-sell-price').value;
+            const image_url = document.getElementById('ed-gs-img').value.trim();
+
+            if(!name) return customAlert("اسم المنتج مطلوب.");
+            if((item_type === 'buy_only' || item_type === 'both') && !buy_price) return customAlert("سعر الشراء مطلوب لهذا النوع من المنتجات.");
+            if((item_type === 'sell_only' || item_type === 'both') && !sell_price) return customAlert("سعر البيع مطلوب لهذا النوع من المنتجات.");
+
+            try {
+                const res = await fetch(`/api/gang-shop/item/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` },
+                    body: JSON.stringify({ name, item_type, buy_price, sell_price, image_url })
                 });
-            });
+                const data = await res.json();
+                if(!res.ok) throw new Error(data.error);
+                customAlert(data.msg);
+                closeGangModal();
+                loadGangShopCatalog();
+            } catch(err) { customAlert(err.message); }
         }
 
         function deleteGangShopItem(id) {
