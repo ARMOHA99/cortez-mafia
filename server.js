@@ -357,9 +357,15 @@ app.post('/api/auth/register', async (req, res) => {
         if (!discord_id) return res.status(400).json({ error: "حقل الـ Discord ID مطلوب." });
         const hashedPassword = await bcrypt.hash(password, 10);
         const isFirstUser = (await User.countDocuments({})) === 0;
-        const newUser = new User({ username, password: hashedPassword, discord_id: String(discord_id), role: isFirstUser ? 'Don' : 'Soldat' });
+        // تحديث: أي تسجيل جديد (غير أول حساب بالنظام) يصير معلّقاً بانتظار موافقة GRH أو الدون
+        const newUser = new User({
+            username, password: hashedPassword, discord_id: String(discord_id),
+            role: isFirstUser ? 'Don' : 'Soldat',
+            account_status: isFirstUser ? 'approved' : 'pending'
+        });
         await newUser.save();
-        res.status(201).json({ msg: `تم التسجيل بنجاح.` });
+        if (!isFirstUser) io.emit('accountPending');
+        res.status(201).json({ msg: isFirstUser ? `تم التسجيل بنجاح.` : "تم إرسال طلبك بنجاح. يرجى انتظار موافقة قيادة المافيا لتفعيل حسابك." });
     } catch (err) { res.status(400).json({ error: "اسم المستخدم مسجل مسبقاً بالتنظيم." }); }
 });
 
@@ -378,7 +384,7 @@ app.post('/api/gang-auth/register', async (req, res) => {
             role: 'Gang_Member', gang_name, account_status: 'pending'
         });
         await newUser.save();
-        io.emit('gangMemberPending');
+        io.emit('accountPending');
         res.status(201).json({ msg: "تم إرسال طلبك بنجاح. يرجى انتظار موافقة قيادة المافيا لتفعيل حسابك." });
     } catch (err) { res.status(400).json({ error: "حدث خطأ أثناء التسجيل، تأكد من اسم المستخدم." }); }
 });
@@ -390,11 +396,9 @@ app.post('/api/auth/login', async (req, res) => {
         if (!user || !(await bcrypt.compare(password, user.password))) return res.status(400).json({ error: "خطأ في اسم المستخدم أو كلمة المرور." });
         if (user.is_blacklisted) return res.status(403).json({ error: "تم حظرك ومطاردتك من عائلة كورتيز (بلاك ليست)." });
 
-        // تحديث: عضو العصابة لازم يكون حسابه "approved" من GRH أو الدون قبل ما يقدر يدخل
-        if (user.role === 'Gang_Member') {
-            if (user.account_status === 'pending') return res.status(403).json({ error: "حسابك لسا بانتظار موافقة قيادة المافيا. حاول لاحقاً." });
-            if (user.account_status === 'rejected') return res.status(403).json({ error: "تم رفض طلب انضمامك لهذا النظام." });
-        }
+        // تحديث: أي حساب (مافيا أو عصابة) لازم يكون "approved" من GRH أو الدون قبل ما يقدر يدخل
+        if (user.account_status === 'pending') return res.status(403).json({ error: "حسابك لسا بانتظار موافقة قيادة المافيا. حاول لاحقاً." });
+        if (user.account_status === 'rejected') return res.status(403).json({ error: "تم رفض طلب انضمامك لهذا النظام." });
         
         // جلب معلومات التوكن مع الغرامات المضافة حديثاً
         const token = jwt.sign({ id: user._id, role: user.role, username: user.username }, JWT_SECRET, { expiresIn: '24h' });
@@ -415,7 +419,8 @@ app.get('/api/auth/me', async (req, res) => {
 
 app.get('/api/users/list', verifyAuth(['Chef_Braquage', 'Business_Manager', 'Don']), async (req, res) => {
     try {
-        const users = await User.find({ is_blacklisted: false }, 'username');
+        // تحديث: نستثني الحسابات المعلّقة وأعضاء العصابات (مو أعضاء مافيا فعليين بعد)
+        const users = await User.find({ is_blacklisted: false, account_status: 'approved', role: { $ne: 'Gang_Member' } }, 'username');
         res.json(users);
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -675,7 +680,8 @@ app.post('/api/admin/fines/pay', verifyAuth(['GRH']), async (req, res) => {
 
 app.get('/api/stats/leaderboard', async (req, res) => {
     try {
-        const users = await User.find({ is_blacklisted: false }, 'username weekly_hours role duty_status total_heists');
+        // تحديث: نستثني الحسابات المعلّقة وأعضاء العصابات من ترتيب أعضاء المافيا
+        const users = await User.find({ is_blacklisted: false, account_status: 'approved', role: { $ne: 'Gang_Member' } }, 'username weekly_hours role duty_status total_heists');
         const fmt = users.map(u => ({ username: u.username, role: u.role, duty_status: u.duty_status, hours: u.weekly_hours, heists: u.total_heists }));
         
         res.json({ 
@@ -778,25 +784,25 @@ app.delete('/api/gangs/:id', verifyAuth(['Gang_Supervisor']), async (req, res) =
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ================== تحديث: الموافقة على تسجيل أعضاء العصابات (GRH أو الدون) ==================
-app.get('/api/admin/gang-members/pending', verifyAuth(['GRH']), async (req, res) => {
+// ================== تحديث: الموافقة على أي حساب جديد معلّق (مافيا أو عصابة) — GRH أو الدون ==================
+app.get('/api/admin/pending-accounts', verifyAuth(['GRH']), async (req, res) => {
     try {
-        const pending = await User.find({ role: 'Gang_Member', account_status: 'pending' }, 'username gang_name discord_id timestamp');
+        const pending = await User.find({ account_status: 'pending' }, 'username role gang_name discord_id timestamp');
         res.json(pending);
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/admin/gang-members/review', verifyAuth(['GRH']), async (req, res) => {
+app.post('/api/admin/pending-accounts/review', verifyAuth(['GRH']), async (req, res) => {
     try {
         const { target_username, decision } = req.body;
         if (!['approve', 'reject'].includes(decision)) return res.status(400).json({ error: "قرار غير صالح." });
 
-        const user = await User.findOne({ username: target_username, role: 'Gang_Member' });
-        if (!user) return res.status(404).json({ error: "الحساب غير موجود." });
+        const user = await User.findOne({ username: target_username, account_status: 'pending' });
+        if (!user) return res.status(404).json({ error: "الحساب غير موجود أو تمت مراجعته مسبقاً." });
 
         user.account_status = decision === 'approve' ? 'approved' : 'rejected';
         await user.save();
-        io.emit('gangMemberPending');
+        io.emit('accountPending');
         res.json({ msg: decision === 'approve' ? `تم تفعيل حساب ${target_username} بنجاح.` : `تم رفض طلب ${target_username}.` });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
