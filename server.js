@@ -142,8 +142,10 @@ const Gang = mongoose.model('Gang', GangSchema);
 // ================== تحديث: نظام شوب أعضاء العصابات (منفصل تماماً عن شوب المافيا) ==================
 const GangShopItemSchema = new mongoose.Schema({
     name: { type: String, required: true },
-    buy_price: { type: Number, required: true },  // السعر اللي يشتريه عضو العصابة من المافيا
-    sell_price: { type: Number, required: true }, // السعر اللي تشتريه المافيا من عضو العصابة (يفترض أقل من buy_price)
+    // تحديث: نوع المنتج يحدد هل يظهر بالشراء فقط، البيع فقط، أو الاثنين معاً
+    item_type: { type: String, enum: ['buy_only', 'sell_only', 'both'], default: 'both' },
+    buy_price: { type: Number, default: null },  // السعر اللي يشتريه عضو العصابة من المافيا (يُستخدم لو buy_only أو both)
+    sell_price: { type: Number, default: null }, // السعر اللي تشتريه المافيا من عضو العصابة (يُستخدم لو sell_only أو both)
     image_url: { type: String, default: 'https://placehold.co/150x150/1a1a1a/ffaa00?text=Item' },
     created_by: String,
     timestamp: { type: Date, default: Date.now }
@@ -816,9 +818,20 @@ app.get('/api/gang-shop/items', async (req, res) => {
 
 app.post('/api/gang-shop/add-item', verifyAuth(['Business_Manager']), async (req, res) => {
     try {
-        const { name, buy_price, sell_price, image_url } = req.body;
-        if (!name || buy_price === undefined || sell_price === undefined) return res.status(400).json({ error: "الاسم وسعر الشراء وسعر البيع كلها مطلوبة." });
-        const newItem = new GangShopItem({ name, buy_price: Number(buy_price), sell_price: Number(sell_price), image_url, created_by: req.user.username });
+        const { name, item_type, buy_price, sell_price, image_url } = req.body;
+        const validTypes = ['buy_only', 'sell_only', 'both'];
+        const finalType = validTypes.includes(item_type) ? item_type : 'both';
+
+        if (!name) return res.status(400).json({ error: "اسم المنتج مطلوب." });
+        if ((finalType === 'buy_only' || finalType === 'both') && !buy_price) return res.status(400).json({ error: "سعر الشراء مطلوب لهذا النوع من المنتجات." });
+        if ((finalType === 'sell_only' || finalType === 'both') && !sell_price) return res.status(400).json({ error: "سعر البيع مطلوب لهذا النوع من المنتجات." });
+
+        const newItem = new GangShopItem({
+            name, item_type: finalType,
+            buy_price: (finalType === 'buy_only' || finalType === 'both') ? Number(buy_price) : null,
+            sell_price: (finalType === 'sell_only' || finalType === 'both') ? Number(sell_price) : null,
+            image_url, created_by: req.user.username
+        });
         await newItem.save();
         io.emit('gangShopUpdated');
         res.status(201).json({ msg: "تمت إضافة المنتج إلى شوب العصابات بنجاح." });
@@ -827,13 +840,27 @@ app.post('/api/gang-shop/add-item', verifyAuth(['Business_Manager']), async (req
 
 app.put('/api/gang-shop/item/:id', verifyAuth(['Business_Manager']), async (req, res) => {
     try {
-        const { name, buy_price, sell_price, image_url } = req.body;
-        const update = {};
-        if (name !== undefined) update.name = name;
-        if (buy_price !== undefined) update.buy_price = Number(buy_price);
-        if (sell_price !== undefined) update.sell_price = Number(sell_price);
-        if (image_url !== undefined) update.image_url = image_url;
-        await GangShopItem.findByIdAndUpdate(req.params.id, update);
+        const { name, item_type, buy_price, sell_price, image_url } = req.body;
+        const item = await GangShopItem.findById(req.params.id);
+        if (!item) return res.status(404).json({ error: "المنتج غير موجود." });
+
+        if (name !== undefined) item.name = name;
+        if (image_url !== undefined) item.image_url = image_url;
+
+        const validTypes = ['buy_only', 'sell_only', 'both'];
+        if (item_type !== undefined && validTypes.includes(item_type)) item.item_type = item_type;
+
+        if (item.item_type === 'buy_only' || item.item_type === 'both') {
+            if (buy_price !== undefined) item.buy_price = Number(buy_price);
+            if (!item.buy_price) return res.status(400).json({ error: "سعر الشراء مطلوب لهذا النوع من المنتجات." });
+        } else { item.buy_price = null; }
+
+        if (item.item_type === 'sell_only' || item.item_type === 'both') {
+            if (sell_price !== undefined) item.sell_price = Number(sell_price);
+            if (!item.sell_price) return res.status(400).json({ error: "سعر البيع مطلوب لهذا النوع من المنتجات." });
+        } else { item.sell_price = null; }
+
+        await item.save();
         io.emit('gangShopUpdated');
         res.json({ msg: "تم تعديل المنتج بنجاح." });
     } catch (err) { res.status(500).json({ error: err.message }); }
@@ -862,6 +889,7 @@ app.post('/api/gang-shop/checkout', verifyAuth(['Gang_Member']), async (req, res
         const processedBought = (items_bought || []).map(i => {
             const catalogItem = findItem(i.name);
             if (!catalogItem) throw new Error(`المنتج "${i.name}" غير موجود بالكتالوج.`);
+            if (catalogItem.item_type === 'sell_only') throw new Error(`المنتج "${i.name}" غير متاح للشراء (خاص بالبيع فقط).`);
             const qty = Math.max(1, parseInt(i.quantity) || 1);
             const total = catalogItem.buy_price * qty;
             total_buy_value += total;
@@ -872,6 +900,7 @@ app.post('/api/gang-shop/checkout', verifyAuth(['Gang_Member']), async (req, res
         const processedSold = (items_sold || []).map(i => {
             const catalogItem = findItem(i.name);
             if (!catalogItem) throw new Error(`المنتج "${i.name}" غير موجود بالكتالوج.`);
+            if (catalogItem.item_type === 'buy_only') throw new Error(`المنتج "${i.name}" غير متاح للبيع (خاص بالشراء فقط).`);
             const qty = Math.max(1, parseInt(i.quantity) || 1);
             const total = catalogItem.sell_price * qty;
             total_sell_value += total;
