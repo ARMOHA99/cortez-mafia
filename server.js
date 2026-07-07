@@ -6,6 +6,10 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
+// تحديث: مكتبتان جديدتان مطلوبتان — شغّل: npm install multer express-rate-limit
+const multer = require('multer');
+const rateLimit = require('express-rate-limit');
 
 const app = express();
 const server = http.createServer(app);
@@ -24,6 +28,36 @@ mongoose.connect(MONGO_URI)
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+
+// ================== تحديث: نظام رفع الصور المباشر (بدل الاعتماد حصراً على روابط خارجية) ==================
+const uploadDir = path.join(__dirname, 'public', 'uploads');
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+
+const imageStorage = multer.diskStorage({
+    destination: (req, file, cb) => cb(null, uploadDir),
+    filename: (req, file, cb) => {
+        const uniqueName = Date.now() + '-' + Math.round(Math.random() * 1e9) + path.extname(file.originalname);
+        cb(null, uniqueName);
+    }
+});
+const imageUpload = multer({
+    storage: imageStorage,
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5 ميجا كحد أقصى
+    fileFilter: (req, file, cb) => {
+        const allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+        if (allowed.includes(file.mimetype)) cb(null, true);
+        else cb(new Error('نوع الملف غير مدعوم، الصور فقط (jpg, png, gif, webp).'));
+    }
+});
+
+// ================== تحديث: حماية من محاولات الدخول/التسجيل المتكررة (Brute Force) ==================
+const authRateLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 دقيقة
+    max: 15, // 15 محاولة كحد أقصى لكل IP خلال 15 دقيقة
+    message: { error: "محاولات كثيرة جداً من نفس الجهاز، يرجى الانتظار قليلاً وإعادة المحاولة." },
+    standardHeaders: true,
+    legacyHeaders: false
+});
 
 // ---------------- دوال التنسيق المالي ----------------
 const formatMoneyShort = (amount) => {
@@ -159,15 +193,27 @@ const GangOrderSchema = new mongoose.Schema({
     total_buy_value: { type: Number, default: 0 },
     total_sell_value: { type: Number, default: 0 },
     net_amount: { type: Number, default: 0 }, // موجب = صافي دخل لخزينة المافيا، سالب = صافي خارج منها
-    status: { type: String, enum: ['Pending', 'Confirmed'], default: 'Pending' },
+    // تحديث: إضافة حالة "مرفوض" لطلبات شوب العصابات المشبوهة أو الخاطئة
+    status: { type: String, enum: ['Pending', 'Confirmed', 'Rejected'], default: 'Pending' },
+    rejection_reason: { type: String, default: '' },
     timestamp: { type: Date, default: Date.now }
 });
 
 const GangTreasurySchema = new mongoose.Schema({ total_balance: { type: Number, default: 0 } });
 
+// ================== تحديث: سجل تدقيق (Audit Log) يوثق الموافقات وتغيير الرتب ==================
+const AuditLogSchema = new mongoose.Schema({
+    action: String, // 'account_approved' | 'account_rejected' | 'role_changed' | 'password_reset'
+    target_username: String,
+    performed_by: String,
+    details: { type: String, default: '' },
+    timestamp: { type: Date, default: Date.now }
+});
+
 const GangShopItem = mongoose.model('GangShopItem', GangShopItemSchema);
 const GangOrder = mongoose.model('GangOrder', GangOrderSchema);
 const GangTreasury = mongoose.model('GangTreasury', GangTreasurySchema);
+const AuditLog = mongoose.model('AuditLog', AuditLogSchema);
 
 async function initSystemDB() {
     try {
@@ -353,7 +399,17 @@ app.get('/api/heist/logs', verifyAuth(['GRH', 'Soldat']), async (req, res) => {
 });
 
 // ================== مسارات النظام الأساسية ==================
-app.post('/api/auth/register', async (req, res) => {
+
+// تحديث: رفع صورة مباشرة (بدل رابط خارجي) — يرجع رابطاً محلياً يُخزّن بنفس حقل image_url المعتاد
+app.post('/api/upload-image', verifyAuth(['Business_Manager', 'Gang_Supervisor', 'Don']), (req, res) => {
+    imageUpload.single('image')(req, res, (err) => {
+        if (err) return res.status(400).json({ error: err.message || "فشل رفع الصورة." });
+        if (!req.file) return res.status(400).json({ error: "لم يتم اختيار أي ملف." });
+        res.json({ url: `/uploads/${req.file.filename}` });
+    });
+});
+
+app.post('/api/auth/register', authRateLimiter, async (req, res) => {
     try {
         const { username, password, discord_id } = req.body;
         if (!discord_id) return res.status(400).json({ error: "حقل الـ Discord ID مطلوب." });
@@ -372,7 +428,7 @@ app.post('/api/auth/register', async (req, res) => {
 });
 
 // ================== تحديث: تسجيل جديد ومنفصل لأعضاء العصابات (يحتاج موافقة GRH أو الدون) ==================
-app.post('/api/gang-auth/register', async (req, res) => {
+app.post('/api/gang-auth/register', authRateLimiter, async (req, res) => {
     try {
         const { username, password, gang_name, discord_id } = req.body;
         if (!username || !password || !gang_name) return res.status(400).json({ error: "اسم المستخدم وكلمة المرور واسم العصابة كلها مطلوبة." });
@@ -391,7 +447,7 @@ app.post('/api/gang-auth/register', async (req, res) => {
     } catch (err) { res.status(400).json({ error: "حدث خطأ أثناء التسجيل، تأكد من اسم المستخدم." }); }
 });
 
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', authRateLimiter, async (req, res) => {
     try {
         const { username, password } = req.body;
         const user = await User.findOne({ username });
@@ -587,8 +643,35 @@ app.post('/api/admin/change-role', verifyAuth(['GRH']), async (req, res) => {
     try {
         const { target_username, new_role } = req.body;
         if (new_role === 'Don') return res.status(403).json({ error: "لا يمكن منح رتبة البوس (Don) لأي شخص!" });
+        const oldUser = await User.findOne({ username: target_username }, 'role');
         await User.findOneAndUpdate({ username: target_username }, { role: new_role });
-        io.emit('dutyUpdated', {}); res.json({ msg: `تم تحديث الرتبة بنجاح.` });
+        await new AuditLog({
+            action: 'role_changed', target_username, performed_by: req.user.username,
+            details: `من ${oldUser ? oldUser.role : '؟'} إلى ${new_role}`
+        }).save();
+        io.emit('dutyUpdated', {}); io.emit('auditLogUpdated');
+        res.json({ msg: `تم تحديث الرتبة بنجاح.` });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// تحديث: إعادة تعيين كلمة مرور أي عضو (مافيا أو عصابة) بواسطة GRH — بما إنه ما فيه نظام بريد إلكتروني بالتطبيق
+app.post('/api/admin/reset-password', verifyAuth(['GRH']), async (req, res) => {
+    try {
+        const { target_username, new_password } = req.body;
+        if (!new_password || new_password.length < 4) return res.status(400).json({ error: "كلمة المرور الجديدة قصيرة جداً (4 أحرف على الأقل)." });
+        const hashedPassword = await bcrypt.hash(new_password, 10);
+        const result = await User.findOneAndUpdate({ username: target_username }, { password: hashedPassword });
+        if (!result) return res.status(404).json({ error: "العضو غير موجود." });
+        await new AuditLog({ action: 'password_reset', target_username, performed_by: req.user.username, details: '' }).save();
+        io.emit('auditLogUpdated');
+        res.json({ msg: `تم تغيير كلمة مرور "${target_username}" بنجاح. أبلغه بكلمة المرور الجديدة يدوياً.` });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/admin/audit-log', verifyAuth(['GRH']), async (req, res) => {
+    try {
+        const logs = await AuditLog.find().sort({ timestamp: -1 }).limit(200);
+        res.json(logs);
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -804,7 +887,12 @@ app.post('/api/admin/pending-accounts/review', verifyAuth(['GRH']), async (req, 
 
         user.account_status = decision === 'approve' ? 'approved' : 'rejected';
         await user.save();
-        io.emit('accountPending');
+        await new AuditLog({
+            action: decision === 'approve' ? 'account_approved' : 'account_rejected',
+            target_username, performed_by: req.user.username,
+            details: user.role === 'Gang_Member' ? `عضو عصابة: ${user.gang_name}` : 'عضو مافيا'
+        }).save();
+        io.emit('accountPending'); io.emit('auditLogUpdated');
         res.json({ msg: decision === 'approve' ? `تم تفعيل حساب ${target_username} بنجاح.` : `تم رفض طلب ${target_username}.` });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -875,6 +963,8 @@ app.delete('/api/gang-shop/item/:id', verifyAuth(['Business_Manager']), async (r
 });
 
 // تنفيذ عملية شراء/بيع/مقايضة من طرف عضو العصابة — الأسعار تُحسب من قاعدة البيانات حصراً (أمان، ما نثق بأي سعر قادم من العميل)
+const MAX_QTY_PER_LINE = 100000; // تحديث: سقف أمان لمنع كتابة كمية خاطئة بالغلط (مو قيد تجاري، بس حماية من كارثة أرقام)
+
 app.post('/api/gang-shop/checkout', verifyAuth(['Gang_Member']), async (req, res) => {
     try {
         const { items_bought, items_sold } = req.body;
@@ -891,6 +981,7 @@ app.post('/api/gang-shop/checkout', verifyAuth(['Gang_Member']), async (req, res
             if (!catalogItem) throw new Error(`المنتج "${i.name}" غير موجود بالكتالوج.`);
             if (catalogItem.item_type === 'sell_only') throw new Error(`المنتج "${i.name}" غير متاح للشراء (خاص بالبيع فقط).`);
             const qty = Math.max(1, parseInt(i.quantity) || 1);
+            if (qty > MAX_QTY_PER_LINE) throw new Error(`الكمية المطلوبة لـ "${i.name}" كبيرة جداً، تأكد من الرقم.`);
             const total = catalogItem.buy_price * qty;
             total_buy_value += total;
             return { name: i.name, quantity: qty, unit_price: catalogItem.buy_price, total };
@@ -902,6 +993,7 @@ app.post('/api/gang-shop/checkout', verifyAuth(['Gang_Member']), async (req, res
             if (!catalogItem) throw new Error(`المنتج "${i.name}" غير موجود بالكتالوج.`);
             if (catalogItem.item_type === 'buy_only') throw new Error(`المنتج "${i.name}" غير متاح للبيع (خاص بالشراء فقط).`);
             const qty = Math.max(1, parseInt(i.quantity) || 1);
+            if (qty > MAX_QTY_PER_LINE) throw new Error(`الكمية المطلوبة لـ "${i.name}" كبيرة جداً، تأكد من الرقم.`);
             const total = catalogItem.sell_price * qty;
             total_sell_value += total;
             return { name: i.name, quantity: qty, unit_price: catalogItem.sell_price, total };
@@ -937,7 +1029,7 @@ app.get('/api/gang-shop/orders', verifyAuth(['Business_Manager']), async (req, r
 app.post('/api/gang-shop/order/:id/confirm', verifyAuth(['Business_Manager']), async (req, res) => {
     try {
         const order = await GangOrder.findById(req.params.id);
-        if (!order || order.status === 'Confirmed') return res.status(400).json({ error: "الطلب غير صحيح أو مؤكد مسبقاً." });
+        if (!order || order.status !== 'Pending') return res.status(400).json({ error: "الطلب غير موجود أو تمت معالجته مسبقاً." });
 
         order.status = 'Confirmed';
         await order.save();
@@ -945,6 +1037,21 @@ app.post('/api/gang-shop/order/:id/confirm', verifyAuth(['Business_Manager']), a
 
         io.emit('gangOrdersUpdated'); io.emit('gangTreasuryUpdated');
         res.json({ msg: "تم تأكيد إتمام العملية وتحديث خزينة شوب العصابات." });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// تحديث: رفض طلب مشبوه أو خاطئ (بدل إجباره على إما تأكيد أو تجاهله للأبد)
+app.post('/api/gang-shop/order/:id/reject', verifyAuth(['Business_Manager']), async (req, res) => {
+    try {
+        const { reason } = req.body;
+        const order = await GangOrder.findById(req.params.id);
+        if (!order || order.status !== 'Pending') return res.status(400).json({ error: "الطلب غير موجود أو تمت معالجته مسبقاً." });
+
+        order.status = 'Rejected';
+        order.rejection_reason = reason || '';
+        await order.save();
+        io.emit('gangOrdersUpdated');
+        res.json({ msg: "تم رفض الطلب." });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
