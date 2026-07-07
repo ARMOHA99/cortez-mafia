@@ -209,7 +209,7 @@
                 <div class="summary-row"><span>إجمالي الشراء:</span><span id="gm-total-buy" class="gs-buy-color">0$</span></div>
                 <div class="summary-row"><span>إجمالي البيع:</span><span id="gm-total-sell" class="gs-sell-color">0$</span></div>
                 <div class="summary-row"><span>الصافي:</span><span id="gm-net-amount">0$</span></div>
-                <button onclick="submitGangShopOrder()">✅ تنفيذ العملية</button>
+                <button id="btn-submit-gm-order" onclick="submitGangShopOrder()">✅ تنفيذ العملية</button>
             </div>
 
             <div class="card">
@@ -379,6 +379,8 @@
                         <input type="text" id="itm-name" placeholder="اسم الآيتم" style="flex:1; padding:10px; background:#000; border:1px solid #333; color:#fff;">
                         <input type="number" id="itm-price" placeholder="السعر ($)" style="flex:1; padding:10px; background:#000; border:1px solid #333; color:#fff;">
                         <input type="text" id="itm-img" placeholder="رابط صورة المنتج URL" style="flex:2; padding:10px; background:#000; border:1px solid #333; color:#fff;">
+                        <input type="file" id="upload-itm-img" accept="image/*" style="display:none;" onchange="uploadImageFile(this, 'itm-img')">
+                        <button type="button" onclick="document.getElementById('upload-itm-img').click()" style="width:auto; padding:0 15px;">📷 رفع صورة</button>
                         <button onclick="addItemToShop()" style="width:auto; padding:0 30px;">نشر المنتج في الشوب</button>
                     </div>
                 </div>
@@ -464,6 +466,8 @@
                             <input type="number" id="gs-buy-price" placeholder="سعر الشراء (من المافيا) $">
                             <input type="number" id="gs-sell-price" placeholder="سعر البيع (للمافيا) $">
                             <input type="text" id="gs-img" placeholder="رابط الصورة (اختياري)">
+                            <input type="file" id="upload-gs-img" accept="image/*" style="display:none;" onchange="uploadImageFile(this, 'gs-img')">
+                            <button type="button" onclick="document.getElementById('upload-gs-img').click()" style="width:auto; padding:0 15px;">📷 رفع صورة</button>
                             <button onclick="addGangShopItem()" style="width:auto; padding:0 20px;">إضافة</button>
                         </div>
                     </div>
@@ -519,7 +523,7 @@
                         <button class="btn-warning" onclick="applyPenalty()">تنفيذ الإجراء</button>
                     </div>
                     <div style="flex:2;">
-                        <table id="tbl-all-users"><thead><tr><th>العضو</th><th>الرتبة</th><th>الساعات</th><th>الإنذارات</th><th>الحالة</th><th>تغيير الرتبة</th></tr></thead><tbody></tbody></table>
+                        <table id="tbl-all-users"><thead><tr><th>العضو</th><th>الرتبة</th><th>الساعات</th><th>الإنذارات</th><th>الحالة</th><th>تغيير الرتبة</th><th>كلمة المرور</th></tr></thead><tbody></tbody></table>
                     </div>
                 </div>
 
@@ -607,6 +611,28 @@
         function formatMoneyFrontend(amount) {
             if (!amount) return '0';
             return amount.toLocaleString('en-US');
+        }
+
+        // ================== تحديث: رفع صورة مباشرة (بدل الاعتماد حصراً على روابط خارجية) ==================
+        // fileInputEl: عنصر input[type=file] اللي اختار المستخدم منه الصورة
+        // targetInputId: معرّف حقل النص (image_url) اللي بيتعبّى تلقائياً بالرابط الناتج بعد الرفع
+        async function uploadImageFile(fileInputEl, targetInputId) {
+            const file = fileInputEl.files[0];
+            if(!file) return;
+            const formData = new FormData();
+            formData.append('image', file);
+            try {
+                const res = await fetch('/api/upload-image', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${userToken}` },
+                    body: formData
+                });
+                const data = await res.json();
+                if(!res.ok) throw new Error(data.error);
+                document.getElementById(targetInputId).value = data.url;
+                customAlert("تم رفع الصورة بنجاح، الرابط تعبّى تلقائياً.");
+            } catch(err) { customAlert(err.message); }
+            fileInputEl.value = ''; // إعادة تصفير حتى يقدر يرفع نفس الملف مرة ثانية لو احتاج
         }
 
         // --- Matrix Digital Rain Canvas Animation ---
@@ -773,7 +799,7 @@
                         <span class="gm-price-big ${colorClass}">${formatMoneyFrontend(price)}$</span>
                         <div class="gm-qty-control">
                             <button type="button" onclick="adjustGmQty('${itm.name}', -1)">−</button>
-                            <input type="number" min="0" value="${qty}" onchange="setGmQty('${itm.name}', this.value)">
+                            <input type="number" min="0" max="100000" value="${qty}" onchange="setGmQty('${itm.name}', this.value)">
                             <button type="button" onclick="adjustGmQty('${itm.name}', 1)">+</button>
                         </div>
                     </div>`;
@@ -819,6 +845,13 @@
             });
             if(items_bought.length === 0 && items_sold.length === 0) return customAlert("حدد كمية شراء أو بيع لمنتج واحد على الأقل.");
 
+            // تحديث: تعطيل الزر أثناء الإرسال لمنع تكرار الطلب بضغطة مزدوجة أو تأخر بالشبكة
+            const btn = document.getElementById('btn-submit-gm-order');
+            if(btn.disabled) return;
+            btn.disabled = true;
+            const originalText = btn.innerText;
+            btn.innerText = '... جاري الإرسال';
+
             try {
                 const res = await fetch('/api/gang-shop/checkout', {
                     method: 'POST',
@@ -833,6 +866,10 @@
                 updateGangShopSummary();
                 loadMyGangOrders();
             } catch(err) { customAlert(err.message); }
+            finally {
+                btn.disabled = false;
+                btn.innerText = originalText;
+            }
         }
 
         async function loadMyGangOrders() {
@@ -852,11 +889,14 @@
                     const soldStr = o.items_sold.length ? o.items_sold.map(i => `${i.quantity}x ${i.name}`).join(', ') : '-';
                     const netColor = o.net_amount >= 0 ? 'var(--danger)' : 'var(--primary)';
                     const dateStr = new Date(o.timestamp).toLocaleDateString('ar-EG');
+                    let statusText = '⏳ معلّق';
+                    if(o.status === 'Confirmed') statusText = '✔️ مؤكد';
+                    else if(o.status === 'Rejected') statusText = `❌ مرفوض${o.rejection_reason ? ' - ' + o.rejection_reason : ''}`;
                     tbody.innerHTML += `<tr>
                         <td style="font-size:0.8rem;">${boughtStr}</td>
                         <td style="font-size:0.8rem;">${soldStr}</td>
                         <td style="color:${netColor}; font-weight:bold;">${formatMoneyFrontend(o.net_amount)}$</td>
-                        <td>${o.status === 'Pending' ? '⏳ معلّق' : '✔️ مؤكد'}</td>
+                        <td style="font-size:0.8rem;">${statusText}</td>
                         <td>${dateStr}</td>
                     </tr>`;
                 });
@@ -1982,6 +2022,8 @@
                 <div class="input-group" id="ed-gs-buy-group"><label>سعر الشراء (من المافيا) $:</label><input type="number" id="ed-gs-buy-price" value="${itm.buy_price || ''}"></div>
                 <div class="input-group" id="ed-gs-sell-group"><label>سعر البيع (للمافيا) $:</label><input type="number" id="ed-gs-sell-price" value="${itm.sell_price || ''}"></div>
                 <div class="input-group"><label>رابط الصورة:</label><input type="text" id="ed-gs-img" value="${itm.image_url || ''}"></div>
+                <input type="file" id="upload-ed-gs-img" accept="image/*" style="display:none;" onchange="uploadImageFile(this, 'ed-gs-img')">
+                <button type="button" onclick="document.getElementById('upload-ed-gs-img').click()" style="width:auto; padding:8px 15px;">📷 رفع صورة جديدة</button>
             `;
             toggleEdGsPriceFields();
 
@@ -2062,9 +2104,19 @@
                     const boughtStr = o.items_bought.length ? o.items_bought.map(i => `${i.quantity}x ${i.name}`).join(', ') : '-';
                     const soldStr = o.items_sold.length ? o.items_sold.map(i => `${i.quantity}x ${i.name}`).join(', ') : '-';
                     const netColor = o.net_amount >= 0 ? 'var(--primary)' : 'var(--danger)';
-                    const actionHtml = o.status === 'Pending'
-                        ? `<button class="btn-success" style="width:auto; padding:5px 10px; font-size:0.75rem;" onclick="confirmGangOrder('${o._id}')">تأكيد التسليم</button>`
-                        : `<span style="color:var(--primary);">✔️ مؤكد</span>`;
+                    let statusText, actionHtml;
+                    if(o.status === 'Pending') {
+                        statusText = 'معلّق';
+                        actionHtml = `
+                            <button class="btn-success" style="width:auto; padding:5px 10px; font-size:0.75rem;" onclick="confirmGangOrder('${o._id}')">✔️ تأكيد</button>
+                            <button class="btn-danger" style="width:auto; padding:5px 10px; font-size:0.75rem;" onclick="rejectGangOrder('${o._id}')">✖️ رفض</button>`;
+                    } else if(o.status === 'Confirmed') {
+                        statusText = '✔️ مؤكد';
+                        actionHtml = `<span style="color:var(--primary);">تم</span>`;
+                    } else {
+                        statusText = '❌ مرفوض';
+                        actionHtml = `<span style="color:var(--danger); font-size:0.75rem;" title="${o.rejection_reason || ''}">${o.rejection_reason || '-'}</span>`;
+                    }
 
                     tbody.innerHTML += `<tr>
                         <td>${o.gang_member_username}</td>
@@ -2072,7 +2124,7 @@
                         <td style="font-size:0.8rem;">${boughtStr}</td>
                         <td style="font-size:0.8rem;">${soldStr}</td>
                         <td style="color:${netColor}; font-weight:bold;">${formatMoneyFrontend(o.net_amount)}$</td>
-                        <td>${o.status === 'Pending' ? 'معلّق' : 'مؤكد'}</td>
+                        <td>${statusText}</td>
                         <td>${actionHtml}</td>
                     </tr>`;
                 });
@@ -2089,6 +2141,23 @@
                     customAlert(data.msg);
                     loadGangOrders();
                     loadGangTreasuryBalance();
+                } catch(err) { customAlert(err.message); }
+            });
+        }
+
+        // تحديث: رفض طلب مشبوه أو خاطئ بدل تركه معلقاً للأبد
+        function rejectGangOrder(id) {
+            customPrompt("سبب الرفض (اختياري، اضغط موافق بدون كتابة لتجاهله):", async (reason) => {
+                try {
+                    const res = await fetch(`/api/gang-shop/order/${id}/reject`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` },
+                        body: JSON.stringify({ reason: reason || '' })
+                    });
+                    const data = await res.json();
+                    if(!res.ok) throw new Error(data.error);
+                    customAlert(data.msg);
+                    loadGangOrders();
                 } catch(err) { customAlert(err.message); }
             });
         }
@@ -2226,9 +2295,27 @@
                                 ${roleOptions}
                             </select>
                         </td>
+                        <td><button class="btn-warning" style="width:auto; padding:5px 10px; font-size:0.75rem;" onclick="resetMemberPassword('${u.username}')">🔑 إعادة تعيين</button></td>
                     </tr>`;
                 });
             } catch(err) { console.error(err); }
+        }
+
+        // تحديث: إعادة تعيين كلمة مرور أي عضو من طرف GRH — بما إنه ما فيه نظام بريد إلكتروني بالتطبيق لاسترجاعها
+        function resetMemberPassword(username) {
+            customPrompt(`أدخل كلمة المرور الجديدة لـ "${username}" (4 أحرف على الأقل):`, async (newPass) => {
+                if(!newPass || newPass.length < 4) return customAlert("كلمة المرور قصيرة جداً، لم يتم التغيير.");
+                try {
+                    const res = await fetch('/api/admin/reset-password', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` },
+                        body: JSON.stringify({ target_username: username, new_password: newPass })
+                    });
+                    const data = await res.json();
+                    if(!res.ok) throw new Error(data.error);
+                    customAlert(data.msg);
+                } catch(err) { customAlert(err.message); }
+            });
         }
 
         async function changeMemberRole(username, new_role) {
