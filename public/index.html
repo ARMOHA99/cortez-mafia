@@ -448,6 +448,14 @@
 
                 <h3>طلبات الإجازات:</h3><div id="hr-leaves-list"></div>
                 <h3>تبريرات الغياب:</h3><div id="hr-justs-list"></div>
+
+                <div class="card" style="margin-top:20px;">
+                    <h3 style="color:#999;">📜 سجل التدقيق (آخر 200 إجراء)</h3>
+                    <table id="tbl-audit-log">
+                        <thead><tr><th>الإجراء</th><th>العضو</th><th>بواسطة</th><th>التفاصيل</th><th>التاريخ</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
             </div>
 
             <div id="panel-gang-shop-admin" class="view-panel">
@@ -613,6 +621,29 @@
             return amount.toLocaleString('en-US');
         }
 
+        // ================== تحديث: تنظيف أي نص قادم من المستخدم قبل عرضه (حماية من XSS) ==================
+        // نطبقها على أي حقل حر يكتبه أي مستخدم (اسم، سبب، ملاحظة...) قبل إدخاله بأي innerHTML
+        function escapeHtml(str) {
+            if(str === null || str === undefined) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        // نسخة خاصة للنصوص اللي تُمرر داخل معاملات onclick (مثل onclick="fn('${name}')")
+        // لازم نهرب الباك سلاش والفاصلة العليا حتى ما ينكسر الـ JS، وبعدين نهرب علامات HTML للسياق المحيط
+        function escapeJsStr(str) {
+            return String(str || '')
+                .replace(/\\/g, '\\\\')
+                .replace(/'/g, "\\'")
+                .replace(/"/g, '&quot;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+        }
+
         // ================== تحديث: رفع صورة مباشرة (بدل الاعتماد حصراً على روابط خارجية) ==================
         // fileInputEl: عنصر input[type=file] اللي اختار المستخدم منه الصورة
         // targetInputId: معرّف حقل النص (image_url) اللي بيتعبّى تلقائياً بالرابط الناتج بعد الرفع
@@ -681,7 +712,7 @@
             try {
                 const res = await fetch('/api/gangs');
                 const gangs = await res.json();
-                document.getElementById('gang-name-suggestions').innerHTML = gangs.map(g => `<option value="${g.name}">`).join('');
+                document.getElementById('gang-name-suggestions').innerHTML = gangs.map(g => `<option value="${escapeHtml(g.name)}">`).join('');
             } catch(err) { console.error(err); }
         }
 
@@ -795,12 +826,12 @@
                 container.innerHTML += `
                     <div class="item-card">
                         <img src="${itm.image_url}" onerror="this.src='https://placehold.co/150x150/1a1a1a/ffaa00?text=Item'">
-                        <strong>${itm.name}</strong>
+                        <strong>${escapeHtml(itm.name)}</strong>
                         <span class="gm-price-big ${colorClass}">${formatMoneyFrontend(price)}$</span>
                         <div class="gm-qty-control">
-                            <button type="button" onclick="adjustGmQty('${itm.name}', -1)">−</button>
-                            <input type="number" min="0" max="100000" value="${qty}" onchange="setGmQty('${itm.name}', this.value)">
-                            <button type="button" onclick="adjustGmQty('${itm.name}', 1)">+</button>
+                            <button type="button" onclick="adjustGmQty('${escapeJsStr(itm.name)}', -1)">−</button>
+                            <input type="number" min="0" max="100000" value="${qty}" onchange="setGmQty('${escapeJsStr(itm.name)}', this.value)">
+                            <button type="button" onclick="adjustGmQty('${escapeJsStr(itm.name)}', 1)">+</button>
                         </div>
                     </div>`;
             });
@@ -885,13 +916,13 @@
                     return;
                 }
                 orders.forEach(o => {
-                    const boughtStr = o.items_bought.length ? o.items_bought.map(i => `${i.quantity}x ${i.name}`).join(', ') : '-';
-                    const soldStr = o.items_sold.length ? o.items_sold.map(i => `${i.quantity}x ${i.name}`).join(', ') : '-';
+                    const boughtStr = o.items_bought.length ? o.items_bought.map(i => `${escapeHtml(i.quantity)}x ${escapeHtml(i.name)}`).join(', ') : '-';
+                    const soldStr = o.items_sold.length ? o.items_sold.map(i => `${escapeHtml(i.quantity)}x ${escapeHtml(i.name)}`).join(', ') : '-';
                     const netColor = o.net_amount >= 0 ? 'var(--danger)' : 'var(--primary)';
                     const dateStr = new Date(o.timestamp).toLocaleDateString('ar-EG');
                     let statusText = '⏳ معلّق';
                     if(o.status === 'Confirmed') statusText = '✔️ مؤكد';
-                    else if(o.status === 'Rejected') statusText = `❌ مرفوض${o.rejection_reason ? ' - ' + o.rejection_reason : ''}`;
+                    else if(o.status === 'Rejected') statusText = `❌ مرفوض${o.rejection_reason ? ' - ' + escapeHtml(o.rejection_reason) : ''}`;
                     tbody.innerHTML += `<tr>
                         <td style="font-size:0.8rem;">${boughtStr}</td>
                         <td style="font-size:0.8rem;">${soldStr}</td>
@@ -945,6 +976,7 @@
             }
             if(['Don', 'GRH'].includes(userData.role)) {
                 loadPendingAccounts();
+                loadAuditLog();
             }
             if(['Don', 'Business_Manager'].includes(userData.role)) {
                 loadGangShopCatalog();
@@ -1047,8 +1079,8 @@
                     const hrs = (u.hours / 60).toFixed(2);
                     lbBody.innerHTML += `<tr>
                         <td><b>#${i+1}</b></td>
-                        <td>${u.username}</td>
-                        <td>${u.role}</td>
+                        <td>${escapeHtml(u.username)}</td>
+                        <td>${escapeHtml(u.role)}</td>
                         <td style="color:var(--primary);">${hrs} ساعة</td>
                         <td><span style="color:${u.duty_status === 'ON-DUTY' ? 'var(--primary)' : 'var(--danger)'}">${u.duty_status}</span></td>
                     </tr>`;
@@ -1059,8 +1091,8 @@
                 data.heists_leaderboard.forEach((u, i) => {
                     heistLbBody.innerHTML += `<tr>
                         <td><b>#${i+1}</b></td>
-                        <td>${u.username}</td>
-                        <td>${u.role}</td>
+                        <td>${escapeHtml(u.username)}</td>
+                        <td>${escapeHtml(u.role)}</td>
                         <td style="color:cyan; font-weight:bold;">${u.heists || 0} عملية منجزة</td>
                     </tr>`;
                 });
@@ -1070,8 +1102,8 @@
                 data.slacking.forEach(u => {
                     const hrs = (u.hours / 60).toFixed(2);
                     slackBody.innerHTML += `<tr>
-                        <td>${u.username}</td>
-                        <td>${u.role}</td>
+                        <td>${escapeHtml(u.username)}</td>
+                        <td>${escapeHtml(u.role)}</td>
                         <td style="color:var(--danger);">${hrs} ساعة</td>
                     </tr>`;
                 });
@@ -1195,7 +1227,7 @@
                 const select = document.getElementById('heist-participants');
                 select.innerHTML = '';
                 users.forEach(u => {
-                    select.innerHTML += `<option value="${u.username}">${u.username}</option>`;
+                    select.innerHTML += `<option value="${escapeHtml(u.username)}">${escapeHtml(u.username)}</option>`;
                 });
             } catch(err) { console.error("Error loading users for dropdown", err); }
         }
@@ -1213,7 +1245,7 @@
                 const selectType = document.getElementById('sel-heist-type');
                 selectType.innerHTML = '';
                 globalHeistTypes.forEach(t => {
-                    selectType.innerHTML += `<option value="${t.name}">${t.name}</option>`;
+                    selectType.innerHTML += `<option value="${escapeHtml(t.name)}">${escapeHtml(t.name)}</option>`;
                 });
                 
                 resetLootLines();
@@ -1243,7 +1275,7 @@
             lineDiv.style.gap = '10px';
             lineDiv.style.marginBottom = '10px';
 
-            let optionsHtml = globalHeistItems.map(item => `<option value="${item.name}">${item.name} (${formatMoneyFrontend(item.price)}$)</option>`).join('');
+            let optionsHtml = globalHeistItems.map(item => `<option value="${escapeHtml(item.name)}">${escapeHtml(item.name)} (${formatMoneyFrontend(item.price)}$)</option>`).join('');
             
             lineDiv.innerHTML = `
                 <select class="heist-loot-name">${optionsHtml}</select>
@@ -1308,10 +1340,10 @@
                 data.forEach(l => {
                     const valStyle = l.status === 'Win' ? 'color:var(--primary);' : 'color:var(--danger);';
                     tbody.innerHTML += `<tr>
-                        <td>${l.chef_name}</td>
-                        <td>${l.heist_type}</td>
+                        <td>${escapeHtml(l.chef_name)}</td>
+                        <td>${escapeHtml(l.heist_type)}</td>
                         <td><span style="color:${l.status === 'Win'?'var(--primary)':'var(--danger)'}">${l.status}</span></td>
-                        <td style="font-size:0.8rem;">${l.participants.join(', ')}</td>
+                        <td style="font-size:0.8rem;">${l.participants.map(escapeHtml).join(', ')}</td>
                         <td style="${valStyle}"><b>${formatMoneyFrontend(l.total_value)}$</b></td>
                         <td style="font-size:0.75rem;">${new Date(l.timestamp).toLocaleString('en-GB')}</td>
                     </tr>`;
@@ -1341,14 +1373,14 @@
                     container.innerHTML += `
                         <div class="item-card">
                             <img src="${itm.image_url}" onerror="this.src='https://placehold.co/150x150/0d0d0d/00ff66?text=Item'">
-                            <strong style="display:block; margin-bottom:5px;">${itm.name}</strong>
+                            <strong style="display:block; margin-bottom:5px;">${escapeHtml(itm.name)}</strong>
                             <span style="color:gold; font-weight:bold; display:block;">${formatMoneyFrontend(itm.price)}$</span>
                             <div class="qty-selector">
                                 <button type="button" onclick="adjustCardQty('${itm._id}', -1)">−</button>
                                 <input type="number" id="qty-${itm._id}" value="1" min="1">
                                 <button type="button" onclick="adjustCardQty('${itm._id}', 1)">+</button>
                             </div>
-                            <button onclick="addToCart('${itm.name}', ${itm.price}, '${itm._id}')" style="padding:5px; font-size:0.8rem; margin-top:10px;">إضافة للسلة</button>
+                            <button onclick="addToCart('${escapeJsStr(itm.name)}', ${itm.price}, '${itm._id}')" style="padding:5px; font-size:0.8rem; margin-top:10px;">إضافة للسلة</button>
                             ${adminControlsHtml}
                         </div>`;
                 });
@@ -1445,7 +1477,7 @@
                 total += subtotal;
                 container.innerHTML += `
                     <div class="cart-item">
-                        <span>${item.name}</span>
+                        <span>${escapeHtml(item.name)}</span>
                         <div class="cart-qty-controls">
                             <button class="btn-warning" onclick="changeCartQty(${idx}, -1)">−</button>
                             <span style="min-width:18px; text-align:center; display:inline-block;">${item.quantity}</span>
@@ -1522,8 +1554,8 @@
                 orders.forEach(o => {
                     let itemsSummary = '';
                     if(o.items && o.items.length > 0) {
-                        itemsSummary = o.items.map(i => `${i.quantity}x ${i.name}`).join(', ');
-                    } else { itemsSummary = `1x ${o.item_name}`; }
+                        itemsSummary = o.items.map(i => `${escapeHtml(i.quantity)}x ${escapeHtml(i.name)}`).join(', ');
+                    } else { itemsSummary = `1x ${escapeHtml(o.item_name)}`; }
 
                     const total = o.total_price || o.price;
                     const isPaid = o.status === 'Paid';
@@ -1534,7 +1566,7 @@
 
                     container.innerHTML += `
                         <div class="card" style="border-color:${isPaid ? '#222' : 'var(--warning)'}; font-size:0.85rem;">
-                            <p style="margin:2px 0;"><b>العضو الطالب:</b> ${o.username}</p>
+                            <p style="margin:2px 0;"><b>العضو الطالب:</b> ${escapeHtml(o.username)}</p>
                             <p style="margin:2px 0; color:#aaa;"><b>الطلب المادي:</b> ${itemsSummary}</p>
                             <p style="margin:2px 0;"><b>المبلغ الكلي:</b> <span style="color:gold;">${formatMoneyFrontend(total)}$</span></p>
                             <div style="margin-top:10px; display:flex; justify-content:space-between; align-items:center;">
@@ -1602,8 +1634,8 @@
                 const color = loyaltyColorFor(g.loyalty_percentage);
                 container.innerHTML += `
                     <div class="gang-card" onclick="handleGangCardClick('${g._id}')">
-                        <strong style="display:block; font-size:1.05rem; margin-bottom:8px; color:#fff;">${g.name}</strong>
-                        <div style="font-size:0.85rem; color:#aaa;">📻 الراديو: ${g.radio_frequency || 'غير محدد'}</div>
+                        <strong style="display:block; font-size:1.05rem; margin-bottom:8px; color:#fff;">${escapeHtml(g.name)}</strong>
+                        <div style="font-size:0.85rem; color:#aaa;">📻 الراديو: ${escapeHtml(g.radio_frequency) || 'غير محدد'}</div>
                         <div style="margin-top:10px;">
                             <div style="display:flex; justify-content:space-between; font-size:0.8rem; color:#ccc;">
                                 <span>نسبة الولاء</span><span style="color:${color}; font-weight:bold;">${g.loyalty_percentage}%</span>
@@ -1773,9 +1805,9 @@
                 <div class="gang-modal-flex">
                     <div class="gang-map-side">${buildGangMapHtml(false)}</div>
                     <div class="gang-details-side">
-                        <p style="margin:6px 0;"><b>📻 تردد الراديو:</b> ${gang.radio_frequency || 'غير محدد'}</p>
+                        <p style="margin:6px 0;"><b>📻 تردد الراديو:</b> ${escapeHtml(gang.radio_frequency) || 'غير محدد'}</p>
                         <p style="margin:6px 0;"><b>🤝 نسبة الولاء:</b> <span style="color:${color}; font-weight:bold;">${gang.loyalty_percentage}%</span></p>
-                        ${gang.notes ? `<p style="margin:6px 0;"><b>📝 ملاحظات:</b> ${gang.notes}</p>` : ''}
+                        ${gang.notes ? `<p style="margin:6px 0;"><b>📝 ملاحظات:</b> ${escapeHtml(gang.notes)}</p>` : ''}
                     </div>
                 </div>`;
 
@@ -1804,13 +1836,13 @@
                 <div class="gang-modal-flex">
                     <div class="gang-map-side">${buildGangMapHtml(true)}</div>
                     <div class="gang-details-side">
-                        <div class="input-group"><label>اسم العصابة:</label><input type="text" id="gm-name" value="${isNew ? '' : gang.name}"></div>
-                        <div class="input-group"><label>تردد الراديو:</label><input type="text" id="gm-radio" value="${isNew ? '' : (gang.radio_frequency || '')}"></div>
+                        <div class="input-group"><label>اسم العصابة:</label><input type="text" id="gm-name" value="${isNew ? '' : escapeHtml(gang.name)}"></div>
+                        <div class="input-group"><label>تردد الراديو:</label><input type="text" id="gm-radio" value="${isNew ? '' : escapeHtml(gang.radio_frequency || '')}"></div>
                         <div class="input-group">
                             <label>نسبة الولاء: <span id="gm-loyalty-val">${isNew ? 50 : gang.loyalty_percentage}</span>%</label>
                             <input type="range" min="0" max="100" id="gm-loyalty" value="${isNew ? 50 : gang.loyalty_percentage}" oninput="document.getElementById('gm-loyalty-val').innerText = this.value">
                         </div>
-                        <div class="input-group"><label>ملاحظات إضافية:</label><input type="text" id="gm-notes" value="${isNew ? '' : (gang.notes || '')}"></div>
+                        <div class="input-group"><label>ملاحظات إضافية:</label><input type="text" id="gm-notes" value="${isNew ? '' : escapeHtml(gang.notes || '')}"></div>
                     </div>
                 </div>`;
 
@@ -1904,15 +1936,15 @@
                 }
                 list.forEach(u => {
                     const typeLabel = u.role === 'Gang_Member'
-                        ? `<span style="color:#ff66cc;">🏴 عصابة (${u.gang_name})</span>`
+                        ? `<span style="color:#ff66cc;">🏴 عصابة (${escapeHtml(u.gang_name)})</span>`
                         : `<span style="color:var(--primary);">🔫 مافيا</span>`;
                     tbody.innerHTML += `<tr>
-                        <td>${u.username}</td>
+                        <td>${escapeHtml(u.username)}</td>
                         <td>${typeLabel}</td>
-                        <td>${u.discord_id || '-'}</td>
+                        <td>${escapeHtml(u.discord_id) || '-'}</td>
                         <td>
-                            <button class="btn-success" style="width:auto; padding:5px 10px; font-size:0.75rem;" onclick="reviewPendingAccount('${u.username}','approve')">✔️ قبول</button>
-                            <button class="btn-danger" style="width:auto; padding:5px 10px; font-size:0.75rem;" onclick="reviewPendingAccount('${u.username}','reject')">✖️ رفض</button>
+                            <button class="btn-success" style="width:auto; padding:5px 10px; font-size:0.75rem;" onclick="reviewPendingAccount('${escapeJsStr(u.username)}','approve')">✔️ قبول</button>
+                            <button class="btn-danger" style="width:auto; padding:5px 10px; font-size:0.75rem;" onclick="reviewPendingAccount('${escapeJsStr(u.username)}','reject')">✖️ رفض</button>
                         </td>
                     </tr>`;
                 });
@@ -1937,6 +1969,40 @@
             });
         }
 
+        // ================== تحديث: سجل التدقيق (Audit Log) ==================
+        const AUDIT_ACTION_LABELS = {
+            account_approved: '✔️ قبول حساب',
+            account_rejected: '✖️ رفض حساب',
+            role_changed: '🔄 تغيير رتبة',
+            password_reset: '🔑 إعادة تعيين كلمة مرور'
+        };
+
+        async function loadAuditLog() {
+            if(!userToken) return;
+            try {
+                const res = await fetch('/api/admin/audit-log', { headers: { 'Authorization': `Bearer ${userToken}` } });
+                const logs = await res.json();
+                const tbody = document.querySelector('#tbl-audit-log tbody');
+                if(!tbody) return;
+                tbody.innerHTML = '';
+
+                if(logs.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" style="color:#555;">لا يوجد أي سجل بعد.</td></tr>';
+                    return;
+                }
+                logs.forEach(l => {
+                    const dateStr = new Date(l.timestamp).toLocaleString('ar-EG');
+                    tbody.innerHTML += `<tr>
+                        <td>${AUDIT_ACTION_LABELS[l.action] || escapeHtml(l.action)}</td>
+                        <td>${escapeHtml(l.target_username)}</td>
+                        <td style="color:var(--warning);">${escapeHtml(l.performed_by)}</td>
+                        <td style="font-size:0.8rem; color:#aaa;">${escapeHtml(l.details) || '-'}</td>
+                        <td style="font-size:0.75rem;">${dateStr}</td>
+                    </tr>`;
+                });
+            } catch(err) { console.error(err); }
+        }
+
         // ================== تحديث: إدارة كتالوج شوب العصابات (Business_Manager / الدون) ==================
         let gangShopAdminCatalog = [];
 
@@ -1958,7 +2024,7 @@
                     container.innerHTML += `
                         <div class="item-card">
                             <img src="${itm.image_url}" onerror="this.src='https://placehold.co/150x150/1a1a1a/ffaa00?text=Item'">
-                            <strong style="display:block; margin-bottom:5px;">${itm.name}</strong>
+                            <strong style="display:block; margin-bottom:5px;">${escapeHtml(itm.name)}</strong>
                             <span style="color:#888; font-size:0.75rem; display:block; margin-bottom:5px;">${typeLabel}</span>
                             ${priceHtml}
                             <div class="admin-controls">
@@ -2010,7 +2076,7 @@
 
             document.getElementById('gang-modal-title').innerText = `✏️ تعديل: ${itm.name}`;
             document.getElementById('gang-modal-body').innerHTML = `
-                <div class="input-group"><label>اسم المنتج:</label><input type="text" id="ed-gs-name" value="${itm.name}"></div>
+                <div class="input-group"><label>اسم المنتج:</label><input type="text" id="ed-gs-name" value="${escapeHtml(itm.name)}"></div>
                 <div class="input-group">
                     <label>نوع المنتج:</label>
                     <select id="ed-gs-type" onchange="toggleEdGsPriceFields()">
@@ -2021,7 +2087,7 @@
                 </div>
                 <div class="input-group" id="ed-gs-buy-group"><label>سعر الشراء (من المافيا) $:</label><input type="number" id="ed-gs-buy-price" value="${itm.buy_price || ''}"></div>
                 <div class="input-group" id="ed-gs-sell-group"><label>سعر البيع (للمافيا) $:</label><input type="number" id="ed-gs-sell-price" value="${itm.sell_price || ''}"></div>
-                <div class="input-group"><label>رابط الصورة:</label><input type="text" id="ed-gs-img" value="${itm.image_url || ''}"></div>
+                <div class="input-group"><label>رابط الصورة:</label><input type="text" id="ed-gs-img" value="${escapeHtml(itm.image_url || '')}"></div>
                 <input type="file" id="upload-ed-gs-img" accept="image/*" style="display:none;" onchange="uploadImageFile(this, 'ed-gs-img')">
                 <button type="button" onclick="document.getElementById('upload-ed-gs-img').click()" style="width:auto; padding:8px 15px;">📷 رفع صورة جديدة</button>
             `;
@@ -2101,8 +2167,8 @@
                     return;
                 }
                 orders.forEach(o => {
-                    const boughtStr = o.items_bought.length ? o.items_bought.map(i => `${i.quantity}x ${i.name}`).join(', ') : '-';
-                    const soldStr = o.items_sold.length ? o.items_sold.map(i => `${i.quantity}x ${i.name}`).join(', ') : '-';
+                    const boughtStr = o.items_bought.length ? o.items_bought.map(i => `${escapeHtml(i.quantity)}x ${escapeHtml(i.name)}`).join(', ') : '-';
+                    const soldStr = o.items_sold.length ? o.items_sold.map(i => `${escapeHtml(i.quantity)}x ${escapeHtml(i.name)}`).join(', ') : '-';
                     const netColor = o.net_amount >= 0 ? 'var(--primary)' : 'var(--danger)';
                     let statusText, actionHtml;
                     if(o.status === 'Pending') {
@@ -2115,12 +2181,12 @@
                         actionHtml = `<span style="color:var(--primary);">تم</span>`;
                     } else {
                         statusText = '❌ مرفوض';
-                        actionHtml = `<span style="color:var(--danger); font-size:0.75rem;" title="${o.rejection_reason || ''}">${o.rejection_reason || '-'}</span>`;
+                        actionHtml = `<span style="color:var(--danger); font-size:0.75rem;" title="${escapeHtml(o.rejection_reason || '')}">${escapeHtml(o.rejection_reason) || '-'}</span>`;
                     }
 
                     tbody.innerHTML += `<tr>
-                        <td>${o.gang_member_username}</td>
-                        <td>${o.gang_name || '-'}</td>
+                        <td>${escapeHtml(o.gang_member_username)}</td>
+                        <td>${escapeHtml(o.gang_name) || '-'}</td>
                         <td style="font-size:0.8rem;">${boughtStr}</td>
                         <td style="font-size:0.8rem;">${soldStr}</td>
                         <td style="color:${netColor}; font-weight:bold;">${formatMoneyFrontend(o.net_amount)}$</td>
@@ -2228,8 +2294,8 @@
                 data.leaves.forEach(l => {
                     lContainer.innerHTML += `
                         <div class="card">
-                            <b>العضو:</b> ${l.username} | <b>المدة:</b> ${l.duration} أيام <br>
-                            <b>السبب المذكور:</b> ${l.reason}
+                            <b>العضو:</b> ${escapeHtml(l.username)} | <b>المدة:</b> ${l.duration} أيام <br>
+                            <b>السبب المذكور:</b> ${escapeHtml(l.reason)}
                             <div style="margin-top:10px; display:flex; gap:10px;">
                                 <button onclick="handleHRAction('leave', '${l._id}', 'Approved')" class="btn-success" style="padding:4px;">قبول الإجازة ✔️</button>
                                 <button onclick="handleHRAction('leave', '${l._id}', 'Rejected')" class="btn-danger" style="padding:4px;">رفض الطلب ❌</button>
@@ -2242,8 +2308,8 @@
                 data.justifications.forEach(j => {
                     jContainer.innerHTML += `
                         <div class="card">
-                            <b>العضو المتغيب:</b> ${j.username} <br>
-                            <b>العذر القانوني:</b> ${j.reason}
+                            <b>العضو المتغيب:</b> ${escapeHtml(j.username)} <br>
+                            <b>العذر القانوني:</b> ${escapeHtml(j.reason)}
                             <div style="margin-top:10px; display:flex; gap:10px;">
                                 <button onclick="handleHRAction('justify', '${j._id}', 'Approved')" class="btn-success" style="padding:4px;">اعتماد وتبرير ✔️</button>
                                 <button onclick="handleHRAction('justify', '${j._id}', 'Rejected')" class="btn-danger" style="padding:4px;">إسقاط العذر ❌</button>
@@ -2285,17 +2351,17 @@
                         rolesList.map(r => `<option value="${r}" ${u.role === r ? 'selected' : ''}>${r}</option>`).join('');
 
                     tbody.innerHTML += `<tr>
-                        <td>${u.username}</td>
-                        <td><span style="color:gold;">${u.role}</span></td>
+                        <td>${escapeHtml(u.username)}</td>
+                        <td><span style="color:gold;">${escapeHtml(u.role)}</span></td>
                         <td>${(u.weekly_hours / 60).toFixed(2)} س</td>
                         <td style="color:${u.warnings > 0 ? 'var(--danger)':'#fff'}">${u.warnings}</td>
                         <td><span style="color:${u.is_blacklisted?'red':'var(--primary)'}">${u.is_blacklisted ? 'BANNED' : u.duty_status}</span></td>
                         <td>
-                            <select onchange="changeMemberRole('${u.username}', this.value)">
+                            <select onchange="changeMemberRole('${escapeJsStr(u.username)}', this.value)">
                                 ${roleOptions}
                             </select>
                         </td>
-                        <td><button class="btn-warning" style="width:auto; padding:5px 10px; font-size:0.75rem;" onclick="resetMemberPassword('${u.username}')">🔑 إعادة تعيين</button></td>
+                        <td><button class="btn-warning" style="width:auto; padding:5px 10px; font-size:0.75rem;" onclick="resetMemberPassword('${escapeJsStr(u.username)}')">🔑 إعادة تعيين</button></td>
                     </tr>`;
                 });
             } catch(err) { console.error(err); }
@@ -2378,11 +2444,11 @@
                 }
                 users.forEach(u => {
                     tbody.innerHTML += `<tr>
-                        <td>${u.username}</td>
-                        <td><span style="color:gold;">${u.role}</span></td>
+                        <td>${escapeHtml(u.username)}</td>
+                        <td><span style="color:gold;">${escapeHtml(u.role)}</span></td>
                         <td style="color:var(--danger); font-weight:bold;">${formatMoneyFrontend(u.fine_amount)}$</td>
-                        <td>${u.fine_reason || '-'}</td>
-                        <td><button class="btn-success" style="width:auto; padding:5px 12px; font-size:0.8rem;" onclick="payMemberFine('${u.username}')">✔️ تم الدفع</button></td>
+                        <td>${escapeHtml(u.fine_reason) || '-'}</td>
+                        <td><button class="btn-success" style="width:auto; padding:5px 12px; font-size:0.8rem;" onclick="payMemberFine('${escapeJsStr(u.username)}')">✔️ تم الدفع</button></td>
                     </tr>`;
                 });
             } catch(err) { console.error(err); }
@@ -2456,7 +2522,7 @@
                 container.innerHTML = archives.length === 0 ? '<p style="color:#555;">سجل الأرشيف فارغ تماماً حتى الآن.</p>' : '';
                 
                 archives.forEach((arc, index) => {
-                    let recordsHtml = arc.records.map(r => `<li>${r.username} (${r.role}): ${(r.weekly_hours/60).toFixed(2)} ساعة دوام</li>`).join('');
+                    let recordsHtml = arc.records.map(r => `<li>${escapeHtml(r.username)} (${escapeHtml(r.role)}): ${(r.weekly_hours/60).toFixed(2)} ساعة دوام</li>`).join('');
                     container.innerHTML += `
                         <div class="card" style="border-color:var(--purple);">
                             <strong>📦 أسبوع مؤرشف بتاريخ: ${new Date(arc.week_date).toLocaleString('en-GB')}</strong>
@@ -2504,6 +2570,7 @@
             if(['Don', 'GRH', 'Business_Manager'].includes(userData?.role)) loadActiveFinesTable();
         });
         socket.on('accountPending', () => { if(userToken && ['Don','GRH'].includes(userData?.role)) loadPendingAccounts(); });
+        socket.on('auditLogUpdated', () => { if(userToken && ['Don','GRH'].includes(userData?.role)) loadAuditLog(); });
         socket.on('gangShopUpdated', () => {
             if(!userToken) return;
             if(['Don','Business_Manager'].includes(userData?.role)) loadGangShopCatalog();
