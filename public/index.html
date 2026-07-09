@@ -13,7 +13,7 @@
         @keyframes blink { 0% { background-color: rgba(5,5,5,1); } 50% { background-color: rgba(50,0,0,0.8); } 100% { background-color: rgba(5,5,5,1); } }
 
         #auth-screen { display: flex; justify-content: center; align-items: center; width: 100%; height: 100%; position: absolute; background: var(--bg-color); z-index: 100; gap: 20px; }
-        .auth-box { background: rgba(10,10,10,0.9); border: 1px solid var(--primary); padding: 30px; width: 350px; text-align: center; box-shadow: 0 0 20px rgba(0,255,102,0.1); }
+        .auth-box { background: rgba(10,10,10,0.9); border: 1px solid var(--primary); padding: 30px; width: 350px; max-width: 90vw; text-align: center; box-shadow: 0 0 20px rgba(0,255,102,0.1); box-sizing: border-box; }
         .input-group { margin-bottom: 15px; text-align: right; }
         .input-group label { display: block; font-size: 0.8rem; margin-bottom: 5px; color: var(--primary); }
         
@@ -46,7 +46,7 @@
         .punch-btn { font-size: 1.5rem; padding: 30px; margin-top: 20px; border-radius: 8px; border: 2px solid var(--danger); color: var(--danger); width: 100%; background: transparent; font-family: inherit; cursor: pointer; transition: 0.3s; text-align: center; }
         .punch-btn.on { border-color: var(--primary); color: var(--primary); background: rgba(0,255,102,0.05); }
         
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; background: rgba(13,13,13,0.9); }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; background: rgba(13,13,13,0.9); display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
         th, td { border: 1px solid #1a1a1a; padding: 12px; text-align: right; vertical-align: middle; }
         th { background: #151515; color: var(--primary); }
         .card { background: rgba(17,17,17,0.9); border: 1px solid #222; padding: 15px; margin-bottom: 15px; border-radius: 4px; }
@@ -87,7 +87,7 @@
         .gang-map-side { flex: 2.2; min-width: 0; }
         .gang-details-side { flex: 1; min-width: 130px; padding-top: 4px; }
 
-        #gang-map-viewport { position: relative; width: 100%; height: 82vh; min-height: 350px; max-height: 900px; border: 1px solid var(--primary); overflow: hidden; background: #000; touch-action: none; }
+        #gang-map-viewport { position: relative; width: 100%; height: 75vh; min-height: 350px; max-height: 850px; border: 1px solid var(--primary); overflow: hidden; background: #000; touch-action: none; }
         #gang-map-viewport.editable { cursor: crosshair; }
         #gang-map-viewport.panning { cursor: grabbing; }
         #gang-map-world { position: absolute; top: 0; left: 0; width: 100%; height: 100%; transform-origin: 0 0; }
@@ -123,7 +123,7 @@
         .gm-mode-tabs { display: flex; gap: 10px; margin: 15px 0; }
         .gm-mode-tabs button { flex: 1; padding: 14px; font-size: 1rem; }
         .gm-mode-tabs button.active { background: var(--primary); color: #000; }
-        .gm-catalog-grid { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 20px; }
+        .shop-grid.gm-catalog-grid { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
         .gm-catalog-grid .item-card { padding: 20px; }
         .gm-catalog-grid .item-card img { height: 170px; }
         .gm-catalog-grid .item-card strong { font-size: 1.05rem; }
