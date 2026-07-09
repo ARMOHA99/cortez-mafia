@@ -201,6 +201,11 @@ const GangOrderSchema = new mongoose.Schema({
 
 const GangTreasurySchema = new mongoose.Schema({ total_balance: { type: Number, default: 0 } });
 
+// ================== تحديث: إعدادات عامة للنظام (حالياً: رابط خريطة الـ GTA القابل للتغيير من الموقع) ==================
+const SystemSettingsSchema = new mongoose.Schema({
+    gta_map_image_url: { type: String, default: 'https://placehold.co/1000x1000/111111/00ff66?text=Upload+Your+GTA+Map' }
+});
+
 // ================== تحديث: سجل تدقيق (Audit Log) يوثق الموافقات وتغيير الرتب ==================
 const AuditLogSchema = new mongoose.Schema({
     action: String, // 'account_approved' | 'account_rejected' | 'role_changed' | 'password_reset'
@@ -213,6 +218,7 @@ const AuditLogSchema = new mongoose.Schema({
 const GangShopItem = mongoose.model('GangShopItem', GangShopItemSchema);
 const GangOrder = mongoose.model('GangOrder', GangOrderSchema);
 const GangTreasury = mongoose.model('GangTreasury', GangTreasurySchema);
+const SystemSettings = mongoose.model('SystemSettings', SystemSettingsSchema);
 const AuditLog = mongoose.model('AuditLog', AuditLogSchema);
 
 async function initSystemDB() {
@@ -223,6 +229,10 @@ async function initSystemDB() {
         // تحديث: تهيئة خزينة شوب العصابات المستقلة
         const gangTreasuryCount = await GangTreasury.countDocuments({});
         if (gangTreasuryCount === 0) { await new GangTreasury({ total_balance: 0 }).save(); }
+
+        // تحديث: تهيئة سجل الإعدادات العامة (رابط خريطة الـ GTA)
+        const settingsCount = await SystemSettings.countDocuments({});
+        if (settingsCount === 0) { await new SystemSettings({}).save(); }
         
         const goalCount = await WeeklyGoal.countDocuments({});
         if (goalCount === 0) { await new WeeklyGoal({ target_amount: 0, payout_percentage: 0, current_progress: 0, is_visible: false }).save(); }
@@ -809,6 +819,24 @@ app.post('/api/hr/action', verifyAuth(['GRH']), async (req, res) => {
 });
 
 // ================== تحديث: نظام تتبع العصابات (Gang Tracking) ==================
+// إعدادات خريطة الـ GTA: قراءة مفتوحة للجميع، والتعديل حصراً على Gang_Supervisor (والدون تلقائياً)
+app.get('/api/settings/gta-map', async (req, res) => {
+    try {
+        const settings = await SystemSettings.findOne({});
+        res.json({ url: settings ? settings.gta_map_image_url : 'https://placehold.co/1000x1000/111111/00ff66?text=Upload+Your+GTA+Map' });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/settings/gta-map', verifyAuth(['Gang_Supervisor']), async (req, res) => {
+    try {
+        const { url } = req.body;
+        if (!url) return res.status(400).json({ error: "الرابط مطلوب." });
+        await SystemSettings.updateOne({}, { gta_map_image_url: url }, { upsert: true });
+        io.emit('gtaMapUpdated');
+        res.json({ msg: "تم تحديث خريطة الـ GTA بنجاح لكل الأعضاء." });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // القراءة مفتوحة لكل الأعضاء (نفس منطق /api/shop/items)، والتعديل حصراً على Gang_Supervisor (والـ Don تلقائياً عبر verifyAuth)
 app.get('/api/gangs', async (req, res) => {
     try {
