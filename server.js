@@ -6,10 +6,11 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
 const path = require('path');
-const fs = require('fs');
-// تحديث: مكتبتان جديدتان مطلوبتان — شغّل: npm install multer express-rate-limit
+// تحديث: مكتبات جديدة مطلوبة — شغّل: npm install multer express-rate-limit cloudinary multer-storage-cloudinary
 const multer = require('multer');
 const rateLimit = require('express-rate-limit');
+const cloudinary = require('cloudinary').v2;
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
 
 const app = express();
 const server = http.createServer(app);
@@ -29,25 +30,25 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ================== تحديث: نظام رفع الصور المباشر (بدل الاعتماد حصراً على روابط خارجية) ==================
-const uploadDir = path.join(__dirname, 'public', 'uploads');
-if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+// ================== تحديث: نظام رفع الصور عبر Cloudinary (تخزين دائم، ما يتأثر بإعادة نشر Render) ==================
+// المفاتيح الثلاثة لازم تنحط كـ Environment Variables بلوحة Render (مو بالكود مباشرة، لأسباب أمان)
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
+});
 
-const imageStorage = multer.diskStorage({
-    destination: (req, file, cb) => cb(null, uploadDir),
-    filename: (req, file, cb) => {
-        const uniqueName = Date.now() + '-' + Math.round(Math.random() * 1e9) + path.extname(file.originalname);
-        cb(null, uniqueName);
+const imageStorage = new CloudinaryStorage({
+    cloudinary: cloudinary,
+    params: {
+        folder: 'cortez-uploads',
+        allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'webp']
     }
 });
+
 const imageUpload = multer({
     storage: imageStorage,
-    limits: { fileSize: 5 * 1024 * 1024 }, // 5 ميجا كحد أقصى
-    fileFilter: (req, file, cb) => {
-        const allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-        if (allowed.includes(file.mimetype)) cb(null, true);
-        else cb(new Error('نوع الملف غير مدعوم، الصور فقط (jpg, png, gif, webp).'));
-    }
+    limits: { fileSize: 5 * 1024 * 1024 } // 5 ميجا كحد أقصى
 });
 
 // ================== تحديث: حماية من محاولات الدخول/التسجيل المتكررة (Brute Force) ==================
@@ -410,12 +411,12 @@ app.get('/api/heist/logs', verifyAuth(['GRH', 'Soldat']), async (req, res) => {
 
 // ================== مسارات النظام الأساسية ==================
 
-// تحديث: رفع صورة مباشرة (بدل رابط خارجي) — يرجع رابطاً محلياً يُخزّن بنفس حقل image_url المعتاد
+// تحديث: رفع صورة مباشرة عبر Cloudinary (رابط دائم لا يختفي بعد إعادة نشر Render)
 app.post('/api/upload-image', verifyAuth(['Business_Manager', 'Gang_Supervisor', 'Don']), (req, res) => {
     imageUpload.single('image')(req, res, (err) => {
         if (err) return res.status(400).json({ error: err.message || "فشل رفع الصورة." });
         if (!req.file) return res.status(400).json({ error: "لم يتم اختيار أي ملف." });
-        res.json({ url: `/uploads/${req.file.filename}` });
+        res.json({ url: req.file.path }); // multer-storage-cloudinary يحط رابط Cloudinary الكامل هنا
     });
 });
 
