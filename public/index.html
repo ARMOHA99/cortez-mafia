@@ -79,15 +79,15 @@
         .loyalty-bar-wrapper { background: #111; border: 1px solid #333; height: 8px; border-radius: 4px; overflow: hidden; margin-top: 4px; }
         .loyalty-bar-fill { height: 100%; transition: width 0.3s ease; }
 
-        .gang-modal-box { width: 980px; max-width: 96vw; max-height: 90vh; overflow-y: auto; text-align: right; }
+        .gang-modal-box { width: 1150px; max-width: 97vw; max-height: 94vh; overflow-y: auto; text-align: right; }
         .gang-modal-box .input-group { text-align: right; }
         .gang-modal-box .modal-btns { margin-top: 20px; }
-        /* row-reverse + الخريطة أول عنصر بالـ DOM = تظهر يسار دائماً حتى مع RTL */
-        .gang-modal-flex { display: flex; flex-direction: row-reverse; gap: 20px; align-items: flex-start; flex-wrap: wrap; }
-        .gang-map-side { flex: 1.5; min-width: 280px; }
-        .gang-details-side { flex: 1; min-width: 230px; padding-top: 4px; }
+        /* تحديث: row-reverse + الخريطة أول عنصر بالـ DOM = تظهر يسار دائماً حتى مع RTL، وتبقى يمين/يسار ثابتة بدون تكديس (بطلب المستخدم) */
+        .gang-modal-flex { display: flex; flex-direction: row-reverse; gap: 15px; align-items: flex-start; flex-wrap: nowrap; }
+        .gang-map-side { flex: 2.2; min-width: 0; }
+        .gang-details-side { flex: 1; min-width: 130px; padding-top: 4px; }
 
-        #gang-map-viewport { position: relative; width: 100%; height: 500px; border: 1px solid var(--primary); overflow: hidden; background: #000; touch-action: none; }
+        #gang-map-viewport { position: relative; width: 100%; height: 70vh; min-height: 350px; max-height: 720px; border: 1px solid var(--primary); overflow: hidden; background: #000; touch-action: none; }
         #gang-map-viewport.editable { cursor: crosshair; }
         #gang-map-viewport.panning { cursor: grabbing; }
         #gang-map-world { position: absolute; top: 0; left: 0; width: 100%; height: 100%; transform-origin: 0 0; }
@@ -96,11 +96,8 @@
         .map-zoom-controls { position: absolute; bottom: 10px; left: 10px; display: flex; flex-direction: column; gap: 4px; z-index: 5; }
         .map-zoom-controls button { width: 34px; height: 34px; padding: 0; font-size: 1.1rem; background: rgba(0,0,0,0.75); }
         .map-hint { font-size: 0.75rem; color: #888; margin-top: 6px; text-align: center; }
-
-        @media (max-width: 720px) {
-            .gang-modal-flex { flex-direction: column; }
-            #gang-map-viewport { height: 320px; }
-        }
+        .gang-details-side .input-group label { font-size: 0.8rem; }
+        .gang-details-side p { font-size: 0.85rem; }
 
 
         /* Custom Modal Styles */
@@ -430,7 +427,11 @@
             <div id="panel-gangs" class="view-panel">
                 <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #333; padding-bottom:10px; flex-wrap:wrap; gap:10px;">
                     <h2>🗺️ نظام تتبع العصابات ومناطق النفوذ</h2>
-                    <button id="add-gang-box" style="display:none; width:auto; padding:10px 20px;" onclick="openGangManageModal(null)">➕ إضافة عصابة جديدة</button>
+                    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                        <input type="file" id="upload-gta-map" accept="image/*" style="display:none;" onchange="changeGtaMapImage(this)">
+                        <button id="change-map-box" style="display:none; width:auto; padding:10px 20px;" onclick="document.getElementById('upload-gta-map').click()">🗺️ تغيير خريطة الأساس</button>
+                        <button id="add-gang-box" style="display:none; width:auto; padding:10px 20px;" onclick="openGangManageModal(null)">➕ إضافة عصابة جديدة</button>
+                    </div>
                 </div>
                 <div id="gangs-list-container" class="shop-grid" style="margin-top:20px;"></div>
             </div>
@@ -556,9 +557,8 @@
         let isGoalVisibleCurrently = false;
 
         // ================== إعدادات نظام تتبع العصابات ==================
-        // تنويه: هذا رابط صورة placeholder مؤقت فقط. استبدله برابط صورة خريطة GTA الخاصة بسيرفركم
-        // (ارفعوها على استضافة خاصة بكم)، لأنه لا يمكن تضمين خرائط رسمية من اللعبة مباشرة هنا لأسباب حقوق الملكية.
-        const GTA_MAP_IMAGE_URL = 'https://placehold.co/1000x1000/111111/00ff66?text=ضع+رابط+خريطة+GTA+هنا';
+        // تحديث: رابط الخريطة صار يُخزّن بقاعدة البيانات ويتغيّر من الموقع مباشرة (زر "تغيير الخريطة")، مو ثابت بالكود
+        let gtaMapImageUrl = 'https://placehold.co/1000x1000/111111/00ff66?text=Upload+Your+GTA+Map';
         let allGangsData = [];
         let gangDraftPosition = null; // {x, y} بالنسبة المئوية أثناء الإضافة أو التعديل
 
@@ -999,6 +999,7 @@
             document.getElementById('chef-submit-box').style.display = 'none';
             document.getElementById('heist-logs-box').style.display = 'none';
             document.getElementById('add-gang-box').style.display = 'none';
+            document.getElementById('change-map-box').style.display = 'none';
             document.getElementById('nav-gang-shop-admin').style.display = 'none';
             document.getElementById('gang-shop-manage-section').style.display = 'none';
             document.getElementById('btn-gang-treasury-reset').style.display = 'none';
@@ -1016,6 +1017,7 @@
                 document.getElementById('treasury-box').style.display = 'block'; // تعديل 3: رؤية الخزينة للدون
                 document.getElementById('bm-pricing-box').style.display = 'block';
                 document.getElementById('add-gang-box').style.display = 'inline-block'; // تحديث: الدون له صلاحية كاملة على نظام العصابات
+                document.getElementById('change-map-box').style.display = 'inline-block';
                 document.getElementById('nav-gang-shop-admin').style.display = 'block';
                 document.getElementById('gang-shop-manage-section').style.display = 'block';
                 document.getElementById('btn-gang-treasury-reset').style.display = 'inline-block';
@@ -1040,8 +1042,9 @@
                 // تحديث: طلبات الحسابات المعلّقة صارت داخل بانل GRH نفسه (nav-hr)، ما تحتاج بانل شوب العصابات
             }
             if(role === 'Gang_Supervisor') {
-                // تحديث: صلاحية إضافة/تعديل/حذف خانات العصابات حصرية على هذه الرتبة (والدون تلقائياً)
+                // تحديث: صلاحية إضافة/تعديل/حذف خانات العصابات وتغيير خريطة الأساس حصرية على هذه الرتبة (والدون تلقائياً)
                 document.getElementById('add-gang-box').style.display = 'inline-block';
+                document.getElementById('change-map-box').style.display = 'inline-block';
             }
             if(role === 'Soldat') {
                 // تحديث: منح رتبة Soldat صلاحية رؤية سجل العمليات الميدانية واللوقات الأمنية (بدون أي تعديل)
@@ -1612,6 +1615,44 @@
                 allGangsData = await res.json();
                 renderGangsList();
             } catch(err) { console.error("Error loading gangs:", err); }
+            loadGtaMapUrl();
+        }
+
+        async function loadGtaMapUrl() {
+            try {
+                const res = await fetch('/api/settings/gta-map');
+                const data = await res.json();
+                if(data.url) gtaMapImageUrl = data.url;
+            } catch(err) { console.error("Error loading GTA map URL:", err); }
+        }
+
+        // تحديث: يرفع صورة خريطة جديدة من جهاز المستخدم مباشرة ويحفظها كخريطة أساسية للجميع
+        async function changeGtaMapImage(fileInputEl) {
+            const file = fileInputEl.files[0];
+            if(!file) return;
+            const formData = new FormData();
+            formData.append('image', file);
+            try {
+                const uploadRes = await fetch('/api/upload-image', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${userToken}` },
+                    body: formData
+                });
+                const uploadData = await uploadRes.json();
+                if(!uploadRes.ok) throw new Error(uploadData.error);
+
+                const settingsRes = await fetch('/api/settings/gta-map', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` },
+                    body: JSON.stringify({ url: uploadData.url })
+                });
+                const settingsData = await settingsRes.json();
+                if(!settingsRes.ok) throw new Error(settingsData.error);
+
+                gtaMapImageUrl = uploadData.url;
+                customAlert("تم تحديث خريطة الـ GTA بنجاح، تظهر الآن لكل الأعضاء.");
+            } catch(err) { customAlert(err.message); }
+            fileInputEl.value = '';
         }
 
         function loyaltyColorFor(pct) {
@@ -1784,7 +1825,7 @@
             return `
                 <div id="gang-map-viewport" class="${editable ? 'editable' : ''}">
                     <div id="gang-map-world">
-                        <img id="gang-map-img" src="${GTA_MAP_IMAGE_URL}" draggable="false">
+                        <img id="gang-map-img" src="${gtaMapImageUrl}" draggable="false">
                         <div id="gang-map-pin">📍</div>
                     </div>
                     <div class="map-zoom-controls">
@@ -2564,6 +2605,7 @@
 
         socket.on('shopUpdated', () => { if(userToken) loadShopItems(); });
         socket.on('gangsUpdated', () => { if(userToken) loadGangs(); });
+        socket.on('gtaMapUpdated', () => { if(userToken) loadGtaMapUrl(); });
         socket.on('finesUpdated', () => {
             if(!userToken) return;
             refreshUserFineStatus();
