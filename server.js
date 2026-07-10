@@ -6,9 +6,8 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
 const path = require('path');
-// تحديث: مكتبات جديدة مطلوبة — شغّل: npm install multer express-rate-limit cloudinary multer-storage-cloudinary
+// تحديث: مكتبات جديدة مطلوبة — شغّل: npm install multer cloudinary multer-storage-cloudinary
 const multer = require('multer');
-const rateLimit = require('express-rate-limit');
 const cloudinary = require('cloudinary').v2;
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
 
@@ -52,14 +51,6 @@ const imageUpload = multer({
 });
 
 // ================== تحديث: حماية من محاولات الدخول/التسجيل المتكررة (Brute Force) ==================
-const authRateLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 دقيقة
-    max: 15, // 15 محاولة كحد أقصى لكل IP خلال 15 دقيقة
-    message: { error: "محاولات كثيرة جداً من نفس الجهاز، يرجى الانتظار قليلاً وإعادة المحاولة." },
-    standardHeaders: true,
-    legacyHeaders: false
-});
-
 // ---------------- دوال التنسيق المالي ----------------
 const formatMoneyShort = (amount) => {
     if (!amount) return '0';
@@ -420,7 +411,7 @@ app.post('/api/upload-image', verifyAuth(['Business_Manager', 'Gang_Supervisor',
     });
 });
 
-app.post('/api/auth/register', authRateLimiter, async (req, res) => {
+app.post('/api/auth/register', async (req, res) => {
     try {
         const { username, password, discord_id } = req.body;
         if (!discord_id) return res.status(400).json({ error: "حقل الـ Discord ID مطلوب." });
@@ -439,7 +430,7 @@ app.post('/api/auth/register', authRateLimiter, async (req, res) => {
 });
 
 // ================== تحديث: تسجيل جديد ومنفصل لأعضاء العصابات (يحتاج موافقة GRH أو الدون) ==================
-app.post('/api/gang-auth/register', authRateLimiter, async (req, res) => {
+app.post('/api/gang-auth/register', async (req, res) => {
     try {
         const { username, password, gang_name, discord_id } = req.body;
         if (!username || !password || !gang_name) return res.status(400).json({ error: "اسم المستخدم وكلمة المرور واسم العصابة كلها مطلوبة." });
@@ -458,7 +449,7 @@ app.post('/api/gang-auth/register', authRateLimiter, async (req, res) => {
     } catch (err) { res.status(400).json({ error: "حدث خطأ أثناء التسجيل، تأكد من اسم المستخدم." }); }
 });
 
-app.post('/api/auth/login', authRateLimiter, async (req, res) => {
+app.post('/api/auth/login', async (req, res) => {
     try {
         const { username, password } = req.body;
         const user = await User.findOne({ username });
