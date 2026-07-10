@@ -46,7 +46,10 @@
         .punch-btn { font-size: 1.5rem; padding: 30px; margin-top: 20px; border-radius: 8px; border: 2px solid var(--danger); color: var(--danger); width: 100%; background: transparent; font-family: inherit; cursor: pointer; transition: 0.3s; text-align: center; }
         .punch-btn.on { border-color: var(--primary); color: var(--primary); background: rgba(0,255,102,0.05); }
         
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; background: rgba(13,13,13,0.9); display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; background: rgba(13,13,13,0.9); }
+        /* تحديث: حاوية غلاف تسمح بتمرير أفقي للجداول العريضة بدون ما تخلي الجداول الأخرى تنكمش لحجم محتواها */
+        .table-scroll-wrap { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; margin-top: 20px; }
+        .table-scroll-wrap table { margin-top: 0; }
         th, td { border: 1px solid #1a1a1a; padding: 12px; text-align: right; vertical-align: middle; }
         th { background: #151515; color: var(--primary); }
         .card { background: rgba(17,17,17,0.9); border: 1px solid #222; padding: 15px; margin-bottom: 15px; border-radius: 4px; }
@@ -211,10 +214,10 @@
 
             <div class="card">
                 <h3 style="color:var(--warning);">📋 طلباتي السابقة</h3>
-                <table id="tbl-my-gang-orders">
+                <div class="table-scroll-wrap"><table id="tbl-my-gang-orders">
                     <thead><tr><th>شراء</th><th>بيع</th><th>الصافي</th><th>الحالة</th><th>التاريخ</th></tr></thead>
                     <tbody></tbody>
-                </table>
+                </table></div>
             </div>
         </div>
     </div>
@@ -335,7 +338,7 @@
 
                 <div id="heist-logs-box" class="card" style="display:none;">
                     <h3 style="color:var(--purple);">📋 سجل العمليات الميدانية واللوقات الأمنية</h3>
-                    <table id="tbl-heist-logs">
+                    <div class="table-scroll-wrap"><table id="tbl-heist-logs">
                         <thead>
                             <tr>
                                 <th>القائد المسؤول</th>
@@ -347,19 +350,19 @@
                             </tr>
                         </thead>
                         <tbody></tbody>
-                    </table>
+                    </table></div>
                 </div>
             </div>
 
             <div id="panel-leaderboard" class="view-panel">
                 <h2>🏆 لوحة الشرف والمتصدرين أسبوعياً (حسب ساعات الدوام)</h2>
-                <table id="tbl-leaderboard"><thead><tr><th>الترتيب</th><th>العضو</th><th>الرتبة</th><th>الساعات</th><th>الحالة</th></tr></thead><tbody></tbody></table>
+                <div class="table-scroll-wrap"><table id="tbl-leaderboard"><thead><tr><th>الترتيب</th><th>العضو</th><th>الرتبة</th><th>الساعات</th><th>الحالة</th></tr></thead><tbody></tbody></table></div>
                 
                 <h2 style="color:cyan; margin-top:40px;">⚔️ لوحة شرف العمليات الميدانية المنجحة</h2>
-                <table id="tbl-heists-leaderboard"><thead><tr><th>الترتيب</th><th>العضو</th><th>الرتبة</th><th>إجمالي العمليات المنفذة</th></tr></thead><tbody></tbody></table>
+                <div class="table-scroll-wrap"><table id="tbl-heists-leaderboard"><thead><tr><th>الترتيب</th><th>العضو</th><th>الرتبة</th><th>إجمالي العمليات المنفذة</th></tr></thead><tbody></tbody></table></div>
 
                 <h2 style="color:var(--danger); margin-top:40px;">🔴 قائمة المحاسبة والأعضاء الخاملين</h2>
-                <table id="tbl-slacking"><thead><tr><th>العضو</th><th>الرتبة</th><th>الساعات</th></tr></thead><tbody></tbody></table>
+                <div class="table-scroll-wrap"><table id="tbl-slacking"><thead><tr><th>العضو</th><th>الرتبة</th><th>الساعات</th></tr></thead><tbody></tbody></table></div>
             </div>
 
             <div id="panel-shop" class="view-panel">
@@ -441,10 +444,10 @@
 
                 <div class="card">
                     <h3 style="color:var(--warning);">📥 حسابات جديدة بانتظار الموافقة (مافيا وعصابات)</h3>
-                    <table id="tbl-pending-accounts">
+                    <div class="table-scroll-wrap"><table id="tbl-pending-accounts">
                         <thead><tr><th>اسم المستخدم</th><th>النوع</th><th>Discord ID</th><th>الإجراء</th></tr></thead>
                         <tbody></tbody>
-                    </table>
+                    </table></div>
                 </div>
 
                 <h3>طلبات الإجازات:</h3><div id="hr-leaves-list"></div>
@@ -452,10 +455,10 @@
 
                 <div class="card" style="margin-top:20px;">
                     <h3 style="color:#999;">📜 سجل التدقيق (آخر 200 إجراء)</h3>
-                    <table id="tbl-audit-log">
+                    <div class="table-scroll-wrap"><table id="tbl-audit-log">
                         <thead><tr><th>الإجراء</th><th>العضو</th><th>بواسطة</th><th>التفاصيل</th><th>التاريخ</th></tr></thead>
                         <tbody></tbody>
-                    </table>
+                    </table></div>
                 </div>
             </div>
 
@@ -488,10 +491,10 @@
 
                     <div class="card">
                         <h3 style="color:var(--warning);">📋 سجل عمليات شوب العصابات</h3>
-                        <table id="tbl-gang-orders">
+                        <div class="table-scroll-wrap"><table id="tbl-gang-orders">
                             <thead><tr><th>العضو</th><th>العصابة</th><th>شراء</th><th>بيع</th><th>الصافي</th><th>الحالة</th><th>الإجراء</th></tr></thead>
                             <tbody></tbody>
-                        </table>
+                        </table></div>
                     </div>
 
                     <div class="card" style="border-color:gold;">
@@ -532,16 +535,16 @@
                         <button class="btn-warning" onclick="applyPenalty()">تنفيذ الإجراء</button>
                     </div>
                     <div style="flex:2;">
-                        <table id="tbl-all-users"><thead><tr><th>العضو</th><th>الرتبة</th><th>الساعات</th><th>الإنذارات</th><th>الحالة</th><th>تغيير الرتبة</th><th>كلمة المرور</th></tr></thead><tbody></tbody></table>
+                        <div class="table-scroll-wrap"><table id="tbl-all-users"><thead><tr><th>العضو</th><th>الرتبة</th><th>الساعات</th><th>الإنذارات</th><th>الحالة</th><th>تغيير الرتبة</th><th>كلمة المرور</th></tr></thead><tbody></tbody></table></div>
                     </div>
                 </div>
 
                 <div class="card" style="margin-top:20px; border-color:var(--danger);">
                     <h3 style="color:var(--danger);">💰 الأعضاء الذين عليهم غرامات معلقة</h3>
-                    <table id="tbl-active-fines">
+                    <div class="table-scroll-wrap"><table id="tbl-active-fines">
                         <thead><tr><th>العضو</th><th>الرتبة</th><th>المبلغ</th><th>السبب</th><th>الإجراء</th></tr></thead>
                         <tbody></tbody>
-                    </table>
+                    </table></div>
                 </div>
             </div>
         </div>
