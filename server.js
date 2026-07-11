@@ -670,6 +670,31 @@ app.post('/api/admin/reset-password', verifyAuth(['GRH']), async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// تحديث: تصحيح ساعات عضو يدوياً (حل مشكلة نسيان تسجيل الخروج اللي يصنع متصدر وهمي باللوحة)
+// يصحح الساعات لقيمة يحددها GRH ويرجّع العضو OFF-DUTY تلقائياً بنفس العملية
+app.post('/api/admin/adjust-hours', verifyAuth(['GRH']), async (req, res) => {
+    try {
+        const { target_username, new_hours } = req.body;
+        if (new_hours === undefined || new_hours === '' || isNaN(new_hours) || Number(new_hours) < 0) {
+            return res.status(400).json({ error: "الرجاء إدخال رقم ساعات صحيح (0 أو أكبر)." });
+        }
+        const newMinutes = Math.round(Number(new_hours) * 60);
+        const result = await User.findOneAndUpdate(
+            { username: target_username },
+            { weekly_hours: newMinutes, duty_status: 'OFF-DUTY' }
+        );
+        if (!result) return res.status(404).json({ error: "العضو غير موجود." });
+
+        await new AuditLog({
+            action: 'hours_adjusted', target_username, performed_by: req.user.username,
+            details: `تصحيح الساعات إلى ${new_hours} ساعة (وإرجاعه OFF-DUTY تلقائياً)`
+        }).save();
+        io.emit('dutyUpdated', {});
+        io.emit('auditLogUpdated');
+        res.json({ msg: `تم تصحيح ساعات "${target_username}" إلى ${new_hours} ساعة، ورجّعناه OFF-DUTY.` });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.get('/api/admin/audit-log', verifyAuth(['GRH']), async (req, res) => {
     try {
         const logs = await AuditLog.find().sort({ timestamp: -1 }).limit(200);
