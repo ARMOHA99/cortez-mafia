@@ -70,7 +70,7 @@ const UserSchema = new mongoose.Schema({
     username: { type: String, required: true, unique: true },
     password: { type: String, required: true },
     discord_id: { type: String, required: true },
-    role: { type: String, enum: ['Don', 'Business_Manager', 'Chef_Braquage', 'GRH', 'Soldat', 'Gang_Supervisor', 'Gang_Member'], default: 'Soldat' },
+    role: { type: String, enum: ['Don', 'Underboss', 'Capo', 'Business_Manager', 'Chef_Braquage', 'GRH', 'Soldat', 'Gang_Supervisor', 'Gang_Member'], default: 'Soldat' },
     // تحديث: نظام أعضاء العصابات الخارجيين (منفصل عن أعضاء المافيا)
     gang_name: { type: String, default: '' },
     account_status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'approved' },
