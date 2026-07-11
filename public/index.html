@@ -535,7 +535,7 @@
                         <button class="btn-warning" onclick="applyPenalty()">تنفيذ الإجراء</button>
                     </div>
                     <div style="flex:2;">
-                        <div class="table-scroll-wrap"><table id="tbl-all-users"><thead><tr><th>العضو</th><th>الرتبة</th><th>الساعات</th><th>الإنذارات</th><th>الحالة</th><th>تغيير الرتبة</th><th>كلمة المرور</th></tr></thead><tbody></tbody></table></div>
+                        <div class="table-scroll-wrap"><table id="tbl-all-users"><thead><tr><th>العضو</th><th>الرتبة</th><th>الساعات</th><th>الإنذارات</th><th>الحالة</th><th>تغيير الرتبة</th><th>كلمة المرور</th><th>تصحيح الساعات</th></tr></thead><tbody></tbody></table></div>
                     </div>
                 </div>
 
@@ -2018,7 +2018,8 @@
             account_approved: '✔️ قبول حساب',
             account_rejected: '✖️ رفض حساب',
             role_changed: '🔄 تغيير رتبة',
-            password_reset: '🔑 إعادة تعيين كلمة مرور'
+            password_reset: '🔑 إعادة تعيين كلمة مرور',
+            hours_adjusted: '✏️ تصحيح ساعات'
         };
 
         async function loadAuditLog() {
@@ -2406,6 +2407,7 @@
                             </select>
                         </td>
                         <td><button class="btn-warning" style="width:auto; padding:5px 10px; font-size:0.75rem;" onclick="resetMemberPassword('${escapeJsStr(u.username)}')">🔑 إعادة تعيين</button></td>
+                        <td><button class="btn-warning" style="width:auto; padding:5px 10px; font-size:0.75rem;" onclick="adjustMemberHours('${escapeJsStr(u.username)}', ${u.weekly_hours})">✏️ تصحيح الساعات</button></td>
                     </tr>`;
                 });
             } catch(err) { console.error(err); }
@@ -2424,6 +2426,26 @@
                     const data = await res.json();
                     if(!res.ok) throw new Error(data.error);
                     customAlert(data.msg);
+                } catch(err) { customAlert(err.message); }
+            });
+        }
+
+        // تحديث: تصحيح ساعات عضو يدوياً — حل مشكلة نسيان بصمة الخروج (يصير متصدر وهمي باللوحة)
+        // يرجّع العضو OFF-DUTY تلقائياً بنفس العملية
+        function adjustMemberHours(username, currentMinutes) {
+            const currentHours = (currentMinutes / 60).toFixed(2);
+            customPrompt(`الساعات الحالية لـ "${username}": ${currentHours} ساعة.\nأدخل الرقم الصحيح (بالساعات):`, async (newHours) => {
+                if(newHours === null || newHours === '' || isNaN(newHours) || Number(newHours) < 0) return customAlert("رقم غير صالح، لم يتم التغيير.");
+                try {
+                    const res = await fetch('/api/admin/adjust-hours', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` },
+                        body: JSON.stringify({ target_username: username, new_hours: newHours })
+                    });
+                    const data = await res.json();
+                    if(!res.ok) throw new Error(data.error);
+                    customAlert(data.msg);
+                    loadAllUsersTable();
                 } catch(err) { customAlert(err.message); }
             });
         }
