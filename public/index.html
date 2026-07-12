@@ -965,23 +965,23 @@
             loadUsersForDropdown(); // تعديل 4: جلب أسماء الأعضاء للقائمة المنسدلة
             loadGangs(); // تحديث: تحميل قائمة العصابات (متاحة لكل الرتب بدون استثناء)
             
-            if(['Don', 'GRH', 'Business_Manager', 'Chef_Braquage'].includes(userData.role)) {
+            if(['Don', 'Underboss', 'GRH', 'Business_Manager', 'Chef_Braquage'].includes(userData.role)) {
                 loadOrdersData();
             }
-            if(['Don', 'GRH', 'Business_Manager'].includes(userData.role)) {
+            if(['Don', 'Underboss', 'GRH', 'Business_Manager'].includes(userData.role)) {
                 loadAllUsersTable();
                 loadHRRequests();
                 loadArchiveData();
                 loadActiveFinesTable();
             }
-            if(['Don', 'GRH', 'Soldat'].includes(userData.role)) {
+            if(['Don', 'Underboss', 'GRH', 'Soldat'].includes(userData.role)) {
                 loadHeistLogs();
             }
-            if(['Don', 'GRH'].includes(userData.role)) {
+            if(['Don', 'Underboss', 'GRH'].includes(userData.role)) {
                 loadPendingAccounts();
                 loadAuditLog();
             }
-            if(['Don', 'Business_Manager'].includes(userData.role)) {
+            if(['Don', 'Underboss', 'Business_Manager'].includes(userData.role)) {
                 loadGangShopCatalog();
                 loadGangOrders();
                 loadGangTreasuryBalance();
@@ -1041,8 +1041,24 @@
             if(role === 'GRH') {
                 document.getElementById('nav-hr').style.display = 'block';
                 document.getElementById('nav-archive').style.display = 'block';
+                document.getElementById('nav-don').style.display = 'block'; // تصحيح: GRH أصلاً عنده صلاحية الباك اند لهذا الجدول (تغيير رتبة، عقوبات، إعادة تعيين، تصحيح ساعات) بس ما كان يشوف الزر
                 document.getElementById('heist-logs-box').style.display = 'block';
                 // تحديث: طلبات الحسابات المعلّقة صارت داخل بانل GRH نفسه (nav-hr)، ما تحتاج بانل شوب العصابات
+            }
+            if(role === 'Underboss') {
+                // تحديث: نائب الدون الفعلي — كل صلاحيات الدون الإدارية إلا الأزرار المدمّرة (تصفير الخزائن، التصفير الشامل، الهدف الأسبوعي) تبقى حصراً للدون
+                document.getElementById('nav-hr').style.display = 'block';
+                document.getElementById('nav-archive').style.display = 'block';
+                document.getElementById('nav-don').style.display = 'block';
+                document.getElementById('chef-submit-box').style.display = 'block';
+                document.getElementById('heist-logs-box').style.display = 'block';
+                document.getElementById('add-item-box').style.display = 'block';
+                document.getElementById('treasury-box').style.display = 'block';
+                document.getElementById('bm-pricing-box').style.display = 'block';
+                document.getElementById('add-gang-box').style.display = 'inline-block';
+                document.getElementById('change-map-box').style.display = 'inline-block';
+                document.getElementById('nav-gang-shop-admin').style.display = 'block';
+                document.getElementById('gang-shop-manage-section').style.display = 'block';
             }
             if(role === 'Gang_Supervisor') {
                 // تحديث: صلاحية إضافة/تعديل/حذف خانات العصابات وتغيير خريطة الأساس حصرية على هذه الرتبة (والدون تلقائياً)
@@ -2614,7 +2630,7 @@
                 updatePunchButtonUI(data.duty_status);
             }
             loadLeaderboardData();
-            if(['Don', 'GRH', 'Business_Manager'].includes(userData.role)) {
+            if(['Don', 'Underboss', 'GRH', 'Business_Manager'].includes(userData.role)) {
                 loadAllUsersTable();
             }
         });
@@ -2634,25 +2650,25 @@
         socket.on('finesUpdated', () => {
             if(!userToken) return;
             refreshUserFineStatus();
-            if(['Don', 'GRH', 'Business_Manager'].includes(userData?.role)) loadActiveFinesTable();
+            if(['Don', 'Underboss', 'GRH', 'Business_Manager'].includes(userData?.role)) loadActiveFinesTable();
         });
-        socket.on('accountPending', () => { if(userToken && ['Don','GRH'].includes(userData?.role)) loadPendingAccounts(); });
-        socket.on('auditLogUpdated', () => { if(userToken && ['Don','GRH'].includes(userData?.role)) loadAuditLog(); });
+        socket.on('accountPending', () => { if(userToken && ['Don','Underboss','GRH'].includes(userData?.role)) loadPendingAccounts(); });
+        socket.on('auditLogUpdated', () => { if(userToken && ['Don','Underboss','GRH'].includes(userData?.role)) loadAuditLog(); });
         socket.on('gangShopUpdated', () => {
             if(!userToken) return;
-            if(['Don','Business_Manager'].includes(userData?.role)) loadGangShopCatalog();
+            if(['Don','Underboss','Business_Manager'].includes(userData?.role)) loadGangShopCatalog();
             if(userData?.role === 'Gang_Member') loadGangShopCatalogForMember();
         });
         socket.on('gangOrdersUpdated', () => {
             if(!userToken) return;
-            if(['Don','Business_Manager'].includes(userData?.role)) loadGangOrders();
+            if(['Don','Underboss','Business_Manager'].includes(userData?.role)) loadGangOrders();
             if(userData?.role === 'Gang_Member') loadMyGangOrders();
         });
-        socket.on('gangTreasuryUpdated', () => { if(userToken && ['Don','Business_Manager'].includes(userData?.role)) loadGangTreasuryBalance(); });
-        socket.on('ordersUpdated', () => { if(userToken && ['Don', 'GRH', 'Business_Manager', 'Chef_Braquage'].includes(userData?.role)) loadOrdersData(); });
-        socket.on('treasuryUpdated', () => { if(userToken && ['Don', 'GRH', 'Business_Manager'].includes(userData?.role)) loadTreasuryBalance(); });
-        socket.on('requestUpdated', () => { if(userToken && ['Don', 'GRH', 'Business_Manager'].includes(userData?.role)) loadHRRequests(); });
-        socket.on('goalUpdated', () => { if(userToken) { loadHeistDashboard(); if(['Don', 'GRH', 'Soldat'].includes(userData?.role)) loadHeistLogs(); } });
+        socket.on('gangTreasuryUpdated', () => { if(userToken && ['Don','Underboss','Business_Manager'].includes(userData?.role)) loadGangTreasuryBalance(); });
+        socket.on('ordersUpdated', () => { if(userToken && ['Don', 'Underboss', 'GRH', 'Business_Manager', 'Chef_Braquage'].includes(userData?.role)) loadOrdersData(); });
+        socket.on('treasuryUpdated', () => { if(userToken && ['Don', 'Underboss', 'GRH', 'Business_Manager'].includes(userData?.role)) loadTreasuryBalance(); });
+        socket.on('requestUpdated', () => { if(userToken && ['Don', 'Underboss', 'GRH', 'Business_Manager'].includes(userData?.role)) loadHRRequests(); });
+        socket.on('goalUpdated', () => { if(userToken) { loadHeistDashboard(); if(['Don', 'Underboss', 'GRH', 'Soldat'].includes(userData?.role)) loadHeistLogs(); } });
 
         // التحقق التلقائي من الجلسة عند فتح المتصفح
         if(userToken && userData) { initAppSession(); }
