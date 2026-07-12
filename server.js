@@ -385,7 +385,7 @@ app.post('/api/heist/submit', verifyAuth(['Chef_Braquage', 'Business_Manager', '
     } catch (err) { res.status(500).json({ error: "خطأ في معالجة بيانات العملية: " + err.message }); }
 });
 
-app.get('/api/heist/dashboard', verifyAuth(['Don', 'Business_Manager', 'Chef_Braquage', 'GRH', 'Soldat', 'Gang_Supervisor']), async (req, res) => {
+app.get('/api/heist/dashboard', verifyAuth(['Underboss', 'Don', 'Business_Manager', 'Chef_Braquage', 'GRH', 'Soldat', 'Gang_Supervisor']), async (req, res) => {
     try {
         const goal = await WeeklyGoal.findOne();
         if (!goal || !goal.is_visible) { return res.json({ visible: false }); }
@@ -393,7 +393,7 @@ app.get('/api/heist/dashboard', verifyAuth(['Don', 'Business_Manager', 'Chef_Bra
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/api/heist/logs', verifyAuth(['GRH', 'Soldat']), async (req, res) => {
+app.get('/api/heist/logs', verifyAuth(['Underboss', 'GRH', 'Soldat']), async (req, res) => {
     try {
         const logs = await HeistLog.find().sort({ timestamp: -1 });
         res.json(logs);
@@ -403,7 +403,7 @@ app.get('/api/heist/logs', verifyAuth(['GRH', 'Soldat']), async (req, res) => {
 // ================== مسارات النظام الأساسية ==================
 
 // تحديث: رفع صورة مباشرة عبر Cloudinary (رابط دائم لا يختفي بعد إعادة نشر Render)
-app.post('/api/upload-image', verifyAuth(['Business_Manager', 'Gang_Supervisor', 'Don']), (req, res) => {
+app.post('/api/upload-image', verifyAuth(['Underboss', 'Business_Manager', 'Gang_Supervisor', 'Don']), (req, res) => {
     imageUpload.single('image')(req, res, (err) => {
         if (err) return res.status(400).json({ error: err.message || "فشل رفع الصورة." });
         if (!req.file) return res.status(400).json({ error: "لم يتم اختيار أي ملف." });
@@ -477,7 +477,7 @@ app.get('/api/auth/me', async (req, res) => {
     } catch { res.status(401).json({ error: "جلسة منتهية" }); }
 });
 
-app.get('/api/users/list', verifyAuth(['Chef_Braquage', 'Business_Manager', 'Don']), async (req, res) => {
+app.get('/api/users/list', verifyAuth(['Underboss', 'Chef_Braquage', 'Business_Manager', 'Don']), async (req, res) => {
     try {
         // تحديث: نستثني الحسابات المعلّقة وأعضاء العصابات (مو أعضاء مافيا فعليين بعد)
         const users = await User.find({ is_blacklisted: false, account_status: 'approved', role: { $ne: 'Gang_Member' } }, 'username');
@@ -490,7 +490,7 @@ app.get('/api/shop/items', async (req, res) => {
     catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/shop/add-item', verifyAuth(['Business_Manager']), async (req, res) => {
+app.post('/api/shop/add-item', verifyAuth(['Underboss', 'Business_Manager']), async (req, res) => {
     try {
         const { name, price, image_url } = req.body;
         const newItem = new Item({ name, price: Number(price), image_url, created_by: req.user.username });
@@ -500,7 +500,7 @@ app.post('/api/shop/add-item', verifyAuth(['Business_Manager']), async (req, res
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.put('/api/shop/item/:id', verifyAuth(['Business_Manager']), async (req, res) => {
+app.put('/api/shop/item/:id', verifyAuth(['Underboss', 'Business_Manager']), async (req, res) => {
     try {
         const { price } = req.body;
         await Item.findByIdAndUpdate(req.params.id, { price: Number(price) });
@@ -509,7 +509,7 @@ app.put('/api/shop/item/:id', verifyAuth(['Business_Manager']), async (req, res)
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.delete('/api/shop/item/:id', verifyAuth(['Business_Manager']), async (req, res) => {
+app.delete('/api/shop/item/:id', verifyAuth(['Underboss', 'Business_Manager']), async (req, res) => {
     try {
         await Item.findByIdAndDelete(req.params.id);
         io.emit('shopUpdated');
@@ -517,7 +517,7 @@ app.delete('/api/shop/item/:id', verifyAuth(['Business_Manager']), async (req, r
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/shop/checkout', verifyAuth(['Soldat', 'GRH', 'Chef_Braquage', 'Business_Manager', 'Gang_Supervisor']), async (req, res) => {
+app.post('/api/shop/checkout', verifyAuth(['Underboss', 'Soldat', 'GRH', 'Chef_Braquage', 'Business_Manager', 'Gang_Supervisor']), async (req, res) => {
     try {
         const { items } = req.body;
         if (!items || items.length === 0) return res.status(400).json({ error: "السلة فارغة." });
@@ -537,7 +537,7 @@ app.post('/api/shop/checkout', verifyAuth(['Soldat', 'GRH', 'Chef_Braquage', 'Bu
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/api/shop/orders', verifyAuth(['Business_Manager', 'Chef_Braquage', 'GRH']), async (req, res) => {
+app.get('/api/shop/orders', verifyAuth(['Underboss', 'Business_Manager', 'Chef_Braquage', 'GRH']), async (req, res) => {
     try { const orders = await Order.find().sort({ timestamp: -1 }); res.json(orders); } 
     catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -561,10 +561,10 @@ const confirmPaymentLogic = async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 };
 
-app.post('/api/shop/order/:id/pay', verifyAuth(['Business_Manager']), confirmPaymentLogic);
-app.put('/api/shop/order/:id/pay', verifyAuth(['Business_Manager']), confirmPaymentLogic);
+app.post('/api/shop/order/:id/pay', verifyAuth(['Underboss', 'Business_Manager']), confirmPaymentLogic);
+app.put('/api/shop/order/:id/pay', verifyAuth(['Underboss', 'Business_Manager']), confirmPaymentLogic);
 
-app.get('/api/treasury/balance', verifyAuth(['Business_Manager']), async (req, res) => {
+app.get('/api/treasury/balance', verifyAuth(['Underboss', 'Business_Manager']), async (req, res) => {
     try {
         const treasury = await Treasury.findOne({});
         const balance = treasury ? treasury.total_balance : 0;
@@ -634,14 +634,14 @@ app.get('/api/shop/invoice/:id', async (req, res) => {
     } catch (err) { res.status(500).send("خطأ في جلب الفاتورة: " + err.message); }
 });
 
-app.get('/api/admin/users', verifyAuth(['GRH']), async (req, res) => {
+app.get('/api/admin/users', verifyAuth(['Underboss', 'GRH']), async (req, res) => {
     try {
         const users = await User.find({}, 'username role duty_status weekly_hours warnings is_blacklisted fine_amount fine_reason');
         res.json(users);
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/admin/change-role', verifyAuth(['GRH']), async (req, res) => {
+app.post('/api/admin/change-role', verifyAuth(['Underboss', 'GRH']), async (req, res) => {
     try {
         const { target_username, new_role } = req.body;
         if (new_role === 'Don') return res.status(403).json({ error: "لا يمكن منح رتبة البوس (Don) لأي شخص!" });
@@ -657,7 +657,7 @@ app.post('/api/admin/change-role', verifyAuth(['GRH']), async (req, res) => {
 });
 
 // تحديث: إعادة تعيين كلمة مرور أي عضو (مافيا أو عصابة) بواسطة GRH — بما إنه ما فيه نظام بريد إلكتروني بالتطبيق
-app.post('/api/admin/reset-password', verifyAuth(['GRH']), async (req, res) => {
+app.post('/api/admin/reset-password', verifyAuth(['Underboss', 'GRH']), async (req, res) => {
     try {
         const { target_username, new_password } = req.body;
         if (!new_password || new_password.length < 4) return res.status(400).json({ error: "كلمة المرور الجديدة قصيرة جداً (4 أحرف على الأقل)." });
@@ -672,7 +672,7 @@ app.post('/api/admin/reset-password', verifyAuth(['GRH']), async (req, res) => {
 
 // تحديث: تصحيح ساعات عضو يدوياً (حل مشكلة نسيان تسجيل الخروج اللي يصنع متصدر وهمي باللوحة)
 // يصحح الساعات لقيمة يحددها GRH ويرجّع العضو OFF-DUTY تلقائياً بنفس العملية
-app.post('/api/admin/adjust-hours', verifyAuth(['GRH']), async (req, res) => {
+app.post('/api/admin/adjust-hours', verifyAuth(['Underboss', 'GRH']), async (req, res) => {
     try {
         const { target_username, new_hours } = req.body;
         if (new_hours === undefined || new_hours === '' || isNaN(new_hours) || Number(new_hours) < 0) {
@@ -695,7 +695,7 @@ app.post('/api/admin/adjust-hours', verifyAuth(['GRH']), async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/api/admin/audit-log', verifyAuth(['GRH']), async (req, res) => {
+app.get('/api/admin/audit-log', verifyAuth(['Underboss', 'GRH']), async (req, res) => {
     try {
         const logs = await AuditLog.find().sort({ timestamp: -1 }).limit(200);
         res.json(logs);
@@ -715,13 +715,13 @@ app.post('/api/admin/reset-weekly-hours', verifyAuth(['Don']), async (req, res) 
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/api/admin/archive', verifyAuth(['GRH']), async (req, res) => {
+app.get('/api/admin/archive', verifyAuth(['Underboss', 'GRH']), async (req, res) => {
     try { const archives = await Archive.find().sort({ week_date: -1 }); res.json(archives); } 
     catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ================== تحديث v7.7: نظام العقوبات المطور والغرامات المالية ==================
-app.post('/api/admin/penalty', verifyAuth(['GRH']), async (req, res) => {
+app.post('/api/admin/penalty', verifyAuth(['Underboss', 'GRH']), async (req, res) => {
     try {
         const { target_username, type, reason, fine_amount } = req.body;
         const user = await User.findOne({ username: target_username });
@@ -758,7 +758,7 @@ app.post('/api/admin/penalty', verifyAuth(['GRH']), async (req, res) => {
 });
 
 // جلب قائمة الأشخاص الذين عليهم غرامات فقط (لجدول الإدارة)
-app.get('/api/admin/fines/active', verifyAuth(['GRH']), async (req, res) => {
+app.get('/api/admin/fines/active', verifyAuth(['Underboss', 'GRH']), async (req, res) => {
     try {
         const finedUsers = await User.find({ fine_amount: { $gt: 0 } }, 'username role fine_amount fine_reason');
         res.json(finedUsers);
@@ -766,7 +766,7 @@ app.get('/api/admin/fines/active', verifyAuth(['GRH']), async (req, res) => {
 });
 
 // زر الإدارة: تأكيد تسلّم ودفع الغرامة يدوياً وتحويلها تلقائياً للخزينة
-app.post('/api/admin/fines/pay', verifyAuth(['GRH']), async (req, res) => {
+app.post('/api/admin/fines/pay', verifyAuth(['Underboss', 'GRH']), async (req, res) => {
     try {
         const { target_username } = req.body;
         const user = await User.findOne({ username: target_username });
@@ -804,21 +804,21 @@ app.get('/api/stats/leaderboard', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/hr/leave', verifyAuth(['Soldat', 'GRH', 'Chef_Braquage', 'Business_Manager', 'Gang_Supervisor']), async (req, res) => {
+app.post('/api/hr/leave', verifyAuth(['Underboss', 'Soldat', 'GRH', 'Chef_Braquage', 'Business_Manager', 'Gang_Supervisor']), async (req, res) => {
     try {
         await new Leave({ username: req.user.username, reason: req.body.reason, duration: Number(req.body.duration) }).save();
         io.emit('requestUpdated'); res.json({ msg: "تم رفع طلب الإجازة بنجاح." });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/hr/justify', verifyAuth(['Soldat', 'GRH', 'Chef_Braquage', 'Business_Manager', 'Gang_Supervisor']), async (req, res) => {
+app.post('/api/hr/justify', verifyAuth(['Underboss', 'Soldat', 'GRH', 'Chef_Braquage', 'Business_Manager', 'Gang_Supervisor']), async (req, res) => {
     try {
         await new Justification({ username: req.user.username, reason: req.body.reason }).save();
         io.emit('requestUpdated'); res.json({ msg: "تم رفع تبرير الغياب بنجاح." });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/api/hr/requests', verifyAuth(['GRH']), async (req, res) => {
+app.get('/api/hr/requests', verifyAuth(['Underboss', 'GRH']), async (req, res) => {
     try {
         const leaves = await Leave.find({ status: 'Pending' });
         const justifications = await Justification.find({ status: 'Pending' });
@@ -826,7 +826,7 @@ app.get('/api/hr/requests', verifyAuth(['GRH']), async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/hr/action', verifyAuth(['GRH']), async (req, res) => {
+app.post('/api/hr/action', verifyAuth(['Underboss', 'GRH']), async (req, res) => {
     try {
         const { type, id, action } = req.body;
         if (type === 'leave') await Leave.findByIdAndUpdate(id, { status: action });
@@ -844,7 +844,7 @@ app.get('/api/settings/gta-map', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/settings/gta-map', verifyAuth(['Gang_Supervisor']), async (req, res) => {
+app.post('/api/settings/gta-map', verifyAuth(['Underboss', 'Gang_Supervisor']), async (req, res) => {
     try {
         const { url } = req.body;
         if (!url) return res.status(400).json({ error: "الرابط مطلوب." });
@@ -862,7 +862,7 @@ app.get('/api/gangs', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/gangs', verifyAuth(['Gang_Supervisor']), async (req, res) => {
+app.post('/api/gangs', verifyAuth(['Underboss', 'Gang_Supervisor']), async (req, res) => {
     try {
         const { name, radio_frequency, loyalty_percentage, notes, map_x, map_y } = req.body;
         if (!name) return res.status(400).json({ error: "اسم العصابة مطلوب." });
@@ -884,7 +884,7 @@ app.post('/api/gangs', verifyAuth(['Gang_Supervisor']), async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.put('/api/gangs/:id', verifyAuth(['Gang_Supervisor']), async (req, res) => {
+app.put('/api/gangs/:id', verifyAuth(['Underboss', 'Gang_Supervisor']), async (req, res) => {
     try {
         const { name, radio_frequency, loyalty_percentage, notes, map_x, map_y } = req.body;
         const gang = await Gang.findById(req.params.id);
@@ -905,7 +905,7 @@ app.put('/api/gangs/:id', verifyAuth(['Gang_Supervisor']), async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.delete('/api/gangs/:id', verifyAuth(['Gang_Supervisor']), async (req, res) => {
+app.delete('/api/gangs/:id', verifyAuth(['Underboss', 'Gang_Supervisor']), async (req, res) => {
     try {
         const deleted = await Gang.findByIdAndDelete(req.params.id);
         if (!deleted) return res.status(404).json({ error: "العصابة غير موجودة أو محذوفة مسبقاً." });
@@ -915,14 +915,14 @@ app.delete('/api/gangs/:id', verifyAuth(['Gang_Supervisor']), async (req, res) =
 });
 
 // ================== تحديث: الموافقة على أي حساب جديد معلّق (مافيا أو عصابة) — GRH أو الدون ==================
-app.get('/api/admin/pending-accounts', verifyAuth(['GRH']), async (req, res) => {
+app.get('/api/admin/pending-accounts', verifyAuth(['Underboss', 'GRH']), async (req, res) => {
     try {
         const pending = await User.find({ account_status: 'pending' }, 'username role gang_name discord_id timestamp');
         res.json(pending);
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/admin/pending-accounts/review', verifyAuth(['GRH']), async (req, res) => {
+app.post('/api/admin/pending-accounts/review', verifyAuth(['Underboss', 'GRH']), async (req, res) => {
     try {
         const { target_username, decision } = req.body;
         if (!['approve', 'reject'].includes(decision)) return res.status(400).json({ error: "قرار غير صالح." });
@@ -949,7 +949,7 @@ app.get('/api/gang-shop/items', async (req, res) => {
     catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/gang-shop/add-item', verifyAuth(['Business_Manager']), async (req, res) => {
+app.post('/api/gang-shop/add-item', verifyAuth(['Underboss', 'Business_Manager']), async (req, res) => {
     try {
         const { name, item_type, buy_price, sell_price, image_url } = req.body;
         const validTypes = ['buy_only', 'sell_only', 'both'];
@@ -971,7 +971,7 @@ app.post('/api/gang-shop/add-item', verifyAuth(['Business_Manager']), async (req
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.put('/api/gang-shop/item/:id', verifyAuth(['Business_Manager']), async (req, res) => {
+app.put('/api/gang-shop/item/:id', verifyAuth(['Underboss', 'Business_Manager']), async (req, res) => {
     try {
         const { name, item_type, buy_price, sell_price, image_url } = req.body;
         const item = await GangShopItem.findById(req.params.id);
@@ -999,7 +999,7 @@ app.put('/api/gang-shop/item/:id', verifyAuth(['Business_Manager']), async (req,
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.delete('/api/gang-shop/item/:id', verifyAuth(['Business_Manager']), async (req, res) => {
+app.delete('/api/gang-shop/item/:id', verifyAuth(['Underboss', 'Business_Manager']), async (req, res) => {
     try {
         await GangShopItem.findByIdAndDelete(req.params.id);
         io.emit('gangShopUpdated');
@@ -1066,12 +1066,12 @@ app.get('/api/gang-shop/my-orders', verifyAuth(['Gang_Member']), async (req, res
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/api/gang-shop/orders', verifyAuth(['Business_Manager']), async (req, res) => {
+app.get('/api/gang-shop/orders', verifyAuth(['Underboss', 'Business_Manager']), async (req, res) => {
     try { const orders = await GangOrder.find().sort({ timestamp: -1 }); res.json(orders); }
     catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/gang-shop/order/:id/confirm', verifyAuth(['Business_Manager']), async (req, res) => {
+app.post('/api/gang-shop/order/:id/confirm', verifyAuth(['Underboss', 'Business_Manager']), async (req, res) => {
     try {
         const order = await GangOrder.findById(req.params.id);
         if (!order || order.status !== 'Pending') return res.status(400).json({ error: "الطلب غير موجود أو تمت معالجته مسبقاً." });
@@ -1086,7 +1086,7 @@ app.post('/api/gang-shop/order/:id/confirm', verifyAuth(['Business_Manager']), a
 });
 
 // تحديث: رفض طلب مشبوه أو خاطئ (بدل إجباره على إما تأكيد أو تجاهله للأبد)
-app.post('/api/gang-shop/order/:id/reject', verifyAuth(['Business_Manager']), async (req, res) => {
+app.post('/api/gang-shop/order/:id/reject', verifyAuth(['Underboss', 'Business_Manager']), async (req, res) => {
     try {
         const { reason } = req.body;
         const order = await GangOrder.findById(req.params.id);
@@ -1100,7 +1100,7 @@ app.post('/api/gang-shop/order/:id/reject', verifyAuth(['Business_Manager']), as
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/api/gang-shop/treasury', verifyAuth(['Business_Manager']), async (req, res) => {
+app.get('/api/gang-shop/treasury', verifyAuth(['Underboss', 'Business_Manager']), async (req, res) => {
     try {
         const treasury = await GangTreasury.findOne({});
         const balance = treasury ? treasury.total_balance : 0;
