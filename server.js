@@ -97,6 +97,10 @@ const ItemSchema = new mongoose.Schema({
     name: { type: String, required: true },
     price: { type: Number, required: true },
     image_url: { type: String, default: 'https://placehold.co/150x150/0d0d0d/00ff66?text=Item' },
+    // تحديث: نظام المخزون وحدود الشراء
+    in_stock: { type: Boolean, default: true },
+    max_per_order: { type: Number, default: null }, // null = بدون حد لكل طلب
+    max_per_week: { type: Number, default: null },  // null = بدون حد أسبوعي لكل عضو
     created_by: String,
     timestamp: { type: Date, default: Date.now }
 });
@@ -172,6 +176,10 @@ const GangShopItemSchema = new mongoose.Schema({
     item_type: { type: String, enum: ['buy_only', 'sell_only', 'both'], default: 'both' },
     buy_price: { type: Number, default: null },  // السعر اللي يشتريه عضو العصابة من المافيا (يُستخدم لو buy_only أو both)
     sell_price: { type: Number, default: null }, // السعر اللي تشتريه المافيا من عضو العصابة (يُستخدم لو sell_only أو both)
+    // تحديث: نظام المخزون وحدود الشراء (تخص جهة الشراء من المافيا فقط)
+    in_stock: { type: Boolean, default: true },
+    max_per_order: { type: Number, default: null },
+    max_per_week: { type: Number, default: null },
     image_url: { type: String, default: 'https://placehold.co/150x150/1a1a1a/ffaa00?text=Item' },
     created_by: String,
     timestamp: { type: Date, default: Date.now }
@@ -198,6 +206,15 @@ const SystemSettingsSchema = new mongoose.Schema({
     gta_map_image_url: { type: String, default: 'https://placehold.co/1000x1000/111111/00ff66?text=Upload+Your+GTA+Map' }
 });
 
+// ================== تحديث: تتبع كمية شراء كل عضو من كل منتج هذا الأسبوع (لتطبيق حد "X قطع بالأسبوع") ==================
+// يُصفّر تلقائياً مع نفس زر "التصفير الشامل" اللي يصفّر الساعات، عشان يبقى مرتبط بنفس دورة الأسبوع
+const WeeklyPurchaseSchema = new mongoose.Schema({
+    username: String,
+    item_name: String,
+    shop_type: { type: String, enum: ['weapon_shop', 'gang_shop'] },
+    quantity_bought: { type: Number, default: 0 }
+});
+
 // ================== تحديث: سجل تدقيق (Audit Log) يوثق الموافقات وتغيير الرتب ==================
 const AuditLogSchema = new mongoose.Schema({
     action: String, // 'account_approved' | 'account_rejected' | 'role_changed' | 'password_reset'
@@ -211,6 +228,7 @@ const GangShopItem = mongoose.model('GangShopItem', GangShopItemSchema);
 const GangOrder = mongoose.model('GangOrder', GangOrderSchema);
 const GangTreasury = mongoose.model('GangTreasury', GangTreasurySchema);
 const SystemSettings = mongoose.model('SystemSettings', SystemSettingsSchema);
+const WeeklyPurchase = mongoose.model('WeeklyPurchase', WeeklyPurchaseSchema);
 const AuditLog = mongoose.model('AuditLog', AuditLogSchema);
 
 async function initSystemDB() {
@@ -492,8 +510,13 @@ app.get('/api/shop/items', async (req, res) => {
 
 app.post('/api/shop/add-item', verifyAuth(['Underboss', 'Business_Manager']), async (req, res) => {
     try {
-        const { name, price, image_url } = req.body;
-        const newItem = new Item({ name, price: Number(price), image_url, created_by: req.user.username });
+        const { name, price, image_url, in_stock, max_per_order, max_per_week } = req.body;
+        const newItem = new Item({
+            name, price: Number(price), image_url, created_by: req.user.username,
+            in_stock: in_stock !== undefined ? !!in_stock : true,
+            max_per_order: (max_per_order === '' || max_per_order === undefined || max_per_order === null) ? null : Number(max_per_order),
+            max_per_week: (max_per_week === '' || max_per_week === undefined || max_per_week === null) ? null : Number(max_per_week)
+        });
         await newItem.save();
         io.emit('shopUpdated');
         res.status(201).json({ msg: "تم إضافة الآيتم بنجاح إلى الشوب الرئاسي." });
@@ -502,10 +525,17 @@ app.post('/api/shop/add-item', verifyAuth(['Underboss', 'Business_Manager']), as
 
 app.put('/api/shop/item/:id', verifyAuth(['Underboss', 'Business_Manager']), async (req, res) => {
     try {
-        const { price } = req.body;
-        await Item.findByIdAndUpdate(req.params.id, { price: Number(price) });
+        const { name, price, image_url, in_stock, max_per_order, max_per_week } = req.body;
+        const update = {};
+        if (name !== undefined) update.name = name;
+        if (price !== undefined) update.price = Number(price);
+        if (image_url !== undefined) update.image_url = image_url;
+        if (in_stock !== undefined) update.in_stock = !!in_stock;
+        if (max_per_order !== undefined) update.max_per_order = (max_per_order === '' || max_per_order === null) ? null : Number(max_per_order);
+        if (max_per_week !== undefined) update.max_per_week = (max_per_week === '' || max_per_week === null) ? null : Number(max_per_week);
+        await Item.findByIdAndUpdate(req.params.id, update);
         io.emit('shopUpdated');
-        res.json({ msg: "تم تعديل السعر بنجاح." });
+        res.json({ msg: "تم تعديل المنتج بنجاح." });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -521,16 +551,50 @@ app.post('/api/shop/checkout', verifyAuth(['Underboss', 'Soldat', 'GRH', 'Chef_B
     try {
         const { items } = req.body;
         if (!items || items.length === 0) return res.status(400).json({ error: "السلة فارغة." });
-        
-        let total_price = 0;
-        const processedItems = items.map(i => {
-            const qty = i.quantity ? parseInt(i.quantity) : 1;
-            const itemTotal = Number(i.price) * qty;
-            total_price += itemTotal;
-            return { name: i.name, price: Number(i.price), quantity: qty, total: itemTotal };
-        });
 
-        const newOrder = new Order({ username: req.user.username, items: processedItems, total_price: total_price, status: 'Pending' });
+        const username = req.user.username;
+        let total_price = 0;
+        const processedItems = [];
+
+        // المرحلة 1: التحقق من كل المنتجات (المخزون، حد الطلب، حد الأسبوع) قبل أي تنفيذ فعلي
+        for (const i of items) {
+            const dbItem = await Item.findOne({ name: i.name });
+            if (!dbItem) return res.status(400).json({ error: `المنتج "${i.name}" غير موجود.` });
+            if (!dbItem.in_stock) return res.status(400).json({ error: `المنتج "${i.name}" نفذت كميته حالياً (Out of Stock).` });
+
+            const qty = Math.max(1, parseInt(i.quantity) || 1);
+            if (dbItem.max_per_order && qty > dbItem.max_per_order) {
+                return res.status(400).json({ error: `الحد الأقصى لمنتج "${i.name}" بالطلب الواحد هو ${dbItem.max_per_order} قطعة.` });
+            }
+
+            if (dbItem.max_per_week) {
+                const record = await WeeklyPurchase.findOne({ username, item_name: i.name, shop_type: 'weapon_shop' });
+                const alreadyBought = record ? record.quantity_bought : 0;
+                if (alreadyBought + qty > dbItem.max_per_week) {
+                    const remaining = Math.max(0, dbItem.max_per_week - alreadyBought);
+                    return res.status(400).json({ error: `وصلت للحد الأسبوعي لمنتج "${i.name}" (${dbItem.max_per_week} بالأسبوع). المتبقي لك: ${remaining}.` });
+                }
+            }
+
+            // تحديث أمني: نحسب السعر من قاعدة البيانات مباشرة، مو من رقم يرسله المتصفح
+            const itemTotal = dbItem.price * qty;
+            total_price += itemTotal;
+            processedItems.push({ name: dbItem.name, price: dbItem.price, quantity: qty, total: itemTotal, max_per_week: dbItem.max_per_week });
+        }
+
+        // المرحلة 2: كل المنتجات سليمة، الآن نطبّق حدود الأسبوع فعلياً وننشئ الطلب
+        for (const p of processedItems) {
+            if (p.max_per_week) {
+                await WeeklyPurchase.updateOne(
+                    { username, item_name: p.name, shop_type: 'weapon_shop' },
+                    { $inc: { quantity_bought: p.quantity } },
+                    { upsert: true }
+                );
+            }
+        }
+
+        const finalItems = processedItems.map(p => ({ name: p.name, price: p.price, quantity: p.quantity, total: p.total }));
+        const newOrder = new Order({ username, items: finalItems, total_price, status: 'Pending' });
         await newOrder.save();
         io.emit('ordersUpdated');
         res.json({ msg: "تم رفع طلبك للإدارة بنجاح، يرجى تسليم المبلغ داخل المدينة." });
@@ -709,9 +773,10 @@ app.post('/api/admin/reset-weekly-hours', verifyAuth(['Don']), async (req, res) 
         
         await User.updateMany({}, { weekly_hours: 0, duty_status: 'OFF-DUTY', total_heists: 0 }); 
         await WeeklyGoal.updateMany({}, { current_progress: 0 }); 
+        await WeeklyPurchase.deleteMany({}); // تحديث: تصفير حدود الشراء الأسبوعية لبدء أسبوع جديد
         
         io.emit('dutyUpdated'); io.emit('goalUpdated');
-        res.json({ msg: "تمت أرشفة الأسبوع بنجاح وتصفير الساعات والسرقات والهدف الأسبوعي لبدء دورة جديدة." });
+        res.json({ msg: "تمت أرشفة الأسبوع بنجاح وتصفير الساعات والسرقات والهدف الأسبوعي وحدود الشراء لبدء دورة جديدة." });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -951,7 +1016,7 @@ app.get('/api/gang-shop/items', async (req, res) => {
 
 app.post('/api/gang-shop/add-item', verifyAuth(['Underboss', 'Business_Manager']), async (req, res) => {
     try {
-        const { name, item_type, buy_price, sell_price, image_url } = req.body;
+        const { name, item_type, buy_price, sell_price, image_url, in_stock, max_per_order, max_per_week } = req.body;
         const validTypes = ['buy_only', 'sell_only', 'both'];
         const finalType = validTypes.includes(item_type) ? item_type : 'both';
 
@@ -963,6 +1028,9 @@ app.post('/api/gang-shop/add-item', verifyAuth(['Underboss', 'Business_Manager']
             name, item_type: finalType,
             buy_price: (finalType === 'buy_only' || finalType === 'both') ? Number(buy_price) : null,
             sell_price: (finalType === 'sell_only' || finalType === 'both') ? Number(sell_price) : null,
+            in_stock: in_stock !== undefined ? !!in_stock : true,
+            max_per_order: (max_per_order === '' || max_per_order === undefined || max_per_order === null) ? null : Number(max_per_order),
+            max_per_week: (max_per_week === '' || max_per_week === undefined || max_per_week === null) ? null : Number(max_per_week),
             image_url, created_by: req.user.username
         });
         await newItem.save();
@@ -973,12 +1041,15 @@ app.post('/api/gang-shop/add-item', verifyAuth(['Underboss', 'Business_Manager']
 
 app.put('/api/gang-shop/item/:id', verifyAuth(['Underboss', 'Business_Manager']), async (req, res) => {
     try {
-        const { name, item_type, buy_price, sell_price, image_url } = req.body;
+        const { name, item_type, buy_price, sell_price, image_url, in_stock, max_per_order, max_per_week } = req.body;
         const item = await GangShopItem.findById(req.params.id);
         if (!item) return res.status(404).json({ error: "المنتج غير موجود." });
 
         if (name !== undefined) item.name = name;
         if (image_url !== undefined) item.image_url = image_url;
+        if (in_stock !== undefined) item.in_stock = !!in_stock;
+        if (max_per_order !== undefined) item.max_per_order = (max_per_order === '' || max_per_order === null) ? null : Number(max_per_order);
+        if (max_per_week !== undefined) item.max_per_week = (max_per_week === '' || max_per_week === null) ? null : Number(max_per_week);
 
         const validTypes = ['buy_only', 'sell_only', 'both'];
         if (item_type !== undefined && validTypes.includes(item_type)) item.item_type = item_type;
@@ -1019,18 +1090,34 @@ app.post('/api/gang-shop/checkout', verifyAuth(['Gang_Member']), async (req, res
 
         const catalog = await GangShopItem.find();
         const findItem = (name) => catalog.find(c => c.name === name);
+        const username = req.user.username;
 
         let total_buy_value = 0;
-        const processedBought = (items_bought || []).map(i => {
+        const processedBought = [];
+        for (const i of (items_bought || [])) {
             const catalogItem = findItem(i.name);
             if (!catalogItem) throw new Error(`المنتج "${i.name}" غير موجود بالكتالوج.`);
             if (catalogItem.item_type === 'sell_only') throw new Error(`المنتج "${i.name}" غير متاح للشراء (خاص بالبيع فقط).`);
+            if (!catalogItem.in_stock) throw new Error(`المنتج "${i.name}" نفذت كميته حالياً (Out of Stock).`);
+
             const qty = Math.max(1, parseInt(i.quantity) || 1);
             if (qty > MAX_QTY_PER_LINE) throw new Error(`الكمية المطلوبة لـ "${i.name}" كبيرة جداً، تأكد من الرقم.`);
+            if (catalogItem.max_per_order && qty > catalogItem.max_per_order) {
+                throw new Error(`الحد الأقصى لمنتج "${i.name}" بالطلب الواحد هو ${catalogItem.max_per_order} قطعة.`);
+            }
+            if (catalogItem.max_per_week) {
+                const record = await WeeklyPurchase.findOne({ username, item_name: i.name, shop_type: 'gang_shop' });
+                const alreadyBought = record ? record.quantity_bought : 0;
+                if (alreadyBought + qty > catalogItem.max_per_week) {
+                    const remaining = Math.max(0, catalogItem.max_per_week - alreadyBought);
+                    throw new Error(`وصلت للحد الأسبوعي لمنتج "${i.name}" (${catalogItem.max_per_week} بالأسبوع). المتبقي لك: ${remaining}.`);
+                }
+            }
+
             const total = catalogItem.buy_price * qty;
             total_buy_value += total;
-            return { name: i.name, quantity: qty, unit_price: catalogItem.buy_price, total };
-        });
+            processedBought.push({ name: i.name, quantity: qty, unit_price: catalogItem.buy_price, total, max_per_week: catalogItem.max_per_week });
+        }
 
         let total_sell_value = 0;
         const processedSold = (items_sold || []).map(i => {
@@ -1047,10 +1134,22 @@ app.post('/api/gang-shop/checkout', verifyAuth(['Gang_Member']), async (req, res
         const net_amount = total_buy_value - total_sell_value;
         const user = await User.findOne({ username: req.user.username });
 
+        // تطبيق حدود الأسبوع فعلياً الآن (بعد التأكد إن كل شيء بالطلب سليم)
+        for (const p of processedBought) {
+            if (p.max_per_week) {
+                await WeeklyPurchase.updateOne(
+                    { username, item_name: p.name, shop_type: 'gang_shop' },
+                    { $inc: { quantity_bought: p.quantity } },
+                    { upsert: true }
+                );
+            }
+        }
+        const finalBought = processedBought.map(p => ({ name: p.name, quantity: p.quantity, unit_price: p.unit_price, total: p.total }));
+
         const newOrder = new GangOrder({
             gang_member_username: req.user.username,
             gang_name: user ? user.gang_name : '',
-            items_bought: processedBought, items_sold: processedSold,
+            items_bought: finalBought, items_sold: processedSold,
             total_buy_value, total_sell_value, net_amount, status: 'Pending'
         });
         await newOrder.save();
