@@ -28,6 +28,7 @@
         select[multiple] option:checked { background-color: rgba(0,255,102,0.3); color: var(--primary); }
         
         button { width: 100%; padding: 12px; background: transparent; border: 1px solid var(--primary); color: var(--primary); font-weight: bold; cursor: pointer; font-family: inherit; transition: 0.3s; }
+        button:disabled, input:disabled { opacity: 0.35; cursor: not-allowed; border-color: #444; color: #666; }
         button:hover { background: var(--primary); color: #000; }
         .btn-danger { border-color: var(--danger); color: var(--danger); }
         .btn-danger:hover { background: var(--danger); color: #000; }
@@ -65,7 +66,8 @@
         .item-card { background: #0a0a0a; border: 1px solid #222; padding: 15px; text-align: center; border-radius: 4px; transition: 0.3s; position: relative; }
         .item-card:hover { border-color: var(--primary); box-shadow: 0 0 10px rgba(0,255,102,0.2); }
         .item-card img { width: 100%; height: 130px; object-fit: cover; border-bottom: 1px solid #222; margin-bottom: 10px; }
-        .admin-controls { margin-top: 10px; display: flex; gap: 5px; justify-content: center; }
+        .admin-controls { margin-top: 10px; display: flex; gap: 5px; justify-content: center; flex-wrap: wrap; }
+        .out-of-stock-badge { position: absolute; top: 10px; left: 10px; background: var(--danger); color: #fff; padding: 3px 10px; font-size: 0.7rem; font-weight: bold; border-radius: 3px; z-index: 2; transform: rotate(-8deg); }
 
         /* Cart Styles */
         #cart-box { background: #111; border: 1px solid var(--warning); padding: 15px; margin-top: 20px; display: none; }
@@ -378,6 +380,8 @@
                     <div style="display:flex; gap:15px; flex-wrap:wrap;">
                         <input type="text" id="itm-name" placeholder="اسم الآيتم" style="flex:1; padding:10px; background:#000; border:1px solid #333; color:#fff;">
                         <input type="number" id="itm-price" placeholder="السعر ($)" style="flex:1; padding:10px; background:#000; border:1px solid #333; color:#fff;">
+                        <input type="number" id="itm-max-order" placeholder="أقصى كمية بالطلب (اختياري)" style="flex:1; padding:10px; background:#000; border:1px solid #333; color:#fff;">
+                        <input type="number" id="itm-max-week" placeholder="أقصى كمية أسبوعياً (اختياري)" style="flex:1; padding:10px; background:#000; border:1px solid #333; color:#fff;">
                         <input type="text" id="itm-img" placeholder="رابط صورة المنتج URL" style="flex:2; padding:10px; background:#000; border:1px solid #333; color:#fff;">
                         <input type="file" id="upload-itm-img" accept="image/*" style="display:none;" onchange="uploadImageFile(this, 'itm-img')">
                         <button type="button" onclick="document.getElementById('upload-itm-img').click()" style="width:auto; padding:0 15px;">📷 رفع صورة</button>
@@ -477,6 +481,8 @@
                             </select>
                             <input type="number" id="gs-buy-price" placeholder="سعر الشراء (من المافيا) $">
                             <input type="number" id="gs-sell-price" placeholder="سعر البيع (للمافيا) $">
+                            <input type="number" id="gs-max-order" placeholder="أقصى كمية بالطلب (اختياري)">
+                            <input type="number" id="gs-max-week" placeholder="أقصى كمية أسبوعياً (اختياري)">
                             <input type="text" id="gs-img" placeholder="رابط الصورة (اختياري)">
                             <input type="file" id="upload-gs-img" accept="image/*" style="display:none;" onchange="uploadImageFile(this, 'gs-img')">
                             <button type="button" onclick="document.getElementById('upload-gs-img').click()" style="width:auto; padding:0 15px;">📷 رفع صورة</button>
@@ -622,6 +628,22 @@
         function formatMoneyFrontend(amount) {
             if (!amount) return '0';
             return amount.toLocaleString('en-US');
+        }
+
+        // تحديث: تنسيق واضح "X ساعة و Y دقيقة" بدل الصيغة العشرية (4.98) اللي كانت تلخبط البعض
+        // (الرقم بعد الفاصلة كسر عشري من الساعة، مو دقائق مباشرة — هذا التنسيق يشيل اللخبطة نهائياً)
+        function formatHoursMinutes(totalMinutes) {
+            const mins = Math.round(Number(totalMinutes) || 0);
+            const h = Math.floor(mins / 60);
+            const m = mins % 60;
+            return `${h} ساعة و ${m} دقيقة`;
+        }
+
+        // تحديث: تنسيق تاريخ/وقت بأرقام عادية (0-9) دائماً، بدل الاعتماد على locale 'ar-EG' اللي كان يطلع أرقام هندية أحياناً
+        function formatDateTime(dateInput) {
+            const d = new Date(dateInput);
+            const pad = n => String(n).padStart(2, '0');
+            return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
         }
 
         // ================== تحديث: تنظيف أي نص قادم من المستخدم قبل عرضه (حماية من XSS) ==================
@@ -826,15 +848,28 @@
                 const price = gmMode === 'buy' ? itm.buy_price : itm.sell_price;
                 const qty = gmMode === 'buy' ? gmCart[itm.name].buyQty : gmCart[itm.name].sellQty;
                 const colorClass = gmMode === 'buy' ? 'gs-buy-color' : 'gs-sell-color';
+
+                // تحديث: المخزون وحدود الطلب/الأسبوع تخص جهة الشراء من المافيا فقط
+                const isOutOfStock = gmMode === 'buy' && !itm.in_stock;
+                const outOfStockOverlay = isOutOfStock ? `<div class="out-of-stock-badge">نفذت الكمية</div>` : '';
+                const disabledAttr = isOutOfStock ? 'disabled' : '';
+                let limitsHtml = '';
+                if(gmMode === 'buy') {
+                    if(itm.max_per_order) limitsHtml += `<div style="font-size:0.7rem; color:#888;">أقصى بالطلب: ${itm.max_per_order}</div>`;
+                    if(itm.max_per_week) limitsHtml += `<div style="font-size:0.7rem; color:#888;">أقصى بالأسبوع: ${itm.max_per_week}</div>`;
+                }
+
                 container.innerHTML += `
-                    <div class="item-card">
-                        <img src="${itm.image_url}" onerror="this.src='https://placehold.co/150x150/1a1a1a/ffaa00?text=Item'">
+                    <div class="item-card" style="position:relative;">
+                        ${outOfStockOverlay}
+                        <img src="${itm.image_url}" onerror="this.src='https://placehold.co/150x150/1a1a1a/ffaa00?text=Item'" style="${isOutOfStock ? 'opacity:0.4;' : ''}">
                         <strong>${escapeHtml(itm.name)}</strong>
                         <span class="gm-price-big ${colorClass}">${formatMoneyFrontend(price)}$</span>
+                        ${limitsHtml}
                         <div class="gm-qty-control">
-                            <button type="button" onclick="adjustGmQty('${escapeJsStr(itm.name)}', -1)">−</button>
-                            <input type="number" min="0" max="100000" value="${qty}" onchange="setGmQty('${escapeJsStr(itm.name)}', this.value)">
-                            <button type="button" onclick="adjustGmQty('${escapeJsStr(itm.name)}', 1)">+</button>
+                            <button type="button" onclick="adjustGmQty('${escapeJsStr(itm.name)}', -1)" ${disabledAttr}>−</button>
+                            <input type="number" min="0" max="100000" value="${qty}" onchange="setGmQty('${escapeJsStr(itm.name)}', this.value)" ${disabledAttr}>
+                            <button type="button" onclick="adjustGmQty('${escapeJsStr(itm.name)}', 1)" ${disabledAttr}>+</button>
                         </div>
                     </div>`;
             });
@@ -922,7 +957,7 @@
                     const boughtStr = o.items_bought.length ? o.items_bought.map(i => `${escapeHtml(i.quantity)}x ${escapeHtml(i.name)}`).join(', ') : '-';
                     const soldStr = o.items_sold.length ? o.items_sold.map(i => `${escapeHtml(i.quantity)}x ${escapeHtml(i.name)}`).join(', ') : '-';
                     const netColor = o.net_amount >= 0 ? 'var(--danger)' : 'var(--primary)';
-                    const dateStr = new Date(o.timestamp).toLocaleDateString('ar-EG');
+                    const dateStr = formatDateTime(o.timestamp);
                     let statusText = '⏳ معلّق';
                     if(o.status === 'Confirmed') statusText = '✔️ مؤكد';
                     else if(o.status === 'Rejected') statusText = `❌ مرفوض${o.rejection_reason ? ' - ' + escapeHtml(o.rejection_reason) : ''}`;
@@ -1098,12 +1133,12 @@
                 const lbBody = document.querySelector('#tbl-leaderboard tbody');
                 lbBody.innerHTML = '';
                 data.leaderboard.forEach((u, i) => {
-                    const hrs = (u.hours / 60).toFixed(2);
+                    const hrs = formatHoursMinutes(u.hours);
                     lbBody.innerHTML += `<tr>
                         <td><b>#${i+1}</b></td>
                         <td>${escapeHtml(u.username)}</td>
                         <td>${escapeHtml(u.role)}</td>
-                        <td style="color:var(--primary);">${hrs} ساعة</td>
+                        <td style="color:var(--primary);">${hrs}</td>
                         <td><span style="color:${u.duty_status === 'ON-DUTY' ? 'var(--primary)' : 'var(--danger)'}">${u.duty_status}</span></td>
                     </tr>`;
                 });
@@ -1122,11 +1157,11 @@
                 const slackBody = document.querySelector('#tbl-slacking tbody');
                 slackBody.innerHTML = '';
                 data.slacking.forEach(u => {
-                    const hrs = (u.hours / 60).toFixed(2);
+                    const hrs = formatHoursMinutes(u.hours);
                     slackBody.innerHTML += `<tr>
                         <td>${escapeHtml(u.username)}</td>
                         <td>${escapeHtml(u.role)}</td>
-                        <td style="color:var(--danger);">${hrs} ساعة</td>
+                        <td style="color:var(--danger);">${hrs}</td>
                     </tr>`;
                 });
             } catch(err) { console.error("Error loading Leaderboards:", err); }
@@ -1367,52 +1402,83 @@
                         <td><span style="color:${l.status === 'Win'?'var(--primary)':'var(--danger)'}">${l.status}</span></td>
                         <td style="font-size:0.8rem;">${l.participants.map(escapeHtml).join(', ')}</td>
                         <td style="${valStyle}"><b>${formatMoneyFrontend(l.total_value)}$</b></td>
-                        <td style="font-size:0.75rem;">${new Date(l.timestamp).toLocaleString('en-GB')}</td>
+                        <td style="font-size:0.75rem;">${formatDateTime(l.timestamp)}</td>
                     </tr>`;
                 });
             } catch(err) { console.error(err); }
         }
 
         // ================== نظام الشوب المالي والسلة والفواتير ==================
+        let shopAdminCatalog = [];
+
         async function loadShopItems() {
             try {
                 const res = await fetch('/api/shop/items');
-                const items = await res.json();
+                shopAdminCatalog = await res.json();
                 const container = document.getElementById('shop-items-container');
                 container.innerHTML = '';
                 
-                items.forEach(itm => {
+                shopAdminCatalog.forEach(itm => {
                     let adminControlsHtml = '';
-                    // تعديل 1: سحب صلاحيات التعديل والحذف من الشيف، حصرها بالبيزنس مانجر والدون
-                    if(['Business_Manager', 'Don'].includes(userData?.role)) {
+                    // تحديث: Underboss صار عنده نفس صلاحية Business_Manager بإدارة الشوب
+                    if(['Underboss', 'Business_Manager', 'Don'].includes(userData?.role)) {
+                        const stockBtnLabel = itm.in_stock ? '🚫 نفذت الكمية' : '✅ توفير الكمية';
                         adminControlsHtml = `
                             <div class="admin-controls">
-                                <button onclick="editItemPrice('${itm._id}')" class="btn-warning" style="padding:4px 8px; font-size:0.75rem;">تعديل</button>
+                                <button onclick="editShopItem('${itm._id}')" class="btn-warning" style="padding:4px 8px; font-size:0.75rem;">تعديل</button>
+                                <button onclick="toggleShopItemStock('${itm._id}', ${itm.in_stock})" class="btn-warning" style="padding:4px 8px; font-size:0.75rem;">${stockBtnLabel}</button>
                                 <button onclick="deleteItemFromShop('${itm._id}')" class="btn-danger" style="padding:4px 8px; font-size:0.75rem;">حذف</button>
                             </div>`;
                     }
 
+                    const limitsHtml = `
+                        ${itm.max_per_order ? `<div style="font-size:0.7rem; color:#888;">أقصى بالطلب: ${itm.max_per_order}</div>` : ''}
+                        ${itm.max_per_week ? `<div style="font-size:0.7rem; color:#888;">أقصى بالأسبوع: ${itm.max_per_week}</div>` : ''}`;
+
+                    const outOfStockOverlay = !itm.in_stock ? `<div class="out-of-stock-badge">نفذت الكمية</div>` : '';
+                    const disabledAttr = !itm.in_stock ? 'disabled' : '';
+
                     container.innerHTML += `
-                        <div class="item-card">
-                            <img src="${itm.image_url}" onerror="this.src='https://placehold.co/150x150/0d0d0d/00ff66?text=Item'">
+                        <div class="item-card" style="position:relative;">
+                            ${outOfStockOverlay}
+                            <img src="${itm.image_url}" onerror="this.src='https://placehold.co/150x150/0d0d0d/00ff66?text=Item'" style="${!itm.in_stock ? 'opacity:0.4;' : ''}">
                             <strong style="display:block; margin-bottom:5px;">${escapeHtml(itm.name)}</strong>
                             <span style="color:gold; font-weight:bold; display:block;">${formatMoneyFrontend(itm.price)}$</span>
+                            ${limitsHtml}
                             <div class="qty-selector">
-                                <button type="button" onclick="adjustCardQty('${itm._id}', -1)">−</button>
-                                <input type="number" id="qty-${itm._id}" value="1" min="1">
-                                <button type="button" onclick="adjustCardQty('${itm._id}', 1)">+</button>
+                                <button type="button" onclick="adjustCardQty('${itm._id}', -1)" ${disabledAttr}>−</button>
+                                <input type="number" id="qty-${itm._id}" value="1" min="1" ${disabledAttr}>
+                                <button type="button" onclick="adjustCardQty('${itm._id}', 1)" ${disabledAttr}>+</button>
                             </div>
-                            <button onclick="addToCart('${escapeJsStr(itm.name)}', ${itm.price}, '${itm._id}')" style="padding:5px; font-size:0.8rem; margin-top:10px;">إضافة للسلة</button>
+                            <button onclick="addToCart('${escapeJsStr(itm.name)}', ${itm.price}, '${itm._id}')" style="padding:5px; font-size:0.8rem; margin-top:10px;" ${disabledAttr}>${itm.in_stock ? 'إضافة للسلة' : 'نفذت الكمية'}</button>
                             ${adminControlsHtml}
                         </div>`;
                 });
             } catch(err) { console.error(err); }
         }
 
+        function toggleShopItemStock(id, currentlyInStock) {
+            customConfirm(currentlyInStock ? "تأكيد: تحديد هذا المنتج كـ (نفذت الكمية)؟" : "تأكيد: توفير هذا المنتج للبيع مجدداً؟", async (yes) => {
+                if(!yes) return;
+                try {
+                    const res = await fetch(`/api/shop/item/${id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` },
+                        body: JSON.stringify({ in_stock: !currentlyInStock })
+                    });
+                    const data = await res.json();
+                    if(!res.ok) throw new Error(data.error);
+                    customAlert(data.msg);
+                } catch(err) { customAlert(err.message); }
+            });
+        }
+
         async function addItemToShop() {
             const name = document.getElementById('itm-name').value.trim();
             const price = document.getElementById('itm-price').value;
             const image_url = document.getElementById('itm-img').value.trim();
+            const max_per_order = document.getElementById('itm-max-order').value;
+            const max_per_week = document.getElementById('itm-max-week').value;
 
             if(!name || !price) return customAlert("الاسم والسعر مطلوبان لإضافة السلاح أو التجهيز.");
 
@@ -1420,7 +1486,7 @@
                 const res = await fetch('/api/shop/add-item', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` },
-                    body: JSON.stringify({ name, price, image_url })
+                    body: JSON.stringify({ name, price, image_url, max_per_order, max_per_week })
                 });
                 const data = await res.json();
                 if(!res.ok) throw new Error(data.error);
@@ -1428,23 +1494,63 @@
                 document.getElementById('itm-name').value = '';
                 document.getElementById('itm-price').value = '';
                 document.getElementById('itm-img').value = '';
+                document.getElementById('itm-max-order').value = '';
+                document.getElementById('itm-max-week').value = '';
             } catch(err) { customAlert(err.message); }
         }
 
-        function editItemPrice(id) {
-            customPrompt("أدخل السعر الجديد للمنتج ($):", async (newPrice) => {
-                if(!newPrice || isNaN(newPrice)) return;
-                try {
-                    const res = await fetch(`/api/shop/item/${id}`, {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` },
-                        body: JSON.stringify({ price: newPrice })
-                    });
-                    const data = await res.json();
-                    if(!res.ok) throw new Error(data.error);
-                    customAlert(data.msg);
-                } catch(err) { customAlert(err.message); }
-            });
+        function editShopItem(id) {
+            const itm = shopAdminCatalog.find(i => i._id === id);
+            if(!itm) return;
+
+            document.getElementById('gang-modal-title').innerText = `✏️ تعديل: ${itm.name}`;
+            document.getElementById('gang-modal-body').innerHTML = `
+                <div class="input-group"><label>اسم المنتج:</label><input type="text" id="ed-itm-name" value="${escapeHtml(itm.name)}"></div>
+                <div class="input-group"><label>السعر ($):</label><input type="number" id="ed-itm-price" value="${itm.price}"></div>
+                <div class="input-group"><label>أقصى كمية بالطلب الواحد (اتركه فاضي = بدون حد):</label><input type="number" id="ed-itm-max-order" value="${itm.max_per_order ?? ''}"></div>
+                <div class="input-group"><label>أقصى كمية أسبوعياً للعضو الواحد (اتركه فاضي = بدون حد):</label><input type="number" id="ed-itm-max-week" value="${itm.max_per_week ?? ''}"></div>
+                <div class="input-group"><label>رابط الصورة:</label><input type="text" id="ed-itm-img" value="${escapeHtml(itm.image_url || '')}"></div>
+                <input type="file" id="upload-ed-itm-img" accept="image/*" style="display:none;" onchange="uploadImageFile(this, 'ed-itm-img')">
+                <button type="button" onclick="document.getElementById('upload-ed-itm-img').click()" style="width:auto; padding:8px 15px;">📷 رفع صورة جديدة</button>
+            `;
+
+            const actionsEl = document.getElementById('gang-modal-actions');
+            actionsEl.innerHTML = '';
+            const saveBtn = document.createElement('button');
+            saveBtn.className = 'btn-success';
+            saveBtn.innerText = 'حفظ التعديلات';
+            saveBtn.onclick = () => saveShopItemEdit(id);
+            actionsEl.appendChild(saveBtn);
+            const cancelBtn = document.createElement('button');
+            cancelBtn.className = 'btn-danger';
+            cancelBtn.innerText = 'إلغاء';
+            cancelBtn.onclick = closeGangModal;
+            actionsEl.appendChild(cancelBtn);
+
+            document.getElementById('gang-modal-overlay').style.display = 'flex';
+        }
+
+        async function saveShopItemEdit(id) {
+            const name = document.getElementById('ed-itm-name').value.trim();
+            const price = document.getElementById('ed-itm-price').value;
+            const max_per_order = document.getElementById('ed-itm-max-order').value;
+            const max_per_week = document.getElementById('ed-itm-max-week').value;
+            const image_url = document.getElementById('ed-itm-img').value.trim();
+
+            if(!name || !price || isNaN(price)) return customAlert("الاسم والسعر مطلوبان.");
+
+            try {
+                const res = await fetch(`/api/shop/item/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` },
+                    body: JSON.stringify({ name, price, max_per_order, max_per_week, image_url })
+                });
+                const data = await res.json();
+                if(!res.ok) throw new Error(data.error);
+                customAlert(data.msg);
+                closeGangModal();
+                loadShopItems();
+            } catch(err) { customAlert(err.message); }
         }
 
         function deleteItemFromShop(id) {
@@ -2052,7 +2158,7 @@
                     return;
                 }
                 logs.forEach(l => {
-                    const dateStr = new Date(l.timestamp).toLocaleString('ar-EG');
+                    const dateStr = formatDateTime(l.timestamp);
                     tbody.innerHTML += `<tr>
                         <td>${AUDIT_ACTION_LABELS[l.action] || escapeHtml(l.action)}</td>
                         <td>${escapeHtml(l.target_username)}</td>
@@ -2082,19 +2188,44 @@
                     if(itm.item_type === 'buy_only' || itm.item_type === 'both') priceHtml += `<span style="color:var(--primary); display:block; font-size:0.85rem;">شراء: ${formatMoneyFrontend(itm.buy_price)}$</span>`;
                     if(itm.item_type === 'sell_only' || itm.item_type === 'both') priceHtml += `<span style="color:var(--danger); display:block; font-size:0.85rem;">بيع: ${formatMoneyFrontend(itm.sell_price)}$</span>`;
 
+                    const limitsHtml = `
+                        ${itm.max_per_order ? `<div style="font-size:0.7rem; color:#888;">أقصى بالطلب: ${itm.max_per_order}</div>` : ''}
+                        ${itm.max_per_week ? `<div style="font-size:0.7rem; color:#888;">أقصى بالأسبوع: ${itm.max_per_week}</div>` : ''}`;
+                    const outOfStockOverlay = !itm.in_stock ? `<div class="out-of-stock-badge">نفذت الكمية</div>` : '';
+                    const stockBtnLabel = itm.in_stock ? '🚫 نفذت الكمية' : '✅ توفير الكمية';
+
                     container.innerHTML += `
-                        <div class="item-card">
-                            <img src="${itm.image_url}" onerror="this.src='https://placehold.co/150x150/1a1a1a/ffaa00?text=Item'">
+                        <div class="item-card" style="position:relative;">
+                            ${outOfStockOverlay}
+                            <img src="${itm.image_url}" onerror="this.src='https://placehold.co/150x150/1a1a1a/ffaa00?text=Item'" style="${!itm.in_stock ? 'opacity:0.4;' : ''}">
                             <strong style="display:block; margin-bottom:5px;">${escapeHtml(itm.name)}</strong>
                             <span style="color:#888; font-size:0.75rem; display:block; margin-bottom:5px;">${typeLabel}</span>
                             ${priceHtml}
+                            ${limitsHtml}
                             <div class="admin-controls">
                                 <button onclick="editGangShopItem('${itm._id}')" class="btn-warning" style="padding:4px 8px; font-size:0.75rem;">تعديل</button>
+                                <button onclick="toggleGangShopItemStock('${itm._id}', ${itm.in_stock})" class="btn-warning" style="padding:4px 8px; font-size:0.75rem;">${stockBtnLabel}</button>
                                 <button onclick="deleteGangShopItem('${itm._id}')" class="btn-danger" style="padding:4px 8px; font-size:0.75rem;">حذف</button>
                             </div>
                         </div>`;
                 });
             } catch(err) { console.error(err); }
+        }
+
+        function toggleGangShopItemStock(id, currentlyInStock) {
+            customConfirm(currentlyInStock ? "تأكيد: تحديد هذا المنتج كـ (نفذت الكمية)؟" : "تأكيد: توفير هذا المنتج للشراء مجدداً؟", async (yes) => {
+                if(!yes) return;
+                try {
+                    const res = await fetch(`/api/gang-shop/item/${id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` },
+                        body: JSON.stringify({ in_stock: !currentlyInStock })
+                    });
+                    const data = await res.json();
+                    if(!res.ok) throw new Error(data.error);
+                    customAlert(data.msg);
+                } catch(err) { customAlert(err.message); }
+            });
         }
 
         function toggleGsPriceFields() {
@@ -2108,6 +2239,8 @@
             const item_type = document.getElementById('gs-type').value;
             const buy_price = document.getElementById('gs-buy-price').value;
             const sell_price = document.getElementById('gs-sell-price').value;
+            const max_per_order = document.getElementById('gs-max-order').value;
+            const max_per_week = document.getElementById('gs-max-week').value;
             const image_url = document.getElementById('gs-img').value.trim();
 
             if(!name) return customAlert("اسم المنتج مطلوب.");
@@ -2118,7 +2251,7 @@
                 const res = await fetch('/api/gang-shop/add-item', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` },
-                    body: JSON.stringify({ name, item_type, buy_price, sell_price, image_url })
+                    body: JSON.stringify({ name, item_type, buy_price, sell_price, max_per_order, max_per_week, image_url })
                 });
                 const data = await res.json();
                 if(!res.ok) throw new Error(data.error);
@@ -2126,6 +2259,8 @@
                 document.getElementById('gs-name').value = '';
                 document.getElementById('gs-buy-price').value = '';
                 document.getElementById('gs-sell-price').value = '';
+                document.getElementById('gs-max-order').value = '';
+                document.getElementById('gs-max-week').value = '';
                 document.getElementById('gs-img').value = '';
             } catch(err) { customAlert(err.message); }
         }
@@ -2148,6 +2283,8 @@
                 </div>
                 <div class="input-group" id="ed-gs-buy-group"><label>سعر الشراء (من المافيا) $:</label><input type="number" id="ed-gs-buy-price" value="${itm.buy_price || ''}"></div>
                 <div class="input-group" id="ed-gs-sell-group"><label>سعر البيع (للمافيا) $:</label><input type="number" id="ed-gs-sell-price" value="${itm.sell_price || ''}"></div>
+                <div class="input-group"><label>أقصى كمية بالطلب الواحد (اتركه فاضي = بدون حد):</label><input type="number" id="ed-gs-max-order" value="${itm.max_per_order ?? ''}"></div>
+                <div class="input-group"><label>أقصى كمية أسبوعياً للعضو الواحد (اتركه فاضي = بدون حد):</label><input type="number" id="ed-gs-max-week" value="${itm.max_per_week ?? ''}"></div>
                 <div class="input-group"><label>رابط الصورة:</label><input type="text" id="ed-gs-img" value="${escapeHtml(itm.image_url || '')}"></div>
                 <input type="file" id="upload-ed-gs-img" accept="image/*" style="display:none;" onchange="uploadImageFile(this, 'ed-gs-img')">
                 <button type="button" onclick="document.getElementById('upload-ed-gs-img').click()" style="width:auto; padding:8px 15px;">📷 رفع صورة جديدة</button>
@@ -2181,6 +2318,8 @@
             const item_type = document.getElementById('ed-gs-type').value;
             const buy_price = document.getElementById('ed-gs-buy-price').value;
             const sell_price = document.getElementById('ed-gs-sell-price').value;
+            const max_per_order = document.getElementById('ed-gs-max-order').value;
+            const max_per_week = document.getElementById('ed-gs-max-week').value;
             const image_url = document.getElementById('ed-gs-img').value.trim();
 
             if(!name) return customAlert("اسم المنتج مطلوب.");
@@ -2191,7 +2330,7 @@
                 const res = await fetch(`/api/gang-shop/item/${id}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` },
-                    body: JSON.stringify({ name, item_type, buy_price, sell_price, image_url })
+                    body: JSON.stringify({ name, item_type, buy_price, sell_price, max_per_order, max_per_week, image_url })
                 });
                 const data = await res.json();
                 if(!res.ok) throw new Error(data.error);
@@ -2414,7 +2553,7 @@
                     tbody.innerHTML += `<tr>
                         <td>${escapeHtml(u.username)}</td>
                         <td><span style="color:gold;">${escapeHtml(u.role)}</span></td>
-                        <td>${(u.weekly_hours / 60).toFixed(2)} س</td>
+                        <td>${formatHoursMinutes(u.weekly_hours)}</td>
                         <td style="color:${u.warnings > 0 ? 'var(--danger)':'#fff'}">${u.warnings}</td>
                         <td><span style="color:${u.is_blacklisted?'red':'var(--primary)'}">${u.is_blacklisted ? 'BANNED' : u.duty_status}</span></td>
                         <td>
@@ -2449,8 +2588,9 @@
         // تحديث: تصحيح ساعات عضو يدوياً — حل مشكلة نسيان بصمة الخروج (يصير متصدر وهمي باللوحة)
         // يرجّع العضو OFF-DUTY تلقائياً بنفس العملية
         function adjustMemberHours(username, currentMinutes) {
-            const currentHours = (currentMinutes / 60).toFixed(2);
-            customPrompt(`الساعات الحالية لـ "${username}": ${currentHours} ساعة.\nأدخل الرقم الصحيح (بالساعات):`, async (newHours) => {
+            const currentDisplay = formatHoursMinutes(currentMinutes);
+            const currentHoursDecimal = (currentMinutes / 60).toFixed(2);
+            customPrompt(`الساعات الحالية لـ "${username}": ${currentDisplay} (= ${currentHoursDecimal} بالصيغة العشرية).\nأدخل الرقم الصحيح بالساعات (مثال: 4.5 يعني 4 ساعات ونص):`, async (newHours) => {
                 if(newHours === null || newHours === '' || isNaN(newHours) || Number(newHours) < 0) return customAlert("رقم غير صالح، لم يتم التغيير.");
                 try {
                     const res = await fetch('/api/admin/adjust-hours', {
@@ -2604,10 +2744,10 @@
                 container.innerHTML = archives.length === 0 ? '<p style="color:#555;">سجل الأرشيف فارغ تماماً حتى الآن.</p>' : '';
                 
                 archives.forEach((arc, index) => {
-                    let recordsHtml = arc.records.map(r => `<li>${escapeHtml(r.username)} (${escapeHtml(r.role)}): ${(r.weekly_hours/60).toFixed(2)} ساعة دوام</li>`).join('');
+                    let recordsHtml = arc.records.map(r => `<li>${escapeHtml(r.username)} (${escapeHtml(r.role)}): ${formatHoursMinutes(r.weekly_hours)}</li>`).join('');
                     container.innerHTML += `
                         <div class="card" style="border-color:var(--purple);">
-                            <strong>📦 أسبوع مؤرشف بتاريخ: ${new Date(arc.week_date).toLocaleString('en-GB')}</strong>
+                            <strong>📦 أسبوع مؤرشف بتاريخ: ${formatDateTime(arc.week_date)}</strong>
                             <ul style="margin:10px 0; padding-right:20px; font-size:0.85rem; color:#aaa;">${recordsHtml}</ul>
                         </div>`;
                 });
