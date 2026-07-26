@@ -1273,4 +1273,4 @@ async function cleanupExpiredWarnings() {
 setInterval(cleanupExpiredWarnings, 3600000);
 cleanupExpiredWarnings();
 
-server.listen(PORT, () => console.log("[CORTEZ] Server v8.0 - Notes & Attendance & Inventory Update running on port " + PORT + ")")));
+server.listen(PORT, () => console.log("[CORTEZ] Server v8.0 - Notes & Attendance & Inventory Update running on port " + PORT + ""));
