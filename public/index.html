@@ -476,6 +476,14 @@
                         <tbody></tbody>
                     </table></div>
                 </div>
+
+                <div class="card" style="margin-top:20px; border-color:var(--primary);">
+                    <h3 style="color:var(--primary);">📋 جميع الملاحظات (إدارة)</h3>
+                    <div class="table-scroll-wrap"><table id="tbl-all-notes">
+                        <thead><tr><th>العضو</th><th>السبب</th><th>بواسطة</th><th>المبلغ</th><th>تلقائي</th><th>التاريخ</th><th>إجراء</th></tr></thead>
+                        <tbody></tbody>
+                    </table></div>
+                </div>
             </div>
         </div>
     </div>
@@ -1123,6 +1131,7 @@
             if(['Don', 'Underboss', 'GRH'].includes(userData.role)) {
                 loadPendingAccounts();
                 loadAuditLog();
+                loadAllNotes();
             }
         }
 
@@ -2107,6 +2116,49 @@
             });
         }
 
+        async function deleteNote(noteId) {
+            customConfirm("هل أنت متأكد من حذف هذه الملاحظة؟", async (yes) => {
+                if(!yes) return;
+                try {
+                    const res = await fetch(`/api/notes/${noteId}`, {
+                        method: 'DELETE',
+                        headers: { 'Authorization': `Bearer ${userToken}` }
+                    });
+                    const data = await res.json();
+                    if(!res.ok) throw new Error(data.error);
+                    customAlert(data.msg);
+                    loadAllNotes();
+                } catch(err) { customAlert(err.message); }
+            });
+        }
+
+        async function loadAllNotes() {
+            if(!userToken) return;
+            try {
+                const res = await fetch('/api/notes/all', { headers: { 'Authorization': `Bearer ${userToken}` } });
+                const notes = await res.json();
+                const tbody = document.querySelector('#tbl-all-notes tbody');
+                if(!tbody) return;
+                tbody.innerHTML = '';
+
+                if(notes.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" style="color:#555;">لا توجد ملاحظات.</td></tr>';
+                    return;
+                }
+                notes.forEach(n => {
+                    tbody.innerHTML += `<tr>
+                        <td>${escapeHtml(n.username)}</td>
+                        <td style="font-size:0.85rem;">${escapeHtml(n.reason)}</td>
+                        <td>${escapeHtml(n.issued_by)}</td>
+                        <td style="color:${n.bill_amount > 0 ? 'var(--danger)' : '#666'};">${n.bill_amount > 0 ? formatMoneyFrontend(n.bill_amount) + '$' : '-'}</td>
+                        <td>${n.is_auto ? '🤖 نعم' : '✋ يدوي'}</td>
+                        <td style="font-size:0.8rem;">${formatDateTime(n.timestamp)}</td>
+                        <td><button class="btn-danger" style="width:auto; padding:3px 8px; font-size:0.7rem;" onclick="deleteNote('${n._id}')">🗑️ حذف</button></td>
+                    </tr>`;
+                });
+            } catch(err) { console.error(err); }
+        }
+
         async function loadWarnedUsers() {
             if(!userToken) return;
             try {
@@ -2354,7 +2406,11 @@
         socket.on('ordersUpdated', () => { if(userToken && ['Don', 'Underboss', 'GRH', 'Business_Manager', 'Chef_Braquage'].includes(userData?.role)) loadOrdersData(); });
         socket.on('treasuryUpdated', () => { if(userToken && ['Don', 'Underboss', 'GRH', 'Business_Manager'].includes(userData?.role)) loadTreasuryBalance(); });
         socket.on('requestUpdated', () => { if(userToken && ['Don', 'Underboss', 'GRH', 'Business_Manager'].includes(userData?.role)) loadHRRequests(); });
-        socket.on('notesUpdated', () => { if(userToken) loadMyNotes(); });
+        socket.on('notesUpdated', () => {
+            if(!userToken) return;
+            loadMyNotes();
+            if(['Don','Underboss','GRH'].includes(userData?.role)) loadAllNotes();
+        });
         socket.on('inventoryUpdated', () => { if(userToken) loadInventoryItems(); });
         socket.on('attendanceUpdated', () => { if(userToken) loadAttendance(); });
 
