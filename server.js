@@ -78,6 +78,10 @@ function isInDutyTimeWindow() {
     return totalMinutes >= 1320 || totalMinutes <= 240;
 }
 
+// ================== تحديث v8.0: نص الملاحظة الأوتوماتيكية للتغيب عن ON-DUTY ==================
+// يمكنك تغيير هذا النص كما يحلو لك
+const MISSED_DUTY_NOTE_TEXT = "تم تسجيل غياب - لم يسجل ON-DUTY في الفترة المسموحة";
+
 // ---------------- المخططات (Schemas) ----------------
 const UserSchema = new mongoose.Schema({
     username: { type: String, required: true, unique: true },
@@ -94,6 +98,7 @@ const UserSchema = new mongoose.Schema({
     // تحديث: تاريخ كل إنذار على حدة، تُستخدم لحذف الإنذارات تلقائياً بعد مرور شهر عليها
     warning_dates: { type: [Date], default: [] },
     is_blacklisted: { type: Boolean, default: false },
+    consecutive_misses: { type: Number, default: 0 },
     total_heists: { type: Number, default: 0 },
     // تحديث v7.7: تتبع الغرامات المالية للعضو
     fine_amount: { type: Number, default: 0 },
@@ -187,6 +192,7 @@ const MemberNoteSchema = new mongoose.Schema({
     reason: String,
     issued_by: String,
     bill_amount: { type: Number, default: 0 },
+    is_auto: { type: Boolean, default: false },
     timestamp: { type: Date, default: Date.now }
 });
 
@@ -566,7 +572,7 @@ app.get('/api/shop/invoice/:id', async (req, res) => {
 
 app.get('/api/admin/users', verifyAuth(['Underboss', 'GRH']), async (req, res) => {
     try {
-        const users = await User.find({}, 'username role duty_status weekly_hours warnings is_blacklisted fine_amount fine_reason');
+        const users = await User.find({}, 'username role duty_status weekly_hours warnings is_blacklisted fine_amount fine_reason consecutive_misses');
         res.json(users);
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -1271,5 +1277,160 @@ async function cleanupExpiredWarnings() {
 
 setInterval(cleanupExpiredWarnings, 3600000);
 cleanupExpiredWarnings();
+
+// ================== تحديث v8.0: الفحص الدوري لإصدار ملاحظات التغيب الأوتوماتيكية عند 04:00 بتوقيت الخليج ==================
+setInterval(async () => {
+    try {
+        const now = new Date();
+        const gulfNow = new Date(now.getTime() + (3 * 60 * 60 * 1000));
+        const hours = gulfNow.getUTCHours();
+        const minutes = gulfNow.getUTCMinutes();
+        if (hours !== 4 || minutes > 5) return;
+
+        const yesterdayStart = new Date(gulfNow);
+        yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+        yesterdayStart.setUTCHours(22, 0, 0, 0);
+        const yesterdayEnd = new Date(gulfNow);
+        yesterdayEnd.setUTCHours(4, 0, 0, 0);
+
+        const users = await User.find({
+            is_blacklisted: false,
+            account_status: 'approved',
+            role: { $ne: 'Gang_Member' }
+        });
+
+        const approvedLeaves = await Leave.find({ status: 'Approved' });
+
+        for (const user of users) {
+            const hasLeave = approvedLeaves.some(l => {
+                if (l.username !== user.username) return false;
+                const leaveStart = new Date(l.timestamp);
+                const leaveEnd = new Date(leaveStart);
+                leaveEnd.setDate(leaveEnd.getDate() + (l.duration || 1));
+                return yesterdayStart < leaveEnd;
+            });
+
+            if (hasLeave) {
+                if (user.consecutive_misses > 0) {
+                    user.consecutive_misses = 0;
+                    await user.save();
+                }
+                continue;
+            }
+
+            const wasOnDuty = user.last_punch_in &&
+                user.last_punch_in >= yesterdayStart &&
+                user.last_punch_in <= yesterdayEnd;
+
+            if (wasOnDuty) {
+                if (user.consecutive_misses > 0) {
+                    user.consecutive_misses = 0;
+                    await user.save();
+                }
+                continue;
+            }
+
+            user.consecutive_misses = (user.consecutive_misses || 0) + 1;
+
+            await new MemberNote({
+                username: user.username,
+                reason: MISSED_DUTY_NOTE_TEXT,
+                issued_by: 'SYSTEM',
+                bill_amount: 0,
+                is_auto: true
+            }).save();
+
+            if (user.consecutive_misses >= 3) {
+                user.warning_dates.push(new Date());
+                user.warnings = user.warning_dates.length;
+
+                await new PenaltyLog({
+                    target_username: user.username,
+                    admin_username: 'SYSTEM',
+                    type: 'Warning',
+                    reason: `إنذار تلقائي: ${user.consecutive_misses} أيام متتالية بدون ON-DUTY`,
+                    fine_amount: 0
+                }).save();
+
+                if (user.warnings >= 3) {
+                    user.is_blacklisted = true;
+                    user.duty_status = 'OFF-DUTY';
+                }
+            }
+
+            await user.save();
+        }
+
+        io.emit('notesUpdated');
+        io.emit('dutyUpdated', {});
+        io.emit('finesUpdated');
+    } catch (err) { console.error("Auto-note error:", err.message); }
+}, 60000);
+
+// ================== تحديث v8.0: تنظيف الملاحظات الأوتوماتيكية عند 22:00 بتوقيت الخليج ==================
+setInterval(async () => {
+    try {
+        const now = new Date();
+        const gulfNow = new Date(now.getTime() + (3 * 60 * 60 * 1000));
+        const hours = gulfNow.getUTCHours();
+        const minutes = gulfNow.getUTCMinutes();
+        if (hours !== 22 || minutes > 5) return;
+
+        const cutoff = new Date(gulfNow);
+        cutoff.setUTCHours(22, 0, 0, 0);
+
+        const result = await MemberNote.deleteMany({
+            is_auto: true,
+            timestamp: { $lt: cutoff }
+        });
+
+        if (result.deletedCount > 0) {
+            console.log(`Cleaned ${result.deletedCount} auto notes at 22:00 AST`);
+            io.emit('notesUpdated');
+        }
+    } catch (err) { console.error("Auto-note cleanup error:", err.message); }
+}, 60000);
+
+// ================== تحديث v8.0: إزالة إنذار من عضو ==================
+app.post('/api/admin/remove-warning', verifyAuth(['Don', 'Underboss', 'GRH']), async (req, res) => {
+    try {
+        const { target_username } = req.body;
+        const user = await User.findOne({ username: target_username });
+        if (!user) return res.status(404).json({ error: "المستخدم غير موجود." });
+        if (user.warnings <= 0) return res.status(400).json({ error: "المستخدم ليس لديه أي إنذارات." });
+
+        if (user.warning_dates.length > 0) user.warning_dates.shift();
+        user.warnings = user.warning_dates.length;
+        await user.save();
+
+        await new AuditLog({
+            action: 'warning_removed',
+            target_username,
+            performed_by: req.user.username,
+            details: `إزالة إنذار واحد (المتبقي: ${user.warnings})`
+        }).save();
+
+        io.emit('dutyUpdated', {});
+        io.emit('auditLogUpdated');
+        res.json({ msg: `تم إزالة إنذار واحد من "${target_username}". الإنذارات المتبقية: ${user.warnings}` });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ================== تحديث v8.0: جلب الأعضاء الذين لديهم إنذارات ==================
+app.get('/api/admin/warnings/list', verifyAuth(['Don', 'Underboss', 'GRH', 'Business_Manager']), async (req, res) => {
+    try {
+        const warnedUsers = await User.find(
+            { warnings: { $gt: 0 }, is_blacklisted: false },
+            'username role warnings warning_dates consecutive_misses'
+        ).sort({ warnings: -1 });
+        res.json(warnedUsers.map(u => ({
+            username: u.username,
+            role: u.role,
+            warnings: u.warnings,
+            last_warning_date: u.warning_dates.length > 0 ? u.warning_dates[u.warning_dates.length - 1] : null,
+            consecutive_misses: u.consecutive_misses
+        })));
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
 
 server.listen(PORT, () => console.log("[CORTEZ] Server v8.0 - Notes & Attendance & Inventory Update running on port " + PORT + ""));
