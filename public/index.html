@@ -1,7 +1,7 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>[ CORTEZ SYSTEM v8.0 ]</title>
+    <title>[ CORTEZ SYSTEM v7.5 ]</title>
     <script src="/socket.io/socket.io.js"></script>
 
     <style>
@@ -18,7 +18,7 @@
         .input-group label { display: block; font-size: 0.8rem; margin-bottom: 5px; color: var(--primary); }
         
         /* تحسين وتوحيد الستايل لجميع المدخلات لمنع اختلال التصميم مظهر الهكر */
-        .input-group input, .input-group select, .card input, .card select { 
+        .input-group input, .input-group select, .card input, .card select, #chef-submit-box input, #chef-submit-box select { 
             width: 100%; padding: 10px; background: #121212; border: 1px solid #333; color: #fff; font-family: inherit; box-sizing: border-box; 
         }
 
@@ -78,9 +78,31 @@
         .cart-qty-controls { display: flex; align-items: center; gap: 6px; }
         .cart-qty-controls button { width: auto; padding: 2px 8px; font-size: 0.8rem; }
 
+        /* Gang Tracking Styles */
+        .gang-card { background: #0a0a0a; border: 1px solid #222; padding: 15px; border-radius: 4px; cursor: pointer; transition: 0.3s; text-align: right; }
+        .gang-card:hover { border-color: var(--primary); box-shadow: 0 0 10px rgba(0,255,102,0.2); transform: translateY(-2px); }
+        .loyalty-bar-wrapper { background: #111; border: 1px solid #333; height: 8px; border-radius: 4px; overflow: hidden; margin-top: 4px; }
+        .loyalty-bar-fill { height: 100%; transition: width 0.3s ease; }
+
         .custom-modal.gang-modal-box { width: 98vw; height: 94vh; max-width: 98vw; max-height: 94vh; overflow-y: auto; text-align: right; padding: 20px; }
         .gang-modal-box .input-group { text-align: right; }
         .gang-modal-box .modal-btns { margin-top: 20px; }
+        /* تحديث: row-reverse + الخريطة أول عنصر بالـ DOM = تظهر يسار دائماً حتى مع RTL، وتبقى يمين/يسار ثابتة بدون تكديس (بطلب المستخدم) */
+        .gang-modal-flex { display: flex; flex-direction: row-reverse; gap: 15px; align-items: flex-start; flex-wrap: nowrap; }
+        .gang-map-side { flex: 2.2; min-width: 0; }
+        .gang-details-side { flex: 1; min-width: 130px; padding-top: 4px; }
+
+        #gang-map-viewport { position: relative; width: 100%; height: 75vh; min-height: 350px; max-height: 850px; border: 1px solid var(--primary); overflow: hidden; background: #000; touch-action: none; }
+        #gang-map-viewport.editable { cursor: crosshair; }
+        #gang-map-viewport.panning { cursor: grabbing; }
+        #gang-map-world { position: absolute; top: 0; left: 0; width: 100%; height: 100%; transform-origin: 0 0; }
+        #gang-map-img { width: 100%; height: 100%; display: block; object-fit: contain; background:#000; pointer-events: none; user-select: none; }
+        #gang-map-pin { position: absolute; display: none; font-size: 2rem; transform-origin: 50% 100%; filter: drop-shadow(0 0 4px #000); pointer-events: none; }
+        .map-zoom-controls { position: absolute; bottom: 10px; left: 10px; display: flex; flex-direction: column; gap: 4px; z-index: 5; }
+        .map-zoom-controls button { width: 34px; height: 34px; padding: 0; font-size: 1.1rem; background: rgba(0,0,0,0.75); }
+        .map-hint { font-size: 0.75rem; color: #888; margin-top: 6px; text-align: center; }
+        .gang-details-side .input-group label { font-size: 0.8rem; }
+        .gang-details-side p { font-size: 0.85rem; }
 
 
         /* Custom Modal Styles */
@@ -209,14 +231,14 @@
                 العضو: <span id="user-display" style="color:#fff;">-</span> | <span id="role-display" style="color:gold;">-</span>
             </div>
             <button class="menu-btn active" onclick="changeTab('panel-dashboard', this)">⏱️ ON-OFF</button>
+            <button class="menu-btn" onclick="changeTab('panel-heists', this)">⚔️OPERTION</button>
             <button class="menu-btn" onclick="changeTab('panel-leaderboard', this)">🏆PRESENCE</button>
             <button class="menu-btn" onclick="changeTab('panel-shop', this)">🛒MEMBER SHOP</button>
             <button class="menu-btn" onclick="changeTab('panel-requests', this)">📝 ABSENCE-CONGE</button>
+            <button class="menu-btn" onclick="changeTab('panel-gangs', this)">🗺️ GANGS TRACKING</button>
             <button class="menu-btn" id="nav-hr" style="display:none; color:orange;" onclick="changeTab('panel-hr-review', this)">🕵 GRH</button>
             <button class="menu-btn" id="nav-gang-shop-admin" style="display:none; color:#ff66cc;" onclick="changeTab('panel-gang-shop-admin', this)">🏴 GANG SHOP ADMIN</button>
             <button class="menu-btn" id="nav-archive" style="display:none; color:var(--purple);" onclick="changeTab('panel-archive', this)">📚 PRESENCE LOG</button>
-            <button class="menu-btn" id="nav-inventory" style="display:none; color:#ff66cc;" onclick="changeTab('panel-inventory', this)">📊 CALCUL MANAGER</button>
-            <button class="menu-btn" id="nav-attendance" style="display:none; color:cyan;" onclick="changeTab('panel-attendance', this)">📋 ATTENDANCE</button>
             <button class="menu-btn" id="nav-don" style="display:none; color:cyan;" onclick="changeTab('panel-don-control', this)">👑 BOSS</button>
             <button class="menu-btn" style="color:var(--danger); margin-top:auto;" onclick="logout()">🚪 LOG OUT</button>
         </div>
@@ -232,55 +254,103 @@
                     <p style="font-size:0.8rem; color:#999; margin:8px 0 0 0;">يرجى تسليم المبلغ للإدارة داخل المدينة لتسوية الغرامة.</p>
                 </div>
 
-                <div id="my-notes-alert" class="card" style="display:none; border-color:var(--warning); background:rgba(255,170,0,0.05); text-align:right;">
-                    <h3 style="color:var(--warning); margin-top:0;">📋 ملاحظاتي الإدارية</h3>
-                    <div id="my-notes-list"></div>
-                </div>
-
                 <button id="punchButton" class="punch-btn" onclick="triggerPunch()">[ STATUS: OFF-DUTY 🔴 ]</button>
             </div>
 
-            <div id="panel-attendance" class="view-panel">
-                <h2 style="color:cyan;">📋 سجل الحضور اليومي</h2>
-                <p style="color:#888; font-size:0.85rem;">يُحدّث تلقائياً عند تغيير حالة الدوام</p>
-                <div class="table-scroll-wrap"><table id="tbl-attendance">
-                    <thead><tr><th>العضو</th><th>الرتبة</th><th>حالة اليوم</th><th>آخر دوام</th></tr></thead>
-                    <tbody></tbody>
-                </table></div>
-            </div>
-
-            <div id="panel-inventory" class="view-panel">
-                <h2 style="color:#ff66cc;">📊 حاسبة البزنس مانجر - تسعير الايتمات</h2>
-                <p style="color:#888; font-size:0.85rem;">أضف جميع الايتمات مع أسعار الشراء من العصابات وسعر البيع على البلاك، وحدد الكمية لحساب الإجمالي.</p>
+            <div id="panel-heists" class="view-panel">
+                <h2>⚔️ نظام السرقات وتطوير الإنتاجية الأسبوعية</h2>
                 
-                <div id="add-inventory-box" class="card" style="border-color:var(--primary); display:none;">
-                    <h3 style="color:var(--primary);">➕ إضافة منتج جديد</h3>
-                    <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;">
-                        <div class="input-group" style="flex:1;"><label>اسم المنتج:</label><input type="text" id="inv-name" placeholder="اسم الايتم"></div>
-                        <div class="input-group" style="flex:1;"><label>سعر الشراء من العصابة ($):</label><input type="number" id="inv-buy-price" placeholder="0"></div>
-                        <div class="input-group" style="flex:1;"><label>سعر البيع على البلاك ($):</label><input type="number" id="inv-sell-price" placeholder="0"></div>
-                        <div class="input-group" style="flex:1;"><label>الكمية المتوفرة:</label><input type="number" id="inv-qty" placeholder="0"></div>
-                        <div class="input-group" style="flex:2;"><label>رابط الصورة:</label><input type="text" id="inv-img" placeholder="رابط الصورة URL"></div>
-                        <input type="file" id="upload-inv-img" accept="image/*" style="display:none;" onchange="uploadImageFile(this, 'inv-img')">
-                        <button type="button" onclick="document.getElementById('upload-inv-img').click()" style="width:auto; padding:8px 15px;">📷 رفع صورة</button>
-                        <button onclick="addInventoryItem()" class="btn-success" style="width:auto; padding:8px 20px;">إضافة</button>
+                <div id="global-goal-container" style="display:none;" class="card">
+                    <h3 style="color:var(--primary);">📊 شريط الهدف المالي للأسبوع الحالي</h3>
+                    <div class="progress-wrapper">
+                        <div id="goal-progress-bar" class="progress-bar-fill"></div>
+                        <div id="goal-progress-text" class="progress-text">0 / 0 $ (0%)</div>
                     </div>
                 </div>
 
-                <div id="inventory-calc-grid" class="shop-grid" style="margin-top:20px;"></div>
-                
-                <div class="card" style="margin-top:20px; border-color:gold;">
-                    <h3 style="color:gold;">💰 ملخص الحسابات</h3>
-                    <div class="summary-row"><span>إجمالي الشراء من العصابات:</span><span id="inv-total-buy" style="color:var(--danger);">0$</span></div>
-                    <div class="summary-row"><span>إجمالي البيع على البلاك:</span><span id="inv-total-sell" style="color:var(--primary);">0$</span></div>
-                    <div class="summary-row"><span>صافي الربح/الخسارة:</span><span id="inv-total-profit">0$</span></div>
-                    <div class="summary-row"><span>عدد الايتمات الكلي:</span><span id="inv-total-items">0</span></div>
+                <div id="don-goal-box" class="card" style="display:none; border-color:cyan;">
+                    <h3 style="color:cyan;">👑 إدارة الهدف الأسبوعي وعمولات الأعضاء (Don)</h3>
+                    <div style="display:flex; gap:15px; flex-wrap:wrap; margin-bottom: 15px;">
+                        <input type="number" id="heist-target-amount" placeholder="الهدف المالي الكلي ($)">
+                        <input type="number" id="heist-payout-percentage" placeholder="نسبة توزيع البونص لكل فرد (%)">
+                        <button onclick="setWeeklyGoal()" style="width:auto; padding:0 20px;">تعميم وتحديث الهدف</button>
+                        <button class="btn-warning" id="btn-toggle-goal-visibility" onclick="toggleGoalVisibility(true)" style="width:auto; padding:0 20px;">إظهار الشريط للأعضاء</button>
+                        <button class="btn-danger" onclick="resetWeeklyGoal()" style="width:auto; padding:0 20px;">🔄 تصفير شريط الهدف</button>
+                    </div>
+                    
+                    <h4 style="margin-top:20px; color:#aaa;">🛠️ تهيئة أسماء العمليات الميدانية المعتمدة</h4>
+                    <div style="display:flex; gap:10px;">
+                        <input type="text" id="new-heist-type-name" placeholder="اسم عملية جديدة (مثال: البنك المركزي)">
+                        <button onclick="manageHeistType('add')" style="width:auto; padding:0 20px;">إضافة العملية</button>
+                        <button class="btn-danger" onclick="manageHeistType('delete')" style="width:auto; padding:0 20px;">حذف العملية</button>
+                    </div>
                 </div>
-                
-                <div id="inventory-table-box" class="card" style="margin-top:20px;">
-                    <h3 style="color:var(--warning);">📋 جدول جميع الايتمات</h3>
-                    <div class="table-scroll-wrap"><table id="tbl-inventory">
-                        <thead><tr><th>الصورة</th><th>المنتج</th><th>شراء من العصابة</th><th>بيع على البلاك</th><th>الكمية</th><th>إجمالي الشراء</th><th>إجمالي البيع</th><th>الربح</th><th>إجراء</th></tr></thead>
+
+                <div id="bm-pricing-box" class="card" style="display:none; border-color:orange;">
+                    <h3 style="color:orange;">💼 تسعير غنائم ومواد السوق السوداء (Business Manager)</h3>
+                    <div style="display:flex; gap:15px;">
+                        <input type="text" id="heist-item-name" placeholder="اسم المادة (ذهب، ألماس...)">
+                        <input type="number" id="heist-item-price" placeholder="سعر الشراء الحكومي الثابت ($)">
+                        <button class="btn-warning" onclick="setHeistItemPrice()" style="width:auto; padding:0 20px;">تحديث سعر المادة</button>
+                    </div>
+                </div>
+
+                <div id="chef-submit-box" class="card" style="display:none; border-color:var(--primary);">
+                    <h3>📝 استمارة تسجيل وتوثيق عملية ميدانية (Chef Braquage)</h3>
+                    <div class="flex-container" style="margin-top:0;">
+                        <div style="flex:1;" class="input-group">
+                            <label>نوع العملية:</label>
+                            <select id="sel-heist-type"></select>
+                        </div>
+                        <div style="flex:1;" class="input-group">
+                            <label>حالة العملية الميدانية:</label>
+                            <select id="sel-heist-status" onchange="toggleHeistFields(this.value)">
+                                <option value="Win">ناجحة (Win) ✔️</option>
+                                <option value="Loss">فاشلة / خسارة مصادرة (Loss) ❌</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="input-group" style="margin-bottom: 15px;">
+                        <label>أسماء المشاركين الميدانيين (اضغط Ctrl أو السحب لتحديد أكثر من شخص):</label>
+                        <select id="heist-participants" multiple></select>
+                    </div>
+
+                    <div id="heist-win-fields">
+                        <div style="display:flex; gap:15px; margin-bottom:15px;">
+                            <div style="flex:1;" class="input-group">
+                                <label>الكاش الصافي المجموع ($):</label>
+                                <input type="number" id="heist-cash" value="0">
+                            </div>
+                        </div>
+                        <h4 style="color:var(--warning); margin-bottom:5px;">📦 غنائم ومواد إضافية تمت مصادرتها:</h4>
+                        <div id="loot-items-lines"></div>
+                        <button class="btn-success" onclick="addLootLine()" style="width:auto; padding:5px 15px; font-size:0.8rem; margin-bottom:15px;">+ إضافة غنيمة</button>
+                    </div>
+
+                    <div id="heist-loss-fields" style="display:none;">
+                        <div class="input-group">
+                            <label>إجمالي الغرامات المالية المدفوعة أو الخسائر الفادحة ($):</label>
+                            <input type="number" id="heist-loss" value="0">
+                        </div>
+                    </div>
+
+                    <button class="btn-success" onclick="submitHeistReport()">رفع التقرير وتحديث الشريط العام للعصابة</button>
+                </div>
+
+                <div id="heist-logs-box" class="card" style="display:none;">
+                    <h3 style="color:var(--purple);">📋 سجل العمليات الميدانية واللوقات الأمنية</h3>
+                    <div class="table-scroll-wrap"><table id="tbl-heist-logs">
+                        <thead>
+                            <tr>
+                                <th>القائد المسؤول</th>
+                                <th>العملية</th>
+                                <th>الحالة</th>
+                                <th>المشاركين</th>
+                                <th>القيمة الكلية</th>
+                                <th>التاريخ</th>
+                            </tr>
+                        </thead>
                         <tbody></tbody>
                     </table></div>
                 </div>
@@ -359,6 +429,18 @@
                         <button onclick="submitJustify()">إرسال التبرير</button>
                     </div>
                 </div>
+            </div>
+
+            <div id="panel-gangs" class="view-panel">
+                <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #333; padding-bottom:10px; flex-wrap:wrap; gap:10px;">
+                    <h2>🗺️ نظام تتبع العصابات ومناطق النفوذ</h2>
+                    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                        <input type="file" id="upload-gta-map" accept="image/*" style="display:none;" onchange="changeGtaMapImage(this)">
+                        <button id="change-map-box" style="display:none; width:auto; padding:10px 20px;" onclick="document.getElementById('upload-gta-map').click()">🗺️ تغيير خريطة الأساس</button>
+                        <button id="add-gang-box" style="display:none; width:auto; padding:10px 20px;" onclick="openGangManageModal(null)">➕ إضافة عصابة جديدة</button>
+                    </div>
+                </div>
+                <div id="gangs-list-container" class="shop-grid" style="margin-top:20px;"></div>
             </div>
 
             <div id="panel-hr-review" class="view-panel">
@@ -475,13 +557,19 @@
     </div>
 
     <script>
-    document.addEventListener('contextmenu', function(e) { e.preventDefault(); });
-    </script>
-    <script>
         const socket = io();
         let userToken = localStorage.getItem('token') || null; 
         let userData = localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')) : null;
         let cart = [];
+        let globalHeistTypes = [];
+        let globalHeistItems = [];
+        let isGoalVisibleCurrently = false;
+
+        // ================== إعدادات نظام تتبع العصابات ==================
+        // تحديث: رابط الخريطة صار يُخزّن بقاعدة البيانات ويتغيّر من الموقع مباشرة (زر "تغيير الخريطة")، مو ثابت بالكود
+        let gtaMapImageUrl = 'https://placehold.co/1000x1000/111111/00ff66?text=Upload+Your+GTA+Map';
+        let allGangsData = [];
+        let gangDraftPosition = null; // {x, y} بالنسبة المئوية أثناء الإضافة أو التعديل
 
         // --- Custom UI Modal System ---
         function showModal(title, msg, type, callback) {
@@ -884,174 +972,6 @@
             } catch(err) { console.error(err); }
         }
 
-        // --- Time Check Helper ---
-        function isDutyTimeAllowed() {
-            const now = new Date();
-            const astHour = (now.getUTCHours() + 3) % 24;
-            return astHour >= 22 || astHour < 4;
-        }
-
-        // --- Attendance ---
-        async function loadAttendance() {
-            if(!userToken) return;
-            try {
-                const res = await fetch('/api/attendance/today', { headers: { 'Authorization': `Bearer ${userToken}` } });
-                const data = await res.json();
-                const tbody = document.querySelector('#tbl-attendance tbody');
-                if(!tbody) return;
-                tbody.innerHTML = '';
-                data.forEach(u => {
-                    const statusColor = u.was_on_today ? 'var(--primary)' : 'var(--danger)';
-                    const statusText = u.was_on_today ? '✅ حضر' : '❌ لم يحضر';
-                    tbody.innerHTML += `<tr>
-                        <td>${escapeHtml(u.username)}</td>
-                        <td>${escapeHtml(u.role)}</td>
-                        <td style="color:${statusColor}; font-weight:bold;">${statusText}</td>
-                        <td style="font-size:0.8rem;">${u.last_punch_in ? formatDateTime(u.last_punch_in) : '-'}</td>
-                    </tr>`;
-                });
-            } catch(err) { console.error(err); }
-        }
-
-        // --- Notes ---
-        async function loadMyNotes() {
-            if(!userToken) return;
-            try {
-                const res = await fetch('/api/notes/my', { headers: { 'Authorization': `Bearer ${userToken}` } });
-                const notes = await res.json();
-                const container = document.getElementById('my-notes-list');
-                const alertBox = document.getElementById('my-notes-alert');
-                if(!container || !alertBox) return;
-                if(notes.length === 0) { alertBox.style.display = 'none'; return; }
-                alertBox.style.display = 'block';
-                container.innerHTML = notes.map(n => `
-                    <div style="border-bottom:1px solid #333; padding:8px 0;">
-                        <p style="margin:2px 0;"><b>السبب:</b> ${escapeHtml(n.reason)}</p>
-                        ${n.bill_amount > 0 ? `<p style="margin:2px 0; color:var(--danger);"><b>المبلغ المالي:</b> ${formatMoneyFrontend(n.bill_amount)}$</p>` : ''}
-                        <p style="margin:2px 0; font-size:0.8rem; color:#888;">بواسطة: ${escapeHtml(n.issued_by)} — ${formatDateTime(n.timestamp)}</p>
-                    </div>
-                `).join('');
-            } catch(err) { console.error(err); }
-        }
-
-        // --- Inventory / Calculator ---
-        let inventoryData = [];
-
-        async function loadInventoryItems() {
-            if(!userToken) return;
-            try {
-                const res = await fetch('/api/inventory/items', { headers: { 'Authorization': `Bearer ${userToken}` } });
-                inventoryData = await res.json();
-                renderInventory();
-                renderInventoryTable();
-                calcInventoryTotals();
-            } catch(err) { console.error(err); }
-        }
-
-        function renderInventory() {
-            const container = document.getElementById('inventory-calc-grid');
-            if(!container) return;
-            container.innerHTML = '';
-            inventoryData.forEach(itm => {
-                const buyTotal = itm.buy_from_gang_price * itm.quantity;
-                const sellTotal = itm.sell_to_black_price * itm.quantity;
-                container.innerHTML += `
-                    <div class="item-card">
-                        <img src="${itm.image_url}" onerror="this.src='https://placehold.co/150x150/0d0d0d/ff66cc?text=Item'">
-                        <strong>${escapeHtml(itm.name)}</strong>
-                        <div style="font-size:0.8rem; margin:5px 0;">
-                            <span style="color:var(--danger);">شراء: ${formatMoneyFrontend(itm.buy_from_gang_price)}$</span> | 
-                            <span style="color:var(--primary);">بيع: ${formatMoneyFrontend(itm.sell_to_black_price)}$</span>
-                        </div>
-                        <div style="font-size:0.8rem;">الكمية: <b>${itm.quantity}</b></div>
-                        <div style="font-size:0.8rem; margin-top:5px;">
-                            <span style="color:var(--danger);">شراء: ${formatMoneyFrontend(buyTotal)}$</span> | 
-                            <span style="color:var(--primary);">بيع: ${formatMoneyFrontend(sellTotal)}$</span>
-                        </div>
-                    </div>`;
-            });
-        }
-
-        function renderInventoryTable() {
-            const tbody = document.querySelector('#tbl-inventory tbody');
-            if(!tbody) return;
-            tbody.innerHTML = '';
-            inventoryData.forEach(itm => {
-                const buyTotal = itm.buy_from_gang_price * itm.quantity;
-                const sellTotal = itm.sell_to_black_price * itm.quantity;
-                const profit = sellTotal - buyTotal;
-                const profitColor = profit >= 0 ? 'var(--primary)' : 'var(--danger)';
-                tbody.innerHTML += `<tr>
-                    <td><img src="${itm.image_url}" onerror="this.src='https://placehold.co/50x50/1a1a1a/ff66cc?text=I'" style="width:40px; height:40px; object-fit:cover; border-radius:4px;"></td>
-                    <td>${escapeHtml(itm.name)}</td>
-                    <td style="color:var(--danger);">${formatMoneyFrontend(itm.buy_from_gang_price)}$</td>
-                    <td style="color:var(--primary);">${formatMoneyFrontend(itm.sell_to_black_price)}$</td>
-                    <td>${itm.quantity}</td>
-                    <td style="color:var(--danger);">${formatMoneyFrontend(buyTotal)}$</td>
-                    <td style="color:var(--primary);">${formatMoneyFrontend(sellTotal)}$</td>
-                    <td style="color:${profitColor}; font-weight:bold;">${formatMoneyFrontend(profit)}$</td>
-                    <td>
-                        <button onclick="deleteInventoryItem('${itm._id}')" class="btn-danger" style="padding:3px 8px; font-size:0.7rem; width:auto;">حذف</button>
-                    </td>
-                </tr>`;
-            });
-        }
-
-        function calcInventoryTotals() {
-            let totalBuy = 0, totalSell = 0, totalQty = 0;
-            inventoryData.forEach(itm => {
-                totalBuy += itm.buy_from_gang_price * itm.quantity;
-                totalSell += itm.sell_to_black_price * itm.quantity;
-                totalQty += itm.quantity;
-            });
-            const profit = totalSell - totalBuy;
-            const profitColor = profit >= 0 ? 'var(--primary)' : 'var(--danger)';
-            document.getElementById('inv-total-buy').innerText = formatMoneyFrontend(totalBuy) + '$';
-            document.getElementById('inv-total-sell').innerText = formatMoneyFrontend(totalSell) + '$';
-            const profitEl = document.getElementById('inv-total-profit');
-            profitEl.innerText = (profit >= 0 ? 'ربح: ' : 'خسارة: ') + formatMoneyFrontend(Math.abs(profit)) + '$';
-            profitEl.style.color = profitColor;
-            document.getElementById('inv-total-items').innerText = totalQty;
-        }
-
-        async function addInventoryItem() {
-            const name = document.getElementById('inv-name').value.trim();
-            const buy_from_gang_price = document.getElementById('inv-buy-price').value;
-            const sell_to_black_price = document.getElementById('inv-sell-price').value;
-            const quantity = document.getElementById('inv-qty').value;
-            const image_url = document.getElementById('inv-img').value.trim();
-            if(!name) return customAlert("اسم المنتج مطلوب.");
-            try {
-                const res = await fetch('/api/inventory/add', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` },
-                    body: JSON.stringify({ name, buy_from_gang_price, sell_to_black_price, quantity, image_url })
-                });
-                const data = await res.json();
-                if(!res.ok) throw new Error(data.error);
-                customAlert(data.msg);
-                document.getElementById('inv-name').value = '';
-                document.getElementById('inv-buy-price').value = '';
-                document.getElementById('inv-sell-price').value = '';
-                document.getElementById('inv-qty').value = '';
-                document.getElementById('inv-img').value = '';
-                loadInventoryItems();
-            } catch(err) { customAlert(err.message); }
-        }
-
-        function deleteInventoryItem(id) {
-            customConfirm("هل أنت متأكد من حذف هذا المنتج؟", async (yes) => {
-                if(!yes) return;
-                try {
-                    const res = await fetch(`/api/inventory/item/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${userToken}` } });
-                    const data = await res.json();
-                    if(!res.ok) throw new Error(data.error);
-                    customAlert(data.msg);
-                    loadInventoryItems();
-                } catch(err) { customAlert(err.message); }
-            });
-        }
-
         // --- Core Session Initialization ---
         function initAppSession() {
             if(!userToken || !userData) return;
@@ -1071,13 +991,14 @@
 
             updatePunchButtonUI(userData.duty_status);
             configureRolePermissions(userData.role);
-            renderFineAlert();
+            renderFineAlert(); // تحديث: عرض تنبيه الغرامة الشخصية إن وُجدت فوراً عند الدخول
             
             loadLeaderboardData();
             loadShopItems();
-            loadAttendance();
-            loadMyNotes();
-            loadInventoryItems();
+            loadHeistDashboard();
+            loadHeistDropdowns();
+            loadUsersForDropdown(); // تعديل 4: جلب أسماء الأعضاء للقائمة المنسدلة
+            loadGangs(); // تحديث: تحميل قائمة العصابات (متاحة لكل الرتب بدون استثناء)
             
             if(['Don', 'Underboss', 'GRH', 'Business_Manager', 'Chef_Braquage'].includes(userData.role)) {
                 loadOrdersData();
@@ -1088,9 +1009,17 @@
                 loadArchiveData();
                 loadActiveFinesTable();
             }
+            if(['Don', 'Underboss', 'GRH', 'Soldat'].includes(userData.role)) {
+                loadHeistLogs();
+            }
             if(['Don', 'Underboss', 'GRH'].includes(userData.role)) {
                 loadPendingAccounts();
                 loadAuditLog();
+            }
+            if(['Don', 'Underboss', 'Business_Manager'].includes(userData.role)) {
+                loadGangShopCatalog();
+                loadGangOrders();
+                loadGangTreasuryBalance();
             }
         }
 
@@ -1102,12 +1031,16 @@
             document.getElementById('treasury-box').style.display = 'none';
             document.getElementById('btn-treasury-reset').style.display = 'none';
             document.getElementById('btn-global-reset').style.display = 'none';
+            
+            document.getElementById('don-goal-box').style.display = 'none';
+            document.getElementById('bm-pricing-box').style.display = 'none';
+            document.getElementById('chef-submit-box').style.display = 'none';
+            document.getElementById('heist-logs-box').style.display = 'none';
+            document.getElementById('add-gang-box').style.display = 'none';
+            document.getElementById('change-map-box').style.display = 'none';
             document.getElementById('nav-gang-shop-admin').style.display = 'none';
             document.getElementById('gang-shop-manage-section').style.display = 'none';
             document.getElementById('btn-gang-treasury-reset').style.display = 'none';
-            document.getElementById('add-inventory-box').style.display = 'none';
-            document.getElementById('nav-inventory').style.display = 'none';
-            document.getElementById('nav-attendance').style.display = 'none';
 
             if(role === 'Don') {
                 document.getElementById('nav-hr').style.display = 'block';
@@ -1115,50 +1048,66 @@
                 document.getElementById('nav-don').style.display = 'block';
                 document.getElementById('btn-treasury-reset').style.display = 'inline-block';
                 document.getElementById('btn-global-reset').style.display = 'inline-block';
+                document.getElementById('don-goal-box').style.display = 'block';
+                document.getElementById('chef-submit-box').style.display = 'block';
+                document.getElementById('heist-logs-box').style.display = 'block';
                 document.getElementById('add-item-box').style.display = 'block';
-                document.getElementById('treasury-box').style.display = 'block';
+                document.getElementById('treasury-box').style.display = 'block'; // تعديل 3: رؤية الخزينة للدون
+                document.getElementById('bm-pricing-box').style.display = 'block';
+                document.getElementById('add-gang-box').style.display = 'inline-block'; // تحديث: الدون له صلاحية كاملة على نظام العصابات
+                document.getElementById('change-map-box').style.display = 'inline-block';
                 document.getElementById('nav-gang-shop-admin').style.display = 'block';
                 document.getElementById('gang-shop-manage-section').style.display = 'block';
                 document.getElementById('btn-gang-treasury-reset').style.display = 'inline-block';
-                document.getElementById('add-inventory-box').style.display = 'block';
-                document.getElementById('nav-inventory').style.display = 'block';
-                document.getElementById('nav-attendance').style.display = 'block';
             }
             if(role === 'Business_Manager') {
+                // تعديل 2: تم حظر البيزنس مانجر من رؤية لوحة الـ HR والـ Archive
                 document.getElementById('add-item-box').style.display = 'block';
                 document.getElementById('treasury-box').style.display = 'block';
+                document.getElementById('bm-pricing-box').style.display = 'block';
+                document.getElementById('chef-submit-box').style.display = 'block';
                 document.getElementById('nav-gang-shop-admin').style.display = 'block';
                 document.getElementById('gang-shop-manage-section').style.display = 'block';
-                document.getElementById('add-inventory-box').style.display = 'block';
-                document.getElementById('nav-inventory').style.display = 'block';
-                document.getElementById('nav-attendance').style.display = 'block';
+            }
+            if(role === 'Chef_Braquage') {
+                // تعديل 1: تم سحب add-item-box (صلاحية تعديل وإضافة الشوب) من الشيف
+                document.getElementById('chef-submit-box').style.display = 'block';
             }
             if(role === 'GRH') {
                 document.getElementById('nav-hr').style.display = 'block';
                 document.getElementById('nav-archive').style.display = 'block';
-                document.getElementById('nav-don').style.display = 'block';
-                document.getElementById('nav-attendance').style.display = 'block';
+                document.getElementById('nav-don').style.display = 'block'; // تصحيح: GRH أصلاً عنده صلاحية الباك اند لهذا الجدول (تغيير رتبة، عقوبات، إعادة تعيين، تصحيح ساعات) بس ما كان يشوف الزر
+                document.getElementById('heist-logs-box').style.display = 'block';
+                // تحديث: طلبات الحسابات المعلّقة صارت داخل بانل GRH نفسه (nav-hr)، ما تحتاج بانل شوب العصابات
             }
             if(role === 'Underboss') {
+                // تحديث: نائب الدون الفعلي — كل صلاحيات الدون الإدارية إلا الأزرار المدمّرة (تصفير الخزائن، التصفير الشامل، الهدف الأسبوعي) تبقى حصراً للدون
                 document.getElementById('nav-hr').style.display = 'block';
                 document.getElementById('nav-archive').style.display = 'block';
                 document.getElementById('nav-don').style.display = 'block';
+                document.getElementById('chef-submit-box').style.display = 'block';
+                document.getElementById('heist-logs-box').style.display = 'block';
                 document.getElementById('add-item-box').style.display = 'block';
                 document.getElementById('treasury-box').style.display = 'block';
+                document.getElementById('bm-pricing-box').style.display = 'block';
+                document.getElementById('add-gang-box').style.display = 'inline-block';
+                document.getElementById('change-map-box').style.display = 'inline-block';
                 document.getElementById('nav-gang-shop-admin').style.display = 'block';
                 document.getElementById('gang-shop-manage-section').style.display = 'block';
-                document.getElementById('add-inventory-box').style.display = 'block';
-                document.getElementById('nav-inventory').style.display = 'block';
-                document.getElementById('nav-attendance').style.display = 'block';
+            }
+            if(role === 'Gang_Supervisor') {
+                // تحديث: صلاحية إضافة/تعديل/حذف خانات العصابات وتغيير خريطة الأساس حصرية على هذه الرتبة (والدون تلقائياً)
+                document.getElementById('add-gang-box').style.display = 'inline-block';
+                document.getElementById('change-map-box').style.display = 'inline-block';
+            }
+            if(role === 'Soldat') {
+                // تحديث: منح رتبة Soldat صلاحية رؤية سجل العمليات الميدانية واللوقات الأمنية (بدون أي تعديل)
+                document.getElementById('heist-logs-box').style.display = 'block';
             }
         }
 
         // --- Duty / Punch Operations ---
         function triggerPunch() {
-            if (!isDutyTimeAllowed()) {
-                customAlert("لا يمكن تفعيل الدوام خارج ساعات العمل (22:00 - 04:00)");
-                return;
-            }
             socket.emit('toggleDuty', { username: userData.username });
         }
 
@@ -1216,6 +1165,247 @@
                     </tr>`;
                 });
             } catch(err) { console.error("Error loading Leaderboards:", err); }
+        }
+
+        // ================== نظام السرقات والأهداف الأسبوعية المطور ==================
+        async function loadHeistDashboard() {
+            if(!userToken) return;
+            try {
+                const res = await fetch('/api/heist/dashboard', { headers: { 'Authorization': `Bearer ${userToken}` } });
+                const data = await res.json();
+                
+                const goalContainer = document.getElementById('global-goal-container');
+                const toggleVisibilityBtn = document.getElementById('btn-toggle-goal-visibility');
+
+                if(data.visible) {
+                    goalContainer.style.display = 'block';
+                    isGoalVisibleCurrently = true;
+                    if(toggleVisibilityBtn) toggleVisibilityBtn.innerText = "إخفاء الشريط عن الأعضاء";
+                    
+                    const progressPercent = data.target_amount > 0 ? Math.min((data.current_progress / data.target_amount) * 100, 100) : 0;
+                    document.getElementById('goal-progress-bar').style.width = `${progressPercent}%`;
+                    document.getElementById('goal-progress-text').innerText = `${formatMoneyFrontend(data.current_progress)} / ${formatMoneyFrontend(data.target_amount)} $ (${progressPercent.toFixed(1)}%)`;
+                } else {
+                    goalContainer.style.display = 'none';
+                    isGoalVisibleCurrently = false;
+                    if(toggleVisibilityBtn) toggleVisibilityBtn.innerText = "إظهار الشريط للأعضاء";
+                }
+            } catch(err) { console.error(err); }
+        }
+
+        // تعديل 5: زر تصفير شريط الهدف الأسبوعي للصفر
+        async function resetWeeklyGoal() {
+            customConfirm("تحذير: هل أنت متأكد من تصفير شريط الهدف المالي الأسبوعي وبدء أسبوع جديد من الصفر؟", async (confirm) => {
+                if(!confirm) return;
+                try {
+                    const res = await fetch('/api/heist/reset-goal', { method: 'POST', headers: { 'Authorization': `Bearer ${userToken}` } });
+                    const data = await res.json();
+                    if(!res.ok) throw new Error(data.error || "خطأ في التصفير");
+                    customAlert(data.msg || "تم تصفير شريط الهدف بنجاح للمنظمة!");
+                    loadHeistDashboard();
+                } catch(err) { customAlert(err.message); }
+            });
+        }
+
+        async function setWeeklyGoal() {
+            const target = document.getElementById('heist-target-amount').value;
+            const percentage = document.getElementById('heist-payout-percentage').value;
+            if(!target || !percentage) return customAlert("الرجاء إدخال أرقام صحيحة للهدف والنسبة المئوية.");
+
+            try {
+                const res = await fetch('/api/heist/set-goal', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` },
+                    body: JSON.stringify({ target, percentage })
+                });
+                const data = await res.json();
+                if(!res.ok) throw new Error(data.error);
+                
+                customAlert(`تم تحديث الهدف الأسبوعي بنجاح!\nعدد الأعضاء المستحقين: ${data.stats.active_users}\nعمولة الفرد المتوقعة: ${data.stats.payout_per_user}$\nصافي ربح الخزينة: ${data.stats.net_profit}$`);
+            } catch(err) { customAlert(err.message); }
+        }
+
+        async function toggleGoalVisibility() {
+            try {
+                const res = await fetch('/api/heist/toggle-goal', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` },
+                    body: JSON.stringify({ is_visible: !isGoalVisibleCurrently })
+                });
+                const data = await res.json();
+                if(!res.ok) throw new Error(data.error);
+                customAlert(data.msg);
+            } catch(err) { customAlert(err.message); }
+        }
+
+        async function manageHeistType(action) {
+            const name = document.getElementById('new-heist-type-name').value.trim();
+            if(!name) return customAlert("يرجى كتابة اسم العملية.");
+            try {
+                const res = await fetch('/api/heist/types', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` },
+                    body: JSON.stringify({ action, name })
+                });
+                const data = await res.json();
+                if(!res.ok) throw new Error(data.error);
+                customAlert(data.msg);
+                document.getElementById('new-heist-type-name').value = '';
+                loadHeistDropdowns();
+            } catch(err) { customAlert(err.message); }
+        }
+
+        async function setHeistItemPrice() {
+            const name = document.getElementById('heist-item-name').value.trim();
+            const price = document.getElementById('heist-item-price').value;
+            if(!name || !price) return customAlert("يرجى إدخال اسم الغنيمة والسعر.");
+            try {
+                const res = await fetch('/api/heist/items', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` },
+                    body: JSON.stringify({ name, price })
+                });
+                const data = await res.json();
+                if(!res.ok) throw new Error(data.error);
+                customAlert(data.msg);
+                document.getElementById('heist-item-name').value = '';
+                document.getElementById('heist-item-price').value = '';
+                loadHeistDropdowns();
+            } catch(err) { customAlert(err.message); }
+        }
+
+        // تعديل 4: دالة جلب أسماء الأعضاء للقائمة المنسدلة في استمارة السرقة
+        async function loadUsersForDropdown() {
+            if(!userToken) return;
+            try {
+                const res = await fetch('/api/users/list', { headers: { 'Authorization': `Bearer ${userToken}` } });
+                const users = await res.json();
+                
+                const select = document.getElementById('heist-participants');
+                select.innerHTML = '';
+                users.forEach(u => {
+                    select.innerHTML += `<option value="${escapeHtml(u.username)}">${escapeHtml(u.username)}</option>`;
+                });
+            } catch(err) { console.error("Error loading users for dropdown", err); }
+        }
+
+        async function loadHeistDropdowns() {
+            if(!userToken) return;
+            try {
+                const [resTypes, resItems] = await Promise.all([
+                    fetch('/api/heist/types', { headers: { 'Authorization': `Bearer ${userToken}` } }),
+                    fetch('/api/heist/items', { headers: { 'Authorization': `Bearer ${userToken}` } })
+                ]);
+                globalHeistTypes = await resTypes.json();
+                globalHeistItems = await resItems.json();
+
+                const selectType = document.getElementById('sel-heist-type');
+                selectType.innerHTML = '';
+                globalHeistTypes.forEach(t => {
+                    selectType.innerHTML += `<option value="${escapeHtml(t.name)}">${escapeHtml(t.name)}</option>`;
+                });
+                
+                resetLootLines();
+            } catch(err) { console.error(err); }
+        }
+
+        function toggleHeistFields(status) {
+            document.getElementById('heist-win-fields').style.display = status === 'Win' ? 'block' : 'none';
+            document.getElementById('heist-loss-fields').style.display = status === 'Loss' ? 'block' : 'none';
+        }
+
+        function resetLootLines() {
+            const container = document.getElementById('loot-items-lines');
+            container.innerHTML = '';
+            addLootLine();
+        }
+
+        function addLootLine() {
+            const container = document.getElementById('loot-items-lines');
+            if(globalHeistItems.length === 0) {
+                container.innerHTML = '<p style="color:#666; font-size:0.8rem;">لا توجد مواد مسعرة في السوق السوداء حالياً.</p>';
+                return;
+            }
+            const lineDiv = document.createElement('div');
+            lineDiv.className = 'loot-line-row';
+            lineDiv.style.display = 'flex';
+            lineDiv.style.gap = '10px';
+            lineDiv.style.marginBottom = '10px';
+
+            let optionsHtml = globalHeistItems.map(item => `<option value="${escapeHtml(item.name)}">${escapeHtml(item.name)} (${formatMoneyFrontend(item.price)}$)</option>`).join('');
+            
+            lineDiv.innerHTML = `
+                <select class="heist-loot-name">${optionsHtml}</select>
+                <input type="number" class="heist-loot-qty" placeholder="الكمية المصادرة" value="1">
+                <button onclick="this.parentElement.remove()" class="btn-danger" style="width:auto; padding:5px 10px;">X</button>
+            `;
+            container.appendChild(lineDiv);
+        }
+
+        async function submitHeistReport() {
+            const heist_type = document.getElementById('sel-heist-type').value;
+            const status = document.getElementById('sel-heist-status').value;
+            
+            // تعديل 4: استخراج الأسماء من القائمة المنسدلة (Select Multiple)
+            const partsSelect = document.getElementById('heist-participants');
+            const participants = Array.from(partsSelect.selectedOptions).map(opt => opt.value);
+            
+            const cash = document.getElementById('heist-cash').value;
+            const loss = document.getElementById('heist-loss').value;
+
+            if(participants.length === 0) return customAlert("يجب تحديد اسم مشارك ميداني واحد على الأقل.");
+
+            let items = [];
+            if(status === 'Win' && globalHeistItems.length > 0) {
+                const rows = document.querySelectorAll('.loot-line-row');
+                rows.forEach(r => {
+                    const name = r.querySelector('.heist-loot-name').value;
+                    const quantity = r.querySelector('.heist-loot-qty').value;
+                    if(name && quantity > 0) items.push({ name, quantity });
+                });
+            }
+
+            try {
+                const res = await fetch('/api/heist/submit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` },
+                    body: JSON.stringify({ heist_type, participants, status, cash, loss, items })
+                });
+                const data = await res.json();
+                if(!res.ok) throw new Error(data.error);
+                
+                customAlert(data.msg);
+                
+                // إعادة تفريغ التحديد
+                for (let i = 0; i < partsSelect.options.length; i++) {
+                    partsSelect.options[i].selected = false;
+                }
+                document.getElementById('heist-cash').value = '0';
+                document.getElementById('heist-loss').value = '0';
+                resetLootLines();
+            } catch(err) { customAlert(err.message); }
+        }
+
+        async function loadHeistLogs() {
+            if(!userToken) return;
+            try {
+                const res = await fetch('/api/heist/logs', { headers: { 'Authorization': `Bearer ${userToken}` } });
+                if(!res.ok) return;
+                const data = await res.json();
+                const tbody = document.querySelector('#tbl-heist-logs tbody');
+                tbody.innerHTML = '';
+                data.forEach(l => {
+                    const valStyle = l.status === 'Win' ? 'color:var(--primary);' : 'color:var(--danger);';
+                    tbody.innerHTML += `<tr>
+                        <td>${escapeHtml(l.chef_name)}</td>
+                        <td>${escapeHtml(l.heist_type)}</td>
+                        <td><span style="color:${l.status === 'Win'?'var(--primary)':'var(--danger)'}">${l.status}</span></td>
+                        <td style="font-size:0.8rem;">${l.participants.map(escapeHtml).join(', ')}</td>
+                        <td style="${valStyle}"><b>${formatMoneyFrontend(l.total_value)}$</b></td>
+                        <td style="font-size:0.75rem;">${formatDateTime(l.timestamp)}</td>
+                    </tr>`;
+                });
+            } catch(err) { console.error(err); }
         }
 
         // ================== نظام الشوب المالي والسلة والفواتير ==================
@@ -1542,8 +1732,358 @@
             });
         }
 
+        // ================== تحديث: نظام تتبع العصابات (Gang Tracking) ==================
+        async function loadGangs() {
+            if(!userToken) return;
+            try {
+                const res = await fetch('/api/gangs', { headers: { 'Authorization': `Bearer ${userToken}` } });
+                allGangsData = await res.json();
+                renderGangsList();
+            } catch(err) { console.error("Error loading gangs:", err); }
+            loadGtaMapUrl();
+        }
+
+        async function loadGtaMapUrl() {
+            try {
+                const res = await fetch('/api/settings/gta-map');
+                const data = await res.json();
+                if(data.url) gtaMapImageUrl = data.url;
+            } catch(err) { console.error("Error loading GTA map URL:", err); }
+        }
+
+        // تحديث: يرفع صورة خريطة جديدة من جهاز المستخدم مباشرة ويحفظها كخريطة أساسية للجميع
+        async function changeGtaMapImage(fileInputEl) {
+            const file = fileInputEl.files[0];
+            if(!file) return;
+            const formData = new FormData();
+            formData.append('image', file);
+            try {
+                const uploadRes = await fetch('/api/upload-image', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${userToken}` },
+                    body: formData
+                });
+                const uploadData = await uploadRes.json();
+                if(!uploadRes.ok) throw new Error(uploadData.error);
+
+                const settingsRes = await fetch('/api/settings/gta-map', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` },
+                    body: JSON.stringify({ url: uploadData.url })
+                });
+                const settingsData = await settingsRes.json();
+                if(!settingsRes.ok) throw new Error(settingsData.error);
+
+                gtaMapImageUrl = uploadData.url;
+                customAlert("تم تحديث خريطة الـ GTA بنجاح، تظهر الآن لكل الأعضاء.");
+            } catch(err) { customAlert(err.message); }
+            fileInputEl.value = '';
+        }
+
+        function loyaltyColorFor(pct) {
+            if(pct >= 70) return 'var(--primary)';
+            if(pct >= 30) return 'var(--warning)';
+            return 'var(--danger)';
+        }
+
+        function renderGangsList() {
+            const container = document.getElementById('gangs-list-container');
+            if(!container) return;
+            container.innerHTML = '';
+
+            if(allGangsData.length === 0) {
+                container.innerHTML = '<p style="color:#555;">لا توجد عصابات مسجلة حالياً في نظام التتبع.</p>';
+                return;
+            }
+
+            allGangsData.forEach(g => {
+                const color = loyaltyColorFor(g.loyalty_percentage);
+                container.innerHTML += `
+                    <div class="gang-card" onclick="handleGangCardClick('${g._id}')">
+                        <strong style="display:block; font-size:1.05rem; margin-bottom:8px; color:#fff;">${escapeHtml(g.name)}</strong>
+                        <div style="font-size:0.85rem; color:#aaa;">📻 الراديو: ${escapeHtml(g.radio_frequency) || 'غير محدد'}</div>
+                        <div style="margin-top:10px;">
+                            <div style="display:flex; justify-content:space-between; font-size:0.8rem; color:#ccc;">
+                                <span>نسبة الولاء</span><span style="color:${color}; font-weight:bold;">${g.loyalty_percentage}%</span>
+                            </div>
+                            <div class="loyalty-bar-wrapper"><div class="loyalty-bar-fill" style="width:${g.loyalty_percentage}%; background:${color};"></div></div>
+                        </div>
+                    </div>`;
+            });
+        }
+
+        // يحدد هل يفتح المودال بوضع الإدارة (تعديل/حذف) أو وضع العرض فقط حسب رتبة المستخدم
+        function handleGangCardClick(id) {
+            const gang = allGangsData.find(g => g._id === id);
+            if(!gang) return;
+            const isSupervisor = userData && ['Gang_Supervisor', 'Don'].includes(userData.role);
+            if(isSupervisor) openGangManageModal(gang); else openGangViewModal(gang);
+        }
+
+        // وضع العرض فقط: خريطة + معلومات، بدون أي تحكم بالتعديل (للأعضاء العاديين)
+        // حالة الزوم والتحريك الحالية للخريطة (تُصفّر كل ما يُفتح المودال)
+        let mapViewState = { scale: 1, tx: 0, ty: 0 };
+        let mapPointerStart = null; // {x, y, tx, ty} لحظة بداية الضغط، لتمييز السحب عن الضغطة العادية
+        let mapDidDrag = false;
+        let mapIsEditable = false; // بوضع الإدارة: الضغطة (بدون سحب) تحدد موقع العصابة
+
+        function applyMapTransform() {
+            const world = document.getElementById('gang-map-world');
+            const pin = document.getElementById('gang-map-pin');
+            if(!world) return;
+            world.style.transform = `translate(${mapViewState.tx}px, ${mapViewState.ty}px) scale(${mapViewState.scale})`;
+            // نعاكس تكبير الخريطة على الدبوس حتى يضل بنفس الحجم المرئي دائماً (شبيه بخرائط جوجل)
+            if(pin && pin.style.display === 'block') {
+                pin.style.transform = `translate(-50%, -100%) scale(${1 / mapViewState.scale})`;
+            }
+        }
+
+        function clampMapView() {
+            const viewport = document.getElementById('gang-map-viewport');
+            const world = document.getElementById('gang-map-world');
+            if(!viewport || !world) return;
+            const vw = viewport.clientWidth, vh = viewport.clientHeight;
+            const scaledW = world.offsetWidth * mapViewState.scale;
+            const scaledH = world.offsetHeight * mapViewState.scale;
+            const minTx = Math.min(0, vw - scaledW);
+            const minTy = Math.min(0, vh - scaledH);
+            mapViewState.tx = Math.max(minTx, Math.min(0, mapViewState.tx));
+            mapViewState.ty = Math.max(minTy, Math.min(0, mapViewState.ty));
+        }
+
+        function resetMapView() {
+            mapViewState = { scale: 1, tx: 0, ty: 0 };
+            applyMapTransform();
+        }
+
+        // زوم حول نقطة معينة (مركز الخريطة افتراضياً عند الضغط على أزرار +/−، أو موقع المؤشر عند عجلة الفأرة)
+        function zoomMapBy(factor, cursorX, cursorY) {
+            const viewport = document.getElementById('gang-map-viewport');
+            if(!viewport) return;
+            if(cursorX === undefined) {
+                cursorX = viewport.clientWidth / 2;
+                cursorY = viewport.clientHeight / 2;
+            }
+            const newScale = Math.max(1, Math.min(5, mapViewState.scale * factor));
+            const ratio = newScale / mapViewState.scale;
+            mapViewState.tx = cursorX - (cursorX - mapViewState.tx) * ratio;
+            mapViewState.ty = cursorY - (cursorY - mapViewState.ty) * ratio;
+            mapViewState.scale = newScale;
+            clampMapView();
+            applyMapTransform();
+        }
+
+        function handleMapWheel(e) {
+            e.preventDefault();
+            const rect = e.currentTarget.getBoundingClientRect();
+            const cursorX = e.clientX - rect.left;
+            const cursorY = e.clientY - rect.top;
+            zoomMapBy(e.deltaY < 0 ? 1.2 : 1/1.2, cursorX, cursorY);
+        }
+
+        function handleMapPointerDown(e) {
+            mapPointerStart = { x: e.clientX, y: e.clientY, tx: mapViewState.tx, ty: mapViewState.ty };
+            mapDidDrag = false;
+            e.currentTarget.setPointerCapture(e.pointerId);
+        }
+
+        function handleMapPointerMove(e) {
+            if(!mapPointerStart) return;
+            const dx = e.clientX - mapPointerStart.x;
+            const dy = e.clientY - mapPointerStart.y;
+            if(Math.abs(dx) > 4 || Math.abs(dy) > 4) mapDidDrag = true;
+            if(mapDidDrag) {
+                mapViewState.tx = mapPointerStart.tx + dx;
+                mapViewState.ty = mapPointerStart.ty + dy;
+                clampMapView();
+                applyMapTransform();
+                document.getElementById('gang-map-viewport')?.classList.add('panning');
+            }
+        }
+
+        function handleMapPointerUp(e) {
+            document.getElementById('gang-map-viewport')?.classList.remove('panning');
+            if(!mapPointerStart) return;
+            if(!mapDidDrag && mapIsEditable) placeMarkerAtEvent(e);
+            mapPointerStart = null;
+        }
+
+        // يعكس تحويل الزوم/التحريك الحالي ليرجع لموقع الضغطة الحقيقي فوق الصورة الأصلية (% ثابتة بغض النظر عن حالة الزوم)
+        function placeMarkerAtEvent(e) {
+            const viewport = document.getElementById('gang-map-viewport');
+            const world = document.getElementById('gang-map-world');
+            const rect = viewport.getBoundingClientRect();
+            const clickX = e.clientX - rect.left;
+            const clickY = e.clientY - rect.top;
+
+            const worldX = (clickX - mapViewState.tx) / mapViewState.scale;
+            const worldY = (clickY - mapViewState.ty) / mapViewState.scale;
+
+            let xPct = Math.max(0, Math.min(100, (worldX / world.offsetWidth) * 100));
+            let yPct = Math.max(0, Math.min(100, (worldY / world.offsetHeight) * 100));
+
+            gangDraftPosition = { x: xPct.toFixed(2), y: yPct.toFixed(2) };
+            positionPin(gangDraftPosition.x, gangDraftPosition.y);
+        }
+
+        function positionPin(xPct, yPct) {
+            const pin = document.getElementById('gang-map-pin');
+            if(!pin) return;
+            pin.style.display = 'block';
+            pin.style.left = xPct + '%';
+            pin.style.top = yPct + '%';
+            pin.style.transform = `translate(-50%, -100%) scale(${1 / mapViewState.scale})`;
+        }
+
+        // نعيد ربط أحداث التفاعل في كل مرة (العنصر يُنشأ من جديد عبر innerHTML، فما فيه خطر تراكم مستمعين مكررين)
+        function attachMapInteractionHandlers() {
+            const viewport = document.getElementById('gang-map-viewport');
+            if(!viewport) return;
+            viewport.addEventListener('wheel', handleMapWheel, { passive: false });
+            viewport.addEventListener('pointerdown', handleMapPointerDown);
+            viewport.addEventListener('pointermove', handleMapPointerMove);
+            viewport.addEventListener('pointerup', handleMapPointerUp);
+            viewport.addEventListener('pointerleave', handleMapPointerUp);
+        }
+
+        function buildGangMapHtml(editable) {
+            return `
+                <div id="gang-map-viewport" class="${editable ? 'editable' : ''}">
+                    <div id="gang-map-world">
+                        <img id="gang-map-img" src="${gtaMapImageUrl}" draggable="false">
+                        <div id="gang-map-pin">📍</div>
+                    </div>
+                    <div class="map-zoom-controls">
+                        <button type="button" onclick="zoomMapBy(1.3)">+</button>
+                        <button type="button" onclick="zoomMapBy(1/1.3)">−</button>
+                        <button type="button" onclick="resetMapView()">⤾</button>
+                    </div>
+                </div>
+                <p class="map-hint">${editable ? '📍 اضغط لتحديد الموقع • 🖱️ اسحب للتحرك • 🔍 عجلة الفأرة للتكبير' : '🖱️ اسحب للتحرك • 🔍 عجلة الفأرة للتكبير'}</p>`;
+        }
+
+        // وضع العرض فقط: خريطة + معلومات، بدون أي تحكم بالتعديل (للأعضاء العاديين)
+        function openGangViewModal(gang) {
+            mapIsEditable = false;
+            const color = loyaltyColorFor(gang.loyalty_percentage);
+            document.getElementById('gang-modal-title').innerText = `📍 ${gang.name}`;
+            document.getElementById('gang-modal-body').innerHTML = `
+                <div class="gang-modal-flex">
+                    <div class="gang-map-side">${buildGangMapHtml(false)}</div>
+                    <div class="gang-details-side">
+                        <p style="margin:6px 0;"><b>📻 تردد الراديو:</b> ${escapeHtml(gang.radio_frequency) || 'غير محدد'}</p>
+                        <p style="margin:6px 0;"><b>🤝 نسبة الولاء:</b> <span style="color:${color}; font-weight:bold;">${gang.loyalty_percentage}%</span></p>
+                        ${gang.notes ? `<p style="margin:6px 0;"><b>📝 ملاحظات:</b> ${escapeHtml(gang.notes)}</p>` : ''}
+                    </div>
+                </div>`;
+
+            const actionsEl = document.getElementById('gang-modal-actions');
+            actionsEl.innerHTML = '';
+            const closeBtn = document.createElement('button');
+            closeBtn.className = 'btn-danger';
+            closeBtn.innerText = 'إغلاق';
+            closeBtn.onclick = closeGangModal;
+            actionsEl.appendChild(closeBtn);
+
+            document.getElementById('gang-modal-overlay').style.display = 'flex';
+            resetMapView();
+            attachMapInteractionHandlers();
+            positionPin(gang.map_x, gang.map_y);
+        }
+
+        // وضع الإدارة: إضافة عصابة جديدة (gang = null) أو تعديل عصابة موجودة (Gang Supervisor / Don فقط)
+        function openGangManageModal(gang) {
+            const isNew = !gang;
+            mapIsEditable = true;
+            gangDraftPosition = isNew ? null : { x: gang.map_x, y: gang.map_y };
+
+            document.getElementById('gang-modal-title').innerText = isNew ? '➕ إضافة عصابة جديدة' : `✏️ تعديل بيانات: ${gang.name}`;
+            document.getElementById('gang-modal-body').innerHTML = `
+                <div class="gang-modal-flex">
+                    <div class="gang-map-side">${buildGangMapHtml(true)}</div>
+                    <div class="gang-details-side">
+                        <div class="input-group"><label>اسم العصابة:</label><input type="text" id="gm-name" value="${isNew ? '' : escapeHtml(gang.name)}"></div>
+                        <div class="input-group"><label>تردد الراديو:</label><input type="text" id="gm-radio" value="${isNew ? '' : escapeHtml(gang.radio_frequency || '')}"></div>
+                        <div class="input-group">
+                            <label>نسبة الولاء: <span id="gm-loyalty-val">${isNew ? 50 : gang.loyalty_percentage}</span>%</label>
+                            <input type="range" min="0" max="100" id="gm-loyalty" value="${isNew ? 50 : gang.loyalty_percentage}" oninput="document.getElementById('gm-loyalty-val').innerText = this.value">
+                        </div>
+                        <div class="input-group"><label>ملاحظات إضافية:</label><input type="text" id="gm-notes" value="${isNew ? '' : escapeHtml(gang.notes || '')}"></div>
+                    </div>
+                </div>`;
+
+            const actionsEl = document.getElementById('gang-modal-actions');
+            actionsEl.innerHTML = '';
+
+            const saveBtn = document.createElement('button');
+            saveBtn.className = 'btn-success';
+            saveBtn.innerText = isNew ? 'إضافة العصابة' : 'حفظ التعديلات';
+            saveBtn.onclick = () => saveGang(isNew ? null : gang._id);
+            actionsEl.appendChild(saveBtn);
+
+            if(!isNew) {
+                const delBtn = document.createElement('button');
+                delBtn.className = 'btn-danger';
+                delBtn.innerText = 'حذف العصابة';
+                delBtn.onclick = () => deleteGang(gang._id);
+                actionsEl.appendChild(delBtn);
+            }
+
+            const cancelBtn = document.createElement('button');
+            cancelBtn.className = 'btn-danger';
+            cancelBtn.innerText = 'إلغاء';
+            cancelBtn.onclick = closeGangModal;
+            actionsEl.appendChild(cancelBtn);
+
+            document.getElementById('gang-modal-overlay').style.display = 'flex';
+            resetMapView();
+            attachMapInteractionHandlers();
+            if(gangDraftPosition) positionPin(gangDraftPosition.x, gangDraftPosition.y);
+        }
+
+        async function saveGang(existingId) {
+            const name = document.getElementById('gm-name').value.trim();
+            const radio_frequency = document.getElementById('gm-radio').value.trim();
+            const loyalty_percentage = document.getElementById('gm-loyalty').value;
+            const notes = document.getElementById('gm-notes').value.trim();
+
+            if(!name) return customAlert("اسم العصابة إجباري.");
+            if(!gangDraftPosition) return customAlert("يرجى تحديد موقع العصابة بالضغط على الخريطة.");
+
+            try {
+                const url = existingId ? `/api/gangs/${existingId}` : '/api/gangs';
+                const method = existingId ? 'PUT' : 'POST';
+                const res = await fetch(url, {
+                    method,
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` },
+                    body: JSON.stringify({ name, radio_frequency, loyalty_percentage, notes, map_x: gangDraftPosition.x, map_y: gangDraftPosition.y })
+                });
+                const data = await res.json();
+                if(!res.ok) throw new Error(data.error);
+                customAlert(data.msg);
+                closeGangModal();
+                loadGangs();
+            } catch(err) { customAlert(err.message); }
+        }
+
+        function deleteGang(id) {
+            customConfirm("هل أنت متأكد من حذف هذه العصابة نهائياً من نظام التتبع؟", async (yes) => {
+                if(!yes) return;
+                try {
+                    const res = await fetch(`/api/gangs/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${userToken}` } });
+                    const data = await res.json();
+                    if(!res.ok) throw new Error(data.error);
+                    customAlert(data.msg);
+                    closeGangModal();
+                    loadGangs();
+                } catch(err) { customAlert(err.message); }
+            });
+        }
+
         function closeGangModal() {
             document.getElementById('gang-modal-overlay').style.display = 'none';
+            gangDraftPosition = null;
+            mapViewState = { scale: 1, tx: 0, ty: 0 };
         }
 
         // ================== تحديث: لوحة الموافقة على أي حساب جديد (مافيا أو عصابة) — GRH / الدون ==================
@@ -2245,6 +2785,8 @@
         });
 
         socket.on('shopUpdated', () => { if(userToken) loadShopItems(); });
+        socket.on('gangsUpdated', () => { if(userToken) loadGangs(); });
+        socket.on('gtaMapUpdated', () => { if(userToken) loadGtaMapUrl(); });
         socket.on('finesUpdated', () => {
             if(!userToken) return;
             refreshUserFineStatus();
@@ -2266,9 +2808,7 @@
         socket.on('ordersUpdated', () => { if(userToken && ['Don', 'Underboss', 'GRH', 'Business_Manager', 'Chef_Braquage'].includes(userData?.role)) loadOrdersData(); });
         socket.on('treasuryUpdated', () => { if(userToken && ['Don', 'Underboss', 'GRH', 'Business_Manager'].includes(userData?.role)) loadTreasuryBalance(); });
         socket.on('requestUpdated', () => { if(userToken && ['Don', 'Underboss', 'GRH', 'Business_Manager'].includes(userData?.role)) loadHRRequests(); });
-        socket.on('notesUpdated', () => { if(userToken) loadMyNotes(); });
-        socket.on('inventoryUpdated', () => { if(userToken) loadInventoryItems(); });
-        socket.on('attendanceUpdated', () => { if(userToken) loadAttendance(); });
+        socket.on('goalUpdated', () => { if(userToken) { loadHeistDashboard(); if(['Don', 'Underboss', 'GRH', 'Soldat'].includes(userData?.role)) loadHeistLogs(); } });
 
         // التحقق التلقائي من الجلسة عند فتح المتصفح
         if(userToken && userData) { initAppSession(); }
