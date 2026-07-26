@@ -1416,6 +1416,16 @@ app.post('/api/admin/remove-warning', verifyAuth(['Don', 'Underboss', 'GRH']), a
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ================== تحديث v8.0: حذف ملاحظة ==================
+app.delete('/api/notes/:id', verifyAuth(['Don', 'Underboss', 'GRH']), async (req, res) => {
+    try {
+        const note = await MemberNote.findByIdAndDelete(req.params.id);
+        if (!note) return res.status(404).json({ error: "الملاحظة غير موجودة." });
+        io.emit('notesUpdated');
+        res.json({ msg: "تم حذف الملاحظة بنجاح." });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // ================== تحديث v8.0: جلب الأعضاء الذين لديهم إنذارات ==================
 app.get('/api/admin/warnings/list', verifyAuth(['Don', 'Underboss', 'GRH', 'Business_Manager']), async (req, res) => {
     try {
