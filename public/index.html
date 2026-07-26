@@ -457,7 +457,7 @@
                         <button class="btn-warning" onclick="applyPenalty()">تنفيذ الإجراء</button>
                     </div>
                     <div style="flex:2;">
-                        <div class="table-scroll-wrap"><table id="tbl-all-users"><thead><tr><th>العضو</th><th>الرتبة</th><th>الساعات</th><th>الإنذارات</th><th>الحالة</th><th>تغيير الرتبة</th><th>كلمة المرور</th><th>تصحيح الساعات</th></tr></thead><tbody></tbody></table></div>
+                        <div class="table-scroll-wrap"><table id="tbl-all-users"><thead><tr><th>العضو</th><th>الرتبة</th><th>الساعات</th><th>الإنذارات</th><th>الحالة</th><th>تغيير الرتبة</th><th>كلمة المرور</th><th>تصحيح الساعات</th><th>إزالة إنذار</th></tr></thead><tbody></tbody></table></div>
                     </div>
                 </div>
 
@@ -465,6 +465,14 @@
                     <h3 style="color:var(--danger);">💰 الأعضاء الذين عليهم غرامات معلقة</h3>
                     <div class="table-scroll-wrap"><table id="tbl-active-fines">
                         <thead><tr><th>العضو</th><th>الرتبة</th><th>المبلغ</th><th>السبب</th><th>الإجراء</th></tr></thead>
+                        <tbody></tbody>
+                    </table></div>
+                </div>
+
+                <div class="card" style="margin-top:20px; border-color:var(--warning);">
+                    <h3 style="color:var(--warning);">⚠️ الأعضاء الذين لديهم إنذارات</h3>
+                    <div class="table-scroll-wrap"><table id="tbl-warned-users">
+                        <thead><tr><th>العضو</th><th>الرتبة</th><th>عدد الإنذارات</th><th>آخر إنذار</th><th>أيام متتالية غياب</th><th>إجراء</th></tr></thead>
                         <tbody></tbody>
                     </table></div>
                 </div>
@@ -1105,6 +1113,7 @@
                 loadHRRequests();
                 loadArchiveData();
                 loadActiveFinesTable();
+                loadWarnedUsers();
             }
             if(['Don', 'Underboss', 'Business_Manager'].includes(userData.role)) {
                 loadGangShopCatalog();
@@ -1613,7 +1622,8 @@
             account_rejected: '✖️ رفض حساب',
             role_changed: '🔄 تغيير رتبة',
             password_reset: '🔑 إعادة تعيين كلمة مرور',
-            hours_adjusted: '✏️ تصحيح ساعات'
+            hours_adjusted: '✏️ تصحيح ساعات',
+            warning_removed: '🗑️ إزالة إنذار'
         };
 
         async function loadAuditLog() {
@@ -2035,6 +2045,7 @@
                         </td>
                         <td><button class="btn-warning" style="width:auto; padding:5px 10px; font-size:0.75rem;" onclick="resetMemberPassword('${escapeJsStr(u.username)}')">🔑 إعادة تعيين</button></td>
                         <td><button class="btn-warning" style="width:auto; padding:5px 10px; font-size:0.75rem;" onclick="adjustMemberHours('${escapeJsStr(u.username)}', ${u.weekly_hours})">✏️ تصحيح الساعات</button></td>
+                        <td>${u.warnings > 0 ? `<button class="btn-danger" style="width:auto; padding:5px 8px; font-size:0.7rem;" onclick="removeMemberWarning('${escapeJsStr(u.username)}')">🗑️ إزالة إنذار</button>` : '-'}</td>
                     </tr>`;
                 });
             } catch(err) { console.error(err); }
@@ -2076,6 +2087,51 @@
                     loadAllUsersTable();
                 } catch(err) { customAlert(err.message); }
             });
+        }
+
+        async function removeMemberWarning(username) {
+            customConfirm(`إزالة إنذار واحد من "${username}"؟`, async (yes) => {
+                if(!yes) return;
+                try {
+                    const res = await fetch('/api/admin/remove-warning', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` },
+                        body: JSON.stringify({ target_username: username })
+                    });
+                    const data = await res.json();
+                    if(!res.ok) throw new Error(data.error);
+                    customAlert(data.msg);
+                    loadAllUsersTable();
+                    loadWarnedUsers();
+                } catch(err) { customAlert(err.message); }
+            });
+        }
+
+        async function loadWarnedUsers() {
+            if(!userToken) return;
+            try {
+                const res = await fetch('/api/admin/warnings/list', { headers: { 'Authorization': `Bearer ${userToken}` } });
+                const warned = await res.json();
+                const tbody = document.querySelector('#tbl-warned-users tbody');
+                if(!tbody) return;
+                tbody.innerHTML = '';
+
+                if(warned.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" style="color:#555;">لا توجد إنذارات حالياً.</td></tr>';
+                    return;
+                }
+                warned.forEach(u => {
+                    const dateStr = u.last_warning_date ? formatDateTime(u.last_warning_date) : '-';
+                    tbody.innerHTML += `<tr>
+                        <td>${escapeHtml(u.username)}</td>
+                        <td><span style="color:gold;">${escapeHtml(u.role)}</span></td>
+                        <td style="color:${u.warnings >= 3 ? 'var(--danger)' : 'var(--warning)'}; font-weight:bold;">${u.warnings}</td>
+                        <td style="font-size:0.8rem;">${dateStr}</td>
+                        <td>${u.consecutive_misses || 0}</td>
+                        <td><button class="btn-danger" style="width:auto; padding:5px 8px; font-size:0.7rem;" onclick="removeMemberWarning('${escapeJsStr(u.username)}')">🗑️ إزالة إنذار</button></td>
+                    </tr>`;
+                });
+            } catch(err) { console.error(err); }
         }
 
         async function changeMemberRole(username, new_role) {
@@ -2138,6 +2194,7 @@
                 document.getElementById('action-fine-amount').value = '';
                 loadAllUsersTable();
                 loadActiveFinesTable();
+                loadWarnedUsers();
             } catch(err) { customAlert(err.message); }
         }
 
@@ -2262,6 +2319,7 @@
             loadLeaderboardData();
             if(['Don', 'Underboss', 'GRH', 'Business_Manager'].includes(userData.role)) {
                 loadAllUsersTable();
+                loadWarnedUsers();
             }
         });
 
