@@ -241,10 +241,10 @@
             </div>
 
             <div id="panel-attendance" class="view-panel">
-                <h2 style="color:cyan;">📋 سجل الحضور اليومي</h2>
-                <p style="color:#888; font-size:0.85rem;">يُحدّث تلقائياً عند تغيير حالة الدوام</p>
+                <h2 style="color:cyan;">📋 سجل الحضور الأسبوعي</h2>
+                <p style="color:#888; font-size:0.85rem;">آخر 7 أيام — ✅ حضر | ❌ غاب</p>
                 <div class="table-scroll-wrap"><table id="tbl-attendance">
-                    <thead><tr><th>العضو</th><th>الرتبة</th><th>حالة اليوم</th><th>آخر دوام</th></tr></thead>
+                    <thead><tr><th>العضو</th><th>الرتبة</th><th id="attendance-days-header"></th><th>إجمالي</th></tr></thead>
                     <tbody></tbody>
                 </table></div>
             </div>
@@ -909,19 +909,26 @@
         async function loadAttendance() {
             if(!userToken) return;
             try {
-                const res = await fetch('/api/attendance/today', { headers: { 'Authorization': `Bearer ${userToken}` } });
+                const res = await fetch('/api/attendance/week', { headers: { 'Authorization': `Bearer ${userToken}` } });
                 const data = await res.json();
+                // تحديث رؤوس الأيام
+                const headerRow = document.getElementById('attendance-days-header');
+                if(headerRow) {
+                    headerRow.colSpan = data.days.length;
+                    headerRow.innerHTML = data.days.map(d => `<span style="display:inline-block;min-width:40px;text-align:center;">${d}</span>`).join(' | ');
+                }
                 const tbody = document.querySelector('#tbl-attendance tbody');
                 if(!tbody) return;
                 tbody.innerHTML = '';
-                data.forEach(u => {
-                    const statusColor = u.was_on_today ? 'var(--primary)' : 'var(--danger)';
-                    const statusText = u.was_on_today ? '✅ حضر' : '❌ لم يحضر';
+                data.attendance.forEach(u => {
+                    const daysHtml = u.days.map(d => 
+                        `<span style="color:${d.present ? 'var(--primary)' : 'var(--danger)'}; font-weight:bold;display:inline-block;min-width:40px;text-align:center;">${d.present ? '✅' : '❌'}</span>`
+                    ).join(' | ');
                     tbody.innerHTML += `<tr>
                         <td>${escapeHtml(u.username)}</td>
                         <td>${escapeHtml(u.role)}</td>
-                        <td style="color:${statusColor}; font-weight:bold;">${statusText}</td>
-                        <td style="font-size:0.8rem;">${u.last_punch_in ? formatDateTime(u.last_punch_in) : '-'}</td>
+                        <td style="font-size:0.85rem;">${daysHtml}</td>
+                        <td style="text-align:center;font-weight:bold;color:${u.total >= 4 ? 'var(--primary)' : 'var(--danger)'};">${u.total}/7</td>
                     </tr>`;
                 });
             } catch(err) { console.error(err); }
