@@ -22,7 +22,7 @@ const PORT = process.env.PORT || 3000;
 const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://moha:cutureire@cluster0.qgk83qz.mongodb.net/cortez?appName=Cluster0';
 
 mongoose.connect(MONGO_URI)
-  .then(() => console.log('✓ Connected Strictly to Cortez DB (v7.7 - Fine System Update).'))
+  .then(() => console.log('✓ Connected Strictly to Cortez DB (v8.0 - Notes & Attendance & Inventory Update).'))
   .catch(err => console.error('❌ Database Error:', err));
 
 app.use(cors());
@@ -64,6 +64,19 @@ const formatMoneyExact = (amount) => {
     if (!amount) return '0';
     return Number(amount).toLocaleString('en-US');
 };
+
+// ================== تحديث v8.0: دالة فحص نافذة الوقت المسموح فيها بالدخول للخدمة (22:00 - 04:00 بتوقيت الخليج AST/UTC+3) ==================
+function isInDutyTimeWindow() {
+    const now = new Date();
+    // تحويل الوقت إلى توقيت الخليج (AST = UTC+3)
+    const gulfTime = new Date(now.getTime() + (3 * 60 * 60 * 1000));
+    const hours = gulfTime.getUTCHours();
+    const minutes = gulfTime.getUTCMinutes();
+    const totalMinutes = hours * 60 + minutes;
+    // النافذة المسموحة: من 22:00 (1320 دقيقة) إلى 04:00 (240 دقيقة第二天)
+    // ما بين 22:00 (1320) و 23:59 (1439) أو من 00:00 (0) إلى 04:00 (240)
+    return totalMinutes >= 1320 || totalMinutes <= 240;
+}
 
 // ---------------- المخططات (Schemas) ----------------
 const UserSchema = new mongoose.Schema({
@@ -139,8 +152,6 @@ const HeistLogSchema = new mongoose.Schema({
 });
 
 // ================== تحديث: نظام تتبع العصابات (Gang Tracking) ==================
-// map_x و map_y إحداثيات نسبية (0 إلى 100) لموقع العصابة فوق صورة خريطة GTA، وليست بكسل ثابت،
-// حتى يبقى الموقع صحيحاً بغض النظر عن حجم الشاشة أو حجم الصورة المعروضة.
 const GangSchema = new mongoose.Schema({
     name: { type: String, required: true },
     radio_frequency: { type: String, default: '' },
@@ -167,16 +178,38 @@ const HeistType = mongoose.model('HeistType', HeistTypeSchema);
 const HeistItem = mongoose.model('HeistItem', HeistItemSchema);
 const WeeklyGoal = mongoose.model('WeeklyGoal', WeeklyGoalSchema);
 const HeistLog = mongoose.model('HeistLog', HeistLogSchema);
+// ملاحظة: ن mantenemos el schema de Gang para compatibilidad مع قاعدة البيانات لكن لا نستخدم الـ Model
 const Gang = mongoose.model('Gang', GangSchema);
+
+// ================== تحديث v8.0: نظام الملاحظات ==================
+const MemberNoteSchema = new mongoose.Schema({
+    username: String,
+    reason: String,
+    issued_by: String,
+    bill_amount: { type: Number, default: 0 },
+    timestamp: { type: Date, default: Date.now }
+});
+
+// ================== تحديث v8.0: نظام حساب البزنس مانجر (تسعير الايتمات) ==================
+const InventoryItemSchema = new mongoose.Schema({
+    name: { type: String, required: true },
+    image_url: { type: String, default: 'https://placehold.co/150x150/0d0d0d/00ff66?text=Item' },
+    buy_from_gang_price: { type: Number, default: 0 },
+    sell_to_black_price: { type: Number, default: 0 },
+    quantity: { type: Number, default: 0 },
+    created_by: String,
+    timestamp: { type: Date, default: Date.now }
+});
+
+const MemberNote = mongoose.model('MemberNote', MemberNoteSchema);
+const InventoryItem = mongoose.model('InventoryItem', InventoryItemSchema);
 
 // ================== تحديث: نظام شوب أعضاء العصابات (منفصل تماماً عن شوب المافيا) ==================
 const GangShopItemSchema = new mongoose.Schema({
     name: { type: String, required: true },
-    // تحديث: نوع المنتج يحدد هل يظهر بالشراء فقط، البيع فقط، أو الاثنين معاً
     item_type: { type: String, enum: ['buy_only', 'sell_only', 'both'], default: 'both' },
-    buy_price: { type: Number, default: null },  // السعر اللي يشتريه عضو العصابة من المافيا (يُستخدم لو buy_only أو both)
-    sell_price: { type: Number, default: null }, // السعر اللي تشتريه المافيا من عضو العصابة (يُستخدم لو sell_only أو both)
-    // تحديث: نظام المخزون وحدود الشراء (تخص جهة الشراء من المافيا فقط)
+    buy_price: { type: Number, default: null },
+    sell_price: { type: Number, default: null },
     in_stock: { type: Boolean, default: true },
     max_per_order: { type: Number, default: null },
     max_per_week: { type: Number, default: null },
@@ -188,12 +221,11 @@ const GangShopItemSchema = new mongoose.Schema({
 const GangOrderSchema = new mongoose.Schema({
     gang_member_username: String,
     gang_name: String,
-    items_bought: { type: Array, default: [] }, // [{name, quantity, unit_price, total}]
-    items_sold: { type: Array, default: [] },   // [{name, quantity, unit_price, total}]
+    items_bought: { type: Array, default: [] },
+    items_sold: { type: Array, default: [] },
     total_buy_value: { type: Number, default: 0 },
     total_sell_value: { type: Number, default: 0 },
-    net_amount: { type: Number, default: 0 }, // موجب = صافي دخل لخزينة المافيا، سالب = صافي خارج منها
-    // تحديث: إضافة حالة "مرفوض" لطلبات شوب العصابات المشبوهة أو الخاطئة
+    net_amount: { type: Number, default: 0 },
     status: { type: String, enum: ['Pending', 'Confirmed', 'Rejected'], default: 'Pending' },
     rejection_reason: { type: String, default: '' },
     timestamp: { type: Date, default: Date.now }
@@ -201,13 +233,7 @@ const GangOrderSchema = new mongoose.Schema({
 
 const GangTreasurySchema = new mongoose.Schema({ total_balance: { type: Number, default: 0 } });
 
-// ================== تحديث: إعدادات عامة للنظام (حالياً: رابط خريطة الـ GTA القابل للتغيير من الموقع) ==================
-const SystemSettingsSchema = new mongoose.Schema({
-    gta_map_image_url: { type: String, default: 'https://placehold.co/1000x1000/111111/00ff66?text=Upload+Your+GTA+Map' }
-});
-
 // ================== تحديث: تتبع كمية شراء كل عضو من كل منتج هذا الأسبوع (لتطبيق حد "X قطع بالأسبوع") ==================
-// يُصفّر تلقائياً مع نفس زر "التصفير الشامل" اللي يصفّر الساعات، عشان يبقى مرتبط بنفس دورة الأسبوع
 const WeeklyPurchaseSchema = new mongoose.Schema({
     username: String,
     item_name: String,
@@ -217,7 +243,7 @@ const WeeklyPurchaseSchema = new mongoose.Schema({
 
 // ================== تحديث: سجل تدقيق (Audit Log) يوثق الموافقات وتغيير الرتب ==================
 const AuditLogSchema = new mongoose.Schema({
-    action: String, // 'account_approved' | 'account_rejected' | 'role_changed' | 'password_reset'
+    action: String,
     target_username: String,
     performed_by: String,
     details: { type: String, default: '' },
@@ -227,7 +253,6 @@ const AuditLogSchema = new mongoose.Schema({
 const GangShopItem = mongoose.model('GangShopItem', GangShopItemSchema);
 const GangOrder = mongoose.model('GangOrder', GangOrderSchema);
 const GangTreasury = mongoose.model('GangTreasury', GangTreasurySchema);
-const SystemSettings = mongoose.model('SystemSettings', SystemSettingsSchema);
 const WeeklyPurchase = mongoose.model('WeeklyPurchase', WeeklyPurchaseSchema);
 const AuditLog = mongoose.model('AuditLog', AuditLogSchema);
 
@@ -239,13 +264,6 @@ async function initSystemDB() {
         // تحديث: تهيئة خزينة شوب العصابات المستقلة
         const gangTreasuryCount = await GangTreasury.countDocuments({});
         if (gangTreasuryCount === 0) { await new GangTreasury({ total_balance: 0 }).save(); }
-
-        // تحديث: تهيئة سجل الإعدادات العامة (رابط خريطة الـ GTA)
-        const settingsCount = await SystemSettings.countDocuments({});
-        if (settingsCount === 0) { await new SystemSettings({}).save(); }
-        
-        const goalCount = await WeeklyGoal.countDocuments({});
-        if (goalCount === 0) { await new WeeklyGoal({ target_amount: 0, payout_percentage: 0, current_progress: 0, is_visible: false }).save(); }
     } catch (err) {
         console.error("Initialization warning:", err.message);
     }
@@ -266,158 +284,6 @@ const verifyAuth = (roles) => {
     }
 };
 
-// ================== مسارات نظام السرقات والأهداف الأسبوعية ==================
-
-app.post('/api/heist/set-goal', verifyAuth(['Don']), async (req, res) => {
-    try {
-        const target = Number(req.body.target || 0);
-        const percentage = Number(req.body.percentage || 0);
-        const activeUsersCount = await User.countDocuments({ is_blacklisted: false, weekly_hours: { $gte: 600 } });
-        
-        let goal = await WeeklyGoal.findOne();
-        if (!goal) { goal = new WeeklyGoal(); } 
-        
-        goal.target_amount = target;
-        goal.payout_percentage = percentage;
-        await goal.save();
-        
-        const payoutPerMember = target * (percentage / 100);
-        const totalDeducted = payoutPerMember * activeUsersCount;
-        const netProfit = target - totalDeducted;
-        
-        io.emit('goalUpdated');
-        res.json({ 
-            msg: "تم تحديث الهدف الأسبوعي بنجاح وتعميمه.", 
-            stats: { active_users: activeUsersCount, payout_per_user: payoutPerMember, total_deducted: totalDeducted, net_profit: netProfit } 
-        });
-    } catch (err) { res.status(500).json({ error: "فشل تحديث الهدف: " + err.message }); }
-});
-
-app.post('/api/heist/toggle-goal', verifyAuth(['Don']), async (req, res) => {
-    try {
-        const { is_visible } = req.body;
-        let goal = await WeeklyGoal.findOne();
-        if (!goal) { goal = new WeeklyGoal(); }
-        
-        goal.is_visible = !!is_visible;
-        await goal.save();
-        
-        io.emit('goalUpdated');
-        res.json({ msg: `تم ${goal.is_visible ? 'إظهار' : 'إخفاء'} شريط الأهداف بنجاح لجميع الأعضاء.` });
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.post('/api/heist/reset-goal', verifyAuth(['Don']), async (req, res) => {
-    try {
-        await WeeklyGoal.updateMany({}, { current_progress: 0 });
-        io.emit('goalUpdated');
-        res.json({ msg: "تم تصفير شريط الأهداف للبدء من جديد." });
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.post('/api/heist/types', verifyAuth(['Don']), async (req, res) => {
-    try {
-        const { action, name } = req.body;
-        if (!name) return res.status(400).json({ error: "اسم السرقة مطلوب." });
-        
-        if (action === 'add') {
-            await new HeistType({ name }).save();
-            res.json({ msg: "تمت إضافة نوع السرقة الجديد للائحة القيادة." });
-        } else if (action === 'delete') {
-            await HeistType.deleteOne({ name });
-            res.json({ msg: "تم إزالة نوع السرقة من اللائحة." });
-        } else { res.status(400).json({ error: "إجراء غير معروف." }); }
-    } catch (err) { res.status(500).json({ error: "الاسم مسجل مسبقاً أو حدث خطأ في النظام." }); }
-});
-
-app.get('/api/heist/types', async (req, res) => {
-    try { const types = await HeistType.find(); res.json(types); } 
-    catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.post('/api/heist/items', verifyAuth(['Business_Manager']), async (req, res) => {
-    try {
-        const { name, price } = req.body;
-        if (!name) return res.status(400).json({ error: "اسم الغنيمة مطلوب." });
-        
-        let item = await HeistItem.findOne({ name });
-        if (item) { item.price = Number(price || 0); } 
-        else { item = new HeistItem({ name, price: Number(price || 0) }); }
-        
-        await item.save();
-        res.json({ msg: "تم تسعير الغنيمة وتحديث قيمتها في السوق السوداء للعصابة." });
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.get('/api/heist/items', async (req, res) => {
-    try { const items = await HeistItem.find(); res.json(items); } 
-    catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.post('/api/heist/submit', verifyAuth(['Chef_Braquage', 'Business_Manager', 'Don']), async (req, res) => {
-    try {
-        const { heist_type, participants, status, cash, loss, items } = req.body;
-        
-        let total_value = 0;
-        let items_details = [];
-        
-        if (status === 'Win') {
-            total_value += Number(cash || 0);
-            if (items && items.length > 0) {
-                for (let i of items) {
-                    const dbItem = await HeistItem.findOne({ name: i.name });
-                    const itemPrice = dbItem ? dbItem.price : 0;
-                    const itemQty = Number(i.quantity || 0);
-                    const itemTotal = itemPrice * itemQty;
-                    total_value += itemTotal;
-                    items_details.push({ name: i.name, quantity: itemQty, price: itemPrice, total: itemTotal });
-                }
-            }
-        } else if (status === 'Loss') {
-            total_value -= Number(loss || 0); 
-        } else { return res.status(400).json({ error: "حالة العملية يجب أن تكون Win أو Loss." }); }
-        
-        let goal = await WeeklyGoal.findOne();
-        if (!goal) { goal = new WeeklyGoal(); }
-        goal.current_progress += total_value;
-        await goal.save();
-        
-        if (participants && participants.length > 0) {
-            await User.updateMany({ username: { $in: participants } }, { $inc: { total_heists: 1 } });
-        }
-        
-        await new HeistLog({
-            chef_name: req.user.username,
-            heist_type,
-            status,
-            participants,
-            cash_amount: Number(cash || 0),
-            loss_amount: Number(loss || 0),
-            items: items_details,
-            total_value
-        }).save();
-        
-        io.emit('goalUpdated');
-        io.emit('dutyUpdated'); 
-        res.json({ msg: "تم تدوين العملية الميدانية بنجاح، وتحديث شريط الأهداف واللوقات." });
-    } catch (err) { res.status(500).json({ error: "خطأ في معالجة بيانات العملية: " + err.message }); }
-});
-
-app.get('/api/heist/dashboard', verifyAuth(['Underboss', 'Don', 'Business_Manager', 'Chef_Braquage', 'GRH', 'Soldat', 'Gang_Supervisor']), async (req, res) => {
-    try {
-        const goal = await WeeklyGoal.findOne();
-        if (!goal || !goal.is_visible) { return res.json({ visible: false }); }
-        res.json({ visible: true, target_amount: goal.target_amount, current_progress: goal.current_progress });
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.get('/api/heist/logs', verifyAuth(['Underboss', 'GRH', 'Soldat']), async (req, res) => {
-    try {
-        const logs = await HeistLog.find().sort({ timestamp: -1 });
-        res.json(logs);
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
 // ================== مسارات النظام الأساسية ==================
 
 // تحديث: رفع صورة مباشرة عبر Cloudinary (رابط دائم لا يختفي بعد إعادة نشر Render)
@@ -425,7 +291,7 @@ app.post('/api/upload-image', verifyAuth(['Underboss', 'Business_Manager', 'Gang
     imageUpload.single('image')(req, res, (err) => {
         if (err) return res.status(400).json({ error: err.message || "فشل رفع الصورة." });
         if (!req.file) return res.status(400).json({ error: "لم يتم اختيار أي ملف." });
-        res.json({ url: req.file.path }); // multer-storage-cloudinary يحط رابط Cloudinary الكامل هنا
+        res.json({ url: req.file.path });
     });
 });
 
@@ -435,7 +301,6 @@ app.post('/api/auth/register', async (req, res) => {
         if (!discord_id) return res.status(400).json({ error: "حقل الـ Discord ID مطلوب." });
         const hashedPassword = await bcrypt.hash(password, 10);
         const isFirstUser = (await User.countDocuments({})) === 0;
-        // تحديث: أي تسجيل جديد (غير أول حساب بالنظام) يصير معلّقاً بانتظار موافقة GRH أو الدون
         const newUser = new User({
             username, password: hashedPassword, discord_id: String(discord_id),
             role: isFirstUser ? 'Don' : 'Soldat',
@@ -467,6 +332,14 @@ app.post('/api/gang-auth/register', async (req, res) => {
     } catch (err) { res.status(400).json({ error: "حدث خطأ أثناء التسجيل، تأكد من اسم المستخدم." }); }
 });
 
+// جلب أسماء العصابات المسجلة (للقراءة فقط - يُستخدم عند التسجيل لاقتراح الأسماء)
+app.get('/api/gangs', async (req, res) => {
+    try {
+        const gangs = await User.distinct('gang_name', { gang_name: { $ne: '' } });
+        res.json(gangs.map(name => ({ name })));
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.post('/api/auth/login', async (req, res) => {
     try {
         const { username, password } = req.body;
@@ -474,17 +347,14 @@ app.post('/api/auth/login', async (req, res) => {
         if (!user || !(await bcrypt.compare(password, user.password))) return res.status(400).json({ error: "خطأ في اسم المستخدم أو كلمة المرور." });
         if (user.is_blacklisted) return res.status(403).json({ error: "تم حظرك ومطاردتك من عائلة كورتيز (بلاك ليست)." });
 
-        // تحديث: أي حساب (مافيا أو عصابة) لازم يكون "approved" من GRH أو الدون قبل ما يقدر يدخل
         if (user.account_status === 'pending') return res.status(403).json({ error: "حسابك لسا بانتظار موافقة قيادة المافيا. حاول لاحقاً." });
         if (user.account_status === 'rejected') return res.status(403).json({ error: "تم رفض طلب انضمامك لهذا النظام." });
         
-        // جلب معلومات التوكن مع الغرامات المضافة حديثاً
         const token = jwt.sign({ id: user._id, role: user.role, username: user.username }, JWT_SECRET, { expiresIn: '24h' });
         res.json({ token, user: { username: user.username, role: user.role, gang_name: user.gang_name, duty_status: user.duty_status, fine_amount: user.fine_amount, fine_reason: user.fine_reason } });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// تحديث لتزويد الفرونت إند ببيانات الغرامة الحالية فوراً عند طلب الملف الشخصي
 app.get('/api/auth/me', async (req, res) => {
     try {
         const token = req.headers['authorization']?.split(' ')[1];
@@ -497,7 +367,6 @@ app.get('/api/auth/me', async (req, res) => {
 
 app.get('/api/users/list', verifyAuth(['Underboss', 'Chef_Braquage', 'Business_Manager', 'Don']), async (req, res) => {
     try {
-        // تحديث: نستثني الحسابات المعلّقة وأعضاء العصابات (مو أعضاء مافيا فعليين بعد)
         const users = await User.find({ is_blacklisted: false, account_status: 'approved', role: { $ne: 'Gang_Member' } }, 'username');
         res.json(users);
     } catch (err) { res.status(500).json({ error: err.message }); }
@@ -556,7 +425,6 @@ app.post('/api/shop/checkout', verifyAuth(['Underboss', 'Soldat', 'GRH', 'Chef_B
         let total_price = 0;
         const processedItems = [];
 
-        // المرحلة 1: التحقق من كل المنتجات (المخزون، حد الطلب، حد الأسبوع) قبل أي تنفيذ فعلي
         for (const i of items) {
             const dbItem = await Item.findOne({ name: i.name });
             if (!dbItem) return res.status(400).json({ error: `المنتج "${i.name}" غير موجود.` });
@@ -576,13 +444,11 @@ app.post('/api/shop/checkout', verifyAuth(['Underboss', 'Soldat', 'GRH', 'Chef_B
                 }
             }
 
-            // تحديث أمني: نحسب السعر من قاعدة البيانات مباشرة، مو من رقم يرسله المتصفح
             const itemTotal = dbItem.price * qty;
             total_price += itemTotal;
             processedItems.push({ name: dbItem.name, price: dbItem.price, quantity: qty, total: itemTotal, max_per_week: dbItem.max_per_week });
         }
 
-        // المرحلة 2: كل المنتجات سليمة، الآن نطبّق حدود الأسبوع فعلياً وننشئ الطلب
         for (const p of processedItems) {
             if (p.max_per_week) {
                 await WeeklyPurchase.updateOne(
@@ -720,7 +586,6 @@ app.post('/api/admin/change-role', verifyAuth(['Underboss', 'GRH']), async (req,
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// تحديث: إعادة تعيين كلمة مرور أي عضو (مافيا أو عصابة) بواسطة GRH — بما إنه ما فيه نظام بريد إلكتروني بالتطبيق
 app.post('/api/admin/reset-password', verifyAuth(['Underboss', 'GRH']), async (req, res) => {
     try {
         const { target_username, new_password } = req.body;
@@ -734,8 +599,6 @@ app.post('/api/admin/reset-password', verifyAuth(['Underboss', 'GRH']), async (r
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// تحديث: تصحيح ساعات عضو يدوياً (حل مشكلة نسيان تسجيل الخروج اللي يصنع متصدر وهمي باللوحة)
-// يصحح الساعات لقيمة يحددها GRH ويرجّع العضو OFF-DUTY تلقائياً بنفس العملية
 app.post('/api/admin/adjust-hours', verifyAuth(['Underboss', 'GRH']), async (req, res) => {
     try {
         const { target_username, new_hours } = req.body;
@@ -772,11 +635,10 @@ app.post('/api/admin/reset-weekly-hours', verifyAuth(['Don']), async (req, res) 
         await new Archive({ records: currentUsers }).save();
         
         await User.updateMany({}, { weekly_hours: 0, duty_status: 'OFF-DUTY', total_heists: 0 }); 
-        await WeeklyGoal.updateMany({}, { current_progress: 0 }); 
-        await WeeklyPurchase.deleteMany({}); // تحديث: تصفير حدود الشراء الأسبوعية لبدء أسبوع جديد
+        await WeeklyPurchase.deleteMany({});
         
-        io.emit('dutyUpdated'); io.emit('goalUpdated');
-        res.json({ msg: "تمت أرشفة الأسبوع بنجاح وتصفير الساعات والسرقات والهدف الأسبوعي وحدود الشراء لبدء دورة جديدة." });
+        io.emit('dutyUpdated');
+        res.json({ msg: "تمت أرشفة الأسبوع بنجاح وتصفير الساعات وحدود الشراء لبدء دورة جديدة." });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -795,7 +657,6 @@ app.post('/api/admin/penalty', verifyAuth(['Underboss', 'GRH']), async (req, res
         let penaltyAmount = 0;
 
         if (type === 'Warning') {
-            // تحديث: نسجل تاريخ كل إنذار على حدة بدل زيادة رقم فقط، حتى يُحذف تلقائياً بعد شهر (راجع cleanupExpiredWarnings)
             user.warning_dates.push(new Date());
             user.warnings = user.warning_dates.length;
             if (user.warnings >= 3) user.is_blacklisted = true;
@@ -804,7 +665,6 @@ app.post('/api/admin/penalty', verifyAuth(['Underboss', 'GRH']), async (req, res
         } else if (type === 'Remove_Blacklist') {
             user.is_blacklisted = false; user.warnings = 0; user.warning_dates = [];
         } else if (type === 'Fine') {
-            // إضافة الغرامة المالية الجديدة للعضو
             penaltyAmount = Number(fine_amount || 0);
             if (penaltyAmount <= 0) return res.status(400).json({ error: "يرجى تحديد مبلغ الغرامة بشكل صحيح." });
             user.fine_amount += penaltyAmount;
@@ -814,9 +674,9 @@ app.post('/api/admin/penalty', verifyAuth(['Underboss', 'GRH']), async (req, res
         await user.save();
         await new PenaltyLog({ target_username, admin_username: req.user.username, type, reason, fine_amount: penaltyAmount }).save();
         
-        // إطلاق تحديث فوري عبر السوكيت ليتأثر حساب العضو فوراً بالواجهة
         io.emit('dutyUpdated', { username: user.username, duty_status: user.duty_status });
         io.emit('finesUpdated');
+        io.emit('notesUpdated');
         
         res.json({ msg: "تم تطبيق الإجراء الإداري وتدوينه بنجاح." });
     } catch (err) { res.status(500).json({ error: err.message }); }
@@ -830,7 +690,6 @@ app.get('/api/admin/fines/active', verifyAuth(['Underboss', 'GRH']), async (req,
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// زر الإدارة: تأكيد تسلّم ودفع الغرامة يدوياً وتحويلها تلقائياً للخزينة
 app.post('/api/admin/fines/pay', verifyAuth(['Underboss', 'GRH']), async (req, res) => {
     try {
         const { target_username } = req.body;
@@ -839,17 +698,15 @@ app.post('/api/admin/fines/pay', verifyAuth(['Underboss', 'GRH']), async (req, r
 
         const amountPaid = user.fine_amount;
         
-        // تصفير غرامة العضو
         user.fine_amount = 0;
         user.fine_reason = "";
         await user.save();
 
-        // تحويل الأموال تلقائياً إلى الخزينة
         await Treasury.updateOne({}, { $inc: { total_balance: amountPaid } });
 
         io.emit('finesUpdated');
         io.emit('treasuryUpdated');
-        io.emit('dutyUpdated'); // لتحديث التنبيه عند الفرد فوراً
+        io.emit('dutyUpdated');
         
         res.json({ msg: `تم تسوية الغرامة بنجاح، وتحويل مبلغ ${amountPaid}$ مباشرة إلى خزينة العصابة.` });
     } catch (err) { res.status(500).json({ error: err.message }); }
@@ -857,7 +714,6 @@ app.post('/api/admin/fines/pay', verifyAuth(['Underboss', 'GRH']), async (req, r
 
 app.get('/api/stats/leaderboard', async (req, res) => {
     try {
-        // تحديث: نستثني الحسابات المعلّقة وأعضاء العصابات من ترتيب أعضاء المافيا
         const users = await User.find({ is_blacklisted: false, account_status: 'approved', role: { $ne: 'Gang_Member' } }, 'username weekly_hours role duty_status total_heists');
         const fmt = users.map(u => ({ username: u.username, role: u.role, duty_status: u.duty_status, hours: u.weekly_hours, heists: u.total_heists }));
         
@@ -894,88 +750,200 @@ app.get('/api/hr/requests', verifyAuth(['Underboss', 'GRH']), async (req, res) =
 app.post('/api/hr/action', verifyAuth(['Underboss', 'GRH']), async (req, res) => {
     try {
         const { type, id, action } = req.body;
-        if (type === 'leave') await Leave.findByIdAndUpdate(id, { status: action });
+        if (type === 'leave') {
+            await Leave.findByIdAndUpdate(id, { status: action });
+            // تحديث v8.0: عند الموافقة على الإجازة، إنشاء ملاحظة تلقائية للعضو
+            if (action === 'Approved') {
+                const leave = await Leave.findById(id);
+                if (leave) {
+                    await new MemberNote({
+                        username: leave.username,
+                        reason: `تمت الموافقة على إجازة: ${leave.reason} لمدة ${leave.duration} أيام`,
+                        issued_by: req.user.username,
+                        bill_amount: 0
+                    }).save();
+                    io.emit('notesUpdated');
+                }
+            }
+        }
         if (type === 'justify') await Justification.findByIdAndUpdate(id, { status: action });
         io.emit('requestUpdated'); res.json({ msg: "تم تحديث حالة الطلب والبت فيه." });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ================== تحديث: نظام تتبع العصابات (Gang Tracking) ==================
-// إعدادات خريطة الـ GTA: قراءة مفتوحة للجميع، والتعديل حصراً على Gang_Supervisor (والدون تلقائياً)
-app.get('/api/settings/gta-map', async (req, res) => {
+// ================== تحديث v8.0: نظام الملاحظات ==================
+app.post('/api/notes/add', verifyAuth(['Don', 'Underboss', 'GRH']), async (req, res) => {
     try {
-        const settings = await SystemSettings.findOne({});
-        res.json({ url: settings ? settings.gta_map_image_url : 'https://placehold.co/1000x1000/111111/00ff66?text=Upload+Your+GTA+Map' });
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
+        const { username, reason, bill_amount } = req.body;
+        if (!username || !reason) return res.status(400).json({ error: "اسم المستخدم والسبب مطلوبان." });
 
-app.post('/api/settings/gta-map', verifyAuth(['Underboss', 'Gang_Supervisor']), async (req, res) => {
-    try {
-        const { url } = req.body;
-        if (!url) return res.status(400).json({ error: "الرابط مطلوب." });
-        await SystemSettings.updateOne({}, { gta_map_image_url: url }, { upsert: true });
-        io.emit('gtaMapUpdated');
-        res.json({ msg: "تم تحديث خريطة الـ GTA بنجاح لكل الأعضاء." });
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// القراءة مفتوحة لكل الأعضاء (نفس منطق /api/shop/items)، والتعديل حصراً على Gang_Supervisor (والـ Don تلقائياً عبر verifyAuth)
-app.get('/api/gangs', async (req, res) => {
-    try {
-        const gangs = await Gang.find().sort({ name: 1 });
-        res.json(gangs);
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.post('/api/gangs', verifyAuth(['Underboss', 'Gang_Supervisor']), async (req, res) => {
-    try {
-        const { name, radio_frequency, loyalty_percentage, notes, map_x, map_y } = req.body;
-        if (!name) return res.status(400).json({ error: "اسم العصابة مطلوب." });
-        if (map_x === undefined || map_y === undefined) return res.status(400).json({ error: "يرجى تحديد موقع العصابة على الخريطة." });
-
-        const newGang = new Gang({
-            name,
-            radio_frequency: radio_frequency || '',
-            loyalty_percentage: Number(loyalty_percentage ?? 50),
-            notes: notes || '',
-            map_x: Number(map_x),
-            map_y: Number(map_y),
-            created_by: req.user.username,
-            updated_by: req.user.username
+        const note = new MemberNote({
+            username,
+            reason,
+            issued_by: req.user.username,
+            bill_amount: Number(bill_amount || 0)
         });
-        await newGang.save();
-        io.emit('gangsUpdated');
-        res.status(201).json({ msg: "تمت إضافة العصابة بنجاح إلى نظام التتبع." });
+        await note.save();
+        io.emit('notesUpdated');
+        io.emit('dutyUpdated');
+        res.status(201).json({ msg: "تمت إضافة الملاحظة بنجاح." });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.put('/api/gangs/:id', verifyAuth(['Underboss', 'Gang_Supervisor']), async (req, res) => {
+app.get('/api/notes/my', verifyAuth(['Underboss', 'Soldat', 'GRH', 'Chef_Braquage', 'Business_Manager', 'Gang_Supervisor']), async (req, res) => {
     try {
-        const { name, radio_frequency, loyalty_percentage, notes, map_x, map_y } = req.body;
-        const gang = await Gang.findById(req.params.id);
-        if (!gang) return res.status(404).json({ error: "العصابة غير موجودة." });
-
-        if (name) gang.name = name;
-        if (radio_frequency !== undefined) gang.radio_frequency = radio_frequency;
-        if (loyalty_percentage !== undefined) gang.loyalty_percentage = Number(loyalty_percentage);
-        if (notes !== undefined) gang.notes = notes;
-        if (map_x !== undefined) gang.map_x = Number(map_x);
-        if (map_y !== undefined) gang.map_y = Number(map_y);
-        gang.updated_by = req.user.username;
-        gang.updated_at = new Date();
-
-        await gang.save();
-        io.emit('gangsUpdated');
-        res.json({ msg: "تم تعديل بيانات العصابة بنجاح." });
+        const notes = await MemberNote.find({ username: req.user.username }).sort({ timestamp: -1 });
+        res.json(notes);
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.delete('/api/gangs/:id', verifyAuth(['Underboss', 'Gang_Supervisor']), async (req, res) => {
+app.get('/api/notes/all', verifyAuth(['Don', 'Underboss', 'GRH']), async (req, res) => {
     try {
-        const deleted = await Gang.findByIdAndDelete(req.params.id);
-        if (!deleted) return res.status(404).json({ error: "العصابة غير موجودة أو محذوفة مسبقاً." });
-        io.emit('gangsUpdated');
-        res.json({ msg: "تم حذف العصابة من نظام التتبع بنجاح." });
+        const notes = await MemberNote.find().sort({ timestamp: -1 });
+        res.json(notes);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/notes/penalize', verifyAuth(['Don', 'Underboss', 'GRH']), async (req, res) => {
+    try {
+        const { username, reason, bill_amount } = req.body;
+        if (!username || !reason) return res.status(400).json({ error: "اسم المستخدم والسب مطلوبان." });
+
+        const note = new MemberNote({
+            username,
+            reason,
+            issued_by: req.user.username,
+            bill_amount: Number(bill_amount || 0)
+        });
+        await note.save();
+
+        // تحقق: إذا وصل العضو إلى 3 ملاحظات أو أكثر، يُصدر له إنذار تلقائي
+        const totalNotes = await MemberNote.countDocuments({ username });
+        let warningsIssued = false;
+        let blacklisted = false;
+
+        if (totalNotes >= 3) {
+            const user = await User.findOne({ username });
+            if (user && !user.is_blacklisted) {
+                user.warning_dates.push(new Date());
+                user.warnings = user.warning_dates.length;
+                if (user.warnings >= 3) {
+                    user.is_blacklisted = true;
+                    blacklisted = true;
+                }
+                await user.save();
+                warningsIssued = true;
+
+                await new PenaltyLog({
+                    target_username: username,
+                    admin_username: req.user.username,
+                    type: 'Warning',
+                    reason: `إنذار تلقائي: وصل ${totalNotes} ملاحظات`,
+                    fine_amount: 0
+                }).save();
+            }
+        }
+
+        io.emit('notesUpdated');
+        io.emit('dutyUpdated');
+        io.emit('finesUpdated');
+
+        let msg = "تمت إضافة الملاحظة بنجاح.";
+        if (warningsIssued) msg += ` (${username} وصل إلى 3 ملاحظات، تم إنذاره تلقائياً.`;
+        if (blacklisted) msg += ` تم حظره (بلاك ليست) بعد 3 إنذارات.)`;
+        else if (warningsIssued) msg += ")";
+
+        res.status(201).json({ msg, total_notes: totalNotes });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ================== تحديث v8.0: نظام الحضور اليومي ==================
+app.get('/api/attendance/today', verifyAuth(['Don', 'Underboss', 'GRH', 'Business_Manager']), async (req, res) => {
+    try {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+
+        // جلب كل الأعضاء المعتمدين (غير محظورين، غير أعضاء عصابات)
+        const members = await User.find({
+            is_blacklisted: false,
+            account_status: 'approved',
+            role: { $ne: 'Gang_Member' }
+        }, 'username role duty_status last_punch_in weekly_hours');
+
+        const attendance = members.map(u => {
+            let was_on_today = false;
+            let last_punch_in = u.last_punch_in ? u.last_punch_in.toISOString() : null;
+
+            if (u.last_punch_in) {
+                const punchIn = new Date(u.last_punch_in);
+                if (punchIn >= today && punchIn < tomorrow) {
+                    was_on_today = true;
+                }
+            }
+
+            return {
+                username: u.username,
+                role: u.role,
+                duty_status: u.duty_status,
+                was_on_today,
+                last_punch_in
+            };
+        });
+
+        res.json(attendance);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ================== تحديث v8.0: نظام المخزون / حساب البزنس مانجر ==================
+app.post('/api/inventory/add', verifyAuth(['Don', 'Underboss', 'Business_Manager']), async (req, res) => {
+    try {
+        const { name, image_url, buy_from_gang_price, sell_to_black_price, quantity } = req.body;
+        if (!name) return res.status(400).json({ error: "اسم المنتج مطلوب." });
+
+        const item = new InventoryItem({
+            name,
+            image_url: image_url || undefined,
+            buy_from_gang_price: Number(buy_from_gang_price || 0),
+            sell_to_black_price: Number(sell_to_black_price || 0),
+            quantity: Number(quantity || 0),
+            created_by: req.user.username
+        });
+        await item.save();
+        io.emit('inventoryUpdated');
+        res.status(201).json({ msg: "تمت إضافة المنتج إلى المخزون بنجاح." });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/inventory/items', verifyAuth(['Underboss', 'Soldat', 'GRH', 'Chef_Braquage', 'Business_Manager', 'Gang_Supervisor']), async (req, res) => {
+    try {
+        const items = await InventoryItem.find().sort({ timestamp: -1 });
+        res.json(items);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.put('/api/inventory/item/:id', verifyAuth(['Don', 'Underboss', 'Business_Manager']), async (req, res) => {
+    try {
+        const { name, image_url, buy_from_gang_price, sell_to_black_price, quantity } = req.body;
+        const update = {};
+        if (name !== undefined) update.name = name;
+        if (image_url !== undefined) update.image_url = image_url;
+        if (buy_from_gang_price !== undefined) update.buy_from_gang_price = Number(buy_from_gang_price);
+        if (sell_to_black_price !== undefined) update.sell_to_black_price = Number(sell_to_black_price);
+        if (quantity !== undefined) update.quantity = Number(quantity);
+
+        await InventoryItem.findByIdAndUpdate(req.params.id, update);
+        io.emit('inventoryUpdated');
+        res.json({ msg: "تم تعديل المنتج بنجاح." });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete('/api/inventory/item/:id', verifyAuth(['Don', 'Underboss', 'Business_Manager']), async (req, res) => {
+    try {
+        await InventoryItem.findByIdAndDelete(req.params.id);
+        io.emit('inventoryUpdated');
+        res.json({ msg: "تم حذف المنتج من المخزون بنجاح." });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -1008,7 +976,6 @@ app.post('/api/admin/pending-accounts/review', verifyAuth(['Underboss', 'GRH']),
 });
 
 // ================== تحديث: شوب أعضاء العصابات (منفصل كلياً عن شوب المافيا) ==================
-// القراءة مفتوحة (نفس منطق شوب المافيا)؛ الإدارة حصراً على Business_Manager
 app.get('/api/gang-shop/items', async (req, res) => {
     try { const items = await GangShopItem.find().sort({ timestamp: -1 }); res.json(items); }
     catch (err) { res.status(500).json({ error: err.message }); }
@@ -1078,8 +1045,7 @@ app.delete('/api/gang-shop/item/:id', verifyAuth(['Underboss', 'Business_Manager
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// تنفيذ عملية شراء/بيع/مقايضة من طرف عضو العصابة — الأسعار تُحسب من قاعدة البيانات حصراً (أمان، ما نثق بأي سعر قادم من العميل)
-const MAX_QTY_PER_LINE = 100000; // تحديث: سقف أمان لمنع كتابة كمية خاطئة بالغلط (مو قيد تجاري، بس حماية من كارثة أرقام)
+const MAX_QTY_PER_LINE = 100000;
 
 app.post('/api/gang-shop/checkout', verifyAuth(['Gang_Member']), async (req, res) => {
     try {
@@ -1134,7 +1100,6 @@ app.post('/api/gang-shop/checkout', verifyAuth(['Gang_Member']), async (req, res
         const net_amount = total_buy_value - total_sell_value;
         const user = await User.findOne({ username: req.user.username });
 
-        // تطبيق حدود الأسبوع فعلياً الآن (بعد التأكد إن كل شيء بالطلب سليم)
         for (const p of processedBought) {
             if (p.max_per_week) {
                 await WeeklyPurchase.updateOne(
@@ -1184,7 +1149,6 @@ app.post('/api/gang-shop/order/:id/confirm', verifyAuth(['Underboss', 'Business_
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// تحديث: رفض طلب مشبوه أو خاطئ (بدل إجباره على إما تأكيد أو تجاهله للأبد)
 app.post('/api/gang-shop/order/:id/reject', verifyAuth(['Underboss', 'Business_Manager']), async (req, res) => {
     try {
         const { reason } = req.body;
@@ -1207,7 +1171,6 @@ app.get('/api/gang-shop/treasury', verifyAuth(['Underboss', 'Business_Manager'])
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// تصفير خزينة شوب العصابات حصراً على الدون، بنفس منطق تصفير الخزينة الرئيسية
 app.post('/api/gang-shop/treasury/reset', verifyAuth(['Don']), async (req, res) => {
     try {
         await GangTreasury.updateOne({}, { total_balance: 0 });
@@ -1236,6 +1199,11 @@ io.on('connection', (socket) => {
             if (!user) return;
             const now = new Date();
             if (user.duty_status === 'OFF-DUTY') {
+                // تحديث v8.0: التحقق من نافذة الوقت المسموحة (22:00 - 04:00 بتوقيت الخليج)
+                if (!isInDutyTimeWindow()) {
+                    socket.emit('statusResponse', { error: "لا يمكنك الدخول للخدمة خارج النافذة المسموحة (22:00 - 04:00 بتوقيت الخليج)." });
+                    return;
+                }
                 user.duty_status = 'ON-DUTY'; user.last_punch_in = now;
             } else {
                 if (user.last_punch_in) user.weekly_hours += Math.floor((now - user.last_punch_in) / 60000);
@@ -1243,19 +1211,33 @@ io.on('connection', (socket) => {
             }
             await user.save();
             io.emit('dutyUpdated', { username: user.username, duty_status: user.duty_status });
+            io.emit('attendanceUpdated');
             socket.emit('statusResponse', { username: user.username, duty_status: user.duty_status });
         } catch (err) { console.error(err.message); }
     });
 });
 
+// ================== تحديث v8.0: فحص دوري كل 5 دقائق لإطفاء أي عضو ON-DUTY خارج النافذة المسموحة ==================
 setInterval(async () => {
     try {
-        const activeUsers = await User.find({ duty_status: 'ON-DUTY' });
+        // إطفاء تلقائي لأي عضو ON-DUTY خارج نافذة الوقت 22:00-04:00
+        if (!isInDutyTimeWindow()) {
+            const activeUsers = await User.find({ duty_status: 'ON-DUTY' });
+            for (let u of activeUsers) {
+                if (u.last_punch_in) u.weekly_hours += Math.floor((new Date() - u.last_punch_in) / 60000);
+                u.duty_status = 'OFF-DUTY';
+                await u.save();
+            }
+            if (activeUsers.length > 0) { io.emit('dutyUpdated', {}); io.emit('attendanceUpdated'); }
+        }
+
+        // الحماية القصوى: إطفاء أي عضو تجاوز 8 ساعات متواصلة
+        const allActiveUsers = await User.find({ duty_status: 'ON-DUTY' });
         const maxTimeMs = 8 * 60 * 60 * 1000; 
         const now = new Date();
         let stateChanged = false;
 
-        for (let u of activeUsers) {
+        for (let u of allActiveUsers) {
             if (u.last_punch_in && (now - u.last_punch_in > maxTimeMs)) {
                 u.weekly_hours += Math.floor(maxTimeMs / 60000);
                 u.duty_status = 'OFF-DUTY';
@@ -1263,15 +1245,12 @@ setInterval(async () => {
                 stateChanged = true;
             }
         }
-        if (stateChanged) io.emit('dutyUpdated', {});
+        if (stateChanged) { io.emit('dutyUpdated', {}); io.emit('attendanceUpdated'); }
     } catch (err) { console.error(err.message); }
 }, 300000); 
 
 // ================== تحديث: حذف الإنذارات (Warnings) تلقائياً بعد مرور شهر عليها ==================
-// ملاحظة: هذا يُحدّث فقط عدّاد warnings الحي (المستخدم لحساب البلاك ليست التلقائي)، ولا يمس
-// سجل PenaltyLog الذي يبقى أرشيفاً تاريخياً دائماً لكل الإجراءات، ولا يزيل البلاك ليست تلقائياً
-// إذا كان قد تم تفعيله مسبقاً (إزالته تبقى إجراء يدوي عبر Remove_Blacklist).
-const WARNING_EXPIRY_MS = 30 * 24 * 60 * 60 * 1000; // شهر واحد (30 يوم)
+const WARNING_EXPIRY_MS = 30 * 24 * 60 * 60 * 1000;
 
 async function cleanupExpiredWarnings() {
     try {
@@ -1287,11 +1266,11 @@ async function cleanupExpiredWarnings() {
                 await u.save();
             }
         }
-        io.emit('dutyUpdated', {}); // لتحديث جدول الإدارة فوراً عند أي تغيير بالعدادات
+        io.emit('dutyUpdated', {});
     } catch (err) { console.error("خطأ في تنظيف الإنذارات المنتهية:", err.message); }
 }
 
-setInterval(cleanupExpiredWarnings, 3600000); // فحص كل ساعة
-cleanupExpiredWarnings(); // تشغيل فوري أيضاً عند إقلاع السيرفر
+setInterval(cleanupExpiredWarnings, 3600000);
+cleanupExpiredWarnings();
 
-server.listen(PORT, () => console.log(`📡 Cortez System v7.7 running safely on port ${PORT}`));
+server.listen(PORT, () => console.log("[CORTEZ] Server v8.0 - Notes & Attendance & Inventory Update running on port " + PORT + ")")));
