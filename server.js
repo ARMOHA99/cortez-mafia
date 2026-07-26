@@ -887,42 +887,40 @@ app.delete('/api/notes/:id', verifyAuth(['Don', 'Underboss', 'GRH']), async (req
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ================== تحديث v8.0: نظام الحضور اليومي ==================
-app.get('/api/attendance/today', verifyAuth(['Don', 'Underboss', 'GRH', 'Business_Manager']), async (req, res) => {
+// ================== تحديث v8.0: نظام الحضور الأسبوعي ==================
+app.get('/api/attendance/week', verifyAuth(['Don', 'Underboss', 'GRH', 'Business_Manager']), async (req, res) => {
     try {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const tomorrow = new Date(today);
-        tomorrow.setDate(tomorrow.getDate() + 1);
+        const days = [];
+        for (let i = 6; i >= 0; i--) {
+            const d = new Date();
+            d.setDate(d.getDate() - i);
+            d.setHours(0, 0, 0, 0);
+            const end = new Date(d);
+            end.setDate(end.getDate() + 1);
+            days.push({ start: d, end, label: d.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' }) });
+        }
 
-        // جلب كل الأعضاء المعتمدين (غير محظورين، غير أعضاء عصابات)
         const members = await User.find({
             is_blacklisted: false,
             account_status: 'approved',
             role: { $ne: 'Gang_Member' }
-        }, 'username role duty_status last_punch_in weekly_hours');
+        }, 'username role last_punch_in');
 
-        const attendance = members.map(u => {
-            let was_on_today = false;
-            let last_punch_in = u.last_punch_in ? u.last_punch_in.toISOString() : null;
-
-            if (u.last_punch_in) {
-                const punchIn = new Date(u.last_punch_in);
-                if (punchIn >= today && punchIn < tomorrow) {
-                    was_on_today = true;
-                }
-            }
-
+        const result = members.map(u => {
+            const dayStatus = days.map(d => ({
+                date: d.label,
+                present: u.last_punch_in ? (new Date(u.last_punch_in) >= d.start && new Date(u.last_punch_in) < d.end) : false
+            }));
+            const totalPresent = dayStatus.filter(d => d.present).length;
             return {
                 username: u.username,
                 role: u.role,
-                duty_status: u.duty_status,
-                was_on_today,
-                last_punch_in
+                days: dayStatus,
+                total: totalPresent
             };
         });
 
-        res.json(attendance);
+        res.json({ days: days.map(d => d.label), attendance: result });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
