@@ -2395,7 +2395,7 @@
         socket.on('gangShopUpdated', () => {
             if(!userToken) return;
             if(['Don','Underboss','Business_Manager'].includes(userData?.role)) loadGangShopCatalog();
-            if(userData?.role === 'Gang_Member') loadGangShopCatalogForMember();
+            if(userData?.role === 'Gang_Member') loadGangShopCatalogForMember(); 
         });
         socket.on('gangOrdersUpdated', () => {
             if(!userToken) return;
