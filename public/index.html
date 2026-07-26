@@ -1088,6 +1088,7 @@
 
         // --- Core Session Initialization ---
         function initAppSession() {
+            socket.emit('register', { username: userData?.username });
             if(!userToken || !userData) return;
             document.getElementById('auth-screen').style.display = 'none';
 
@@ -2353,6 +2354,13 @@
             } catch(err) { console.error(err); }
         }
 
+        // ================== طرد فوري إذا تم حظر العضو أو تغيير رتبته ==================
+        socket.on('forceLogout', (data) => {
+            customAlert(data.reason || "تم تغيير صلاحياتك. يرجى إعادة تسجيل الدخول.", () => {
+                logout();
+            });
+        });
+
         // ================== مستمعات الـ WebSockets الفورية المحمية بـ Guards ==================
         socket.on('emergencyAlert', (data) => {
             document.body.classList.add('emergency-blink');
@@ -2395,7 +2403,7 @@
         socket.on('gangShopUpdated', () => {
             if(!userToken) return;
             if(['Don','Underboss','Business_Manager'].includes(userData?.role)) loadGangShopCatalog();
-            if(userData?.role === 'Gang_Member') loadGangShopCatalogForMember(); 
+            if(userData?.role === 'Gang_Member') loadGangShopCatalogForMember();
         });
         socket.on('gangOrdersUpdated', () => {
             if(!userToken) return;
@@ -2414,8 +2422,11 @@
         socket.on('inventoryUpdated', () => { if(userToken) loadInventoryItems(); });
         socket.on('attendanceUpdated', () => { if(userToken) loadAttendance(); });
 
-        // التحقق التلقائي من الجلسة عند فتح المتصفح
-        if(userToken && userData) { initAppSession(); }
+        // تسجيل السوكيت باسم المستخدم للطرد الفوري
+        if(userToken && userData) {
+            socket.emit('register', { username: userData.username });
+            initAppSession();
+        }
     </script>
 </body>
 </html>
