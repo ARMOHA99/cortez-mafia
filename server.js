@@ -276,13 +276,26 @@ async function initSystemDB() {
 }
 initSystemDB();
 
+// ================== تخزين اتصالات السوكيت للمستخدمين (لإرسال أحداث فورية) ==================
+const userSockets = {}; // { username: [socketId, ...] }
+
 // ---------------- نظام الصلاحيات المطور ----------------
 const verifyAuth = (roles) => {
-    return (req, res, next) => {
+    return async (req, res, next) => {
         const token = req.headers['authorization']?.split(' ')[1];
         if (!token) return res.status(401).json({ error: "غير مصرح بالدخول." });
         try {
             const decoded = jwt.verify(token, JWT_SECRET);
+            // التحقق من حالة العضو في قاعدة البيانات (بلاك ليست / رتبة)
+            const currentUser = await User.findOne({ username: decoded.username }).select('is_blacklisted role account_status');
+            if (!currentUser || currentUser.account_status !== 'approved') {
+                return res.status(401).json({ error: "حسابك غير نشط. يرجى التواصل مع الإدارة.", forceLogout: true });
+            }
+            if (currentUser.is_blacklisted) {
+                return res.status(403).json({ error: "تم حظرك ومطاردتك من عائلة كورتيز (بلاك ليست).", forceLogout: true });
+            }
+            // تحديث الرتبة من قاعدة البيانات (إذا تغيرت بعد إصدار التوكن)
+            decoded.role = currentUser.role;
             const hasAccess = roles.includes(decoded.role) || decoded.role === 'Don';
             if (!hasAccess) return res.status(403).json({ error: "رتبتك لا تسمح بالدخول إلى هذا القسم." });
             req.user = decoded; next();
@@ -587,6 +600,7 @@ app.post('/api/admin/change-role', verifyAuth(['Underboss', 'GRH']), async (req,
             action: 'role_changed', target_username, performed_by: req.user.username,
             details: `من ${oldUser ? oldUser.role : '؟'} إلى ${new_role}`
         }).save();
+        forceUserLogout(target_username);
         io.emit('dutyUpdated', {}); io.emit('auditLogUpdated');
         res.json({ msg: `تم تحديث الرتبة بنجاح.` });
     } catch (err) { res.status(500).json({ error: err.message }); }
@@ -665,9 +679,10 @@ app.post('/api/admin/penalty', verifyAuth(['Underboss', 'GRH']), async (req, res
         if (type === 'Warning') {
             user.warning_dates.push(new Date());
             user.warnings = user.warning_dates.length;
-            if (user.warnings >= 3) user.is_blacklisted = true;
+            if (user.warnings >= 3) { user.is_blacklisted = true; forceUserLogout(target_username); }
         } else if (type === 'Blacklist') {
             user.is_blacklisted = true; user.duty_status = 'OFF-DUTY';
+            forceUserLogout(target_username);
         } else if (type === 'Remove_Blacklist') {
             user.is_blacklisted = false; user.warnings = 0; user.warning_dates = [];
         } else if (type === 'Fine') {
@@ -1199,8 +1214,35 @@ app.use('/api', (req, res) => {
     res.status(404).json({ error: "المسار غير موجود أو نوع الطلب خاطئ: " + req.originalUrl });
 });
 
+// ================== دالة لإرسال حدث طرد فوري لمستخدم معين ==================
+const forceUserLogout = (username) => {
+    const sockets = userSockets[username];
+    if (sockets) {
+        sockets.forEach(sid => {
+            io.to(sid).emit('forceLogout', { reason: 'تم تغيير صلاحياتك أو حظرك. يرجى إعادة تسجيل الدخول.' });
+        });
+    }
+};
+
 // ---------------- Sockets ----------------
 io.on('connection', (socket) => {
+    // تسجيل المستخدم لربط السوكيت باسمه
+    socket.on('register', (data) => {
+        if (data && data.username) {
+            if (!userSockets[data.username]) userSockets[data.username] = [];
+            if (!userSockets[data.username].includes(socket.id)) {
+                userSockets[data.username].push(socket.id);
+            }
+        }
+    });
+
+    socket.on('disconnect', () => {
+        for (const username in userSockets) {
+            userSockets[username] = userSockets[username].filter(id => id !== socket.id);
+            if (userSockets[username].length === 0) delete userSockets[username];
+        }
+    });
+
     socket.on('triggerEmergency', (data) => {
         io.emit('emergencyAlert', { 
             message: "🚨 استنفار عام داخل النظام! جميع الأعضاء التوجه للديسكورد فوراً.",
@@ -1365,6 +1407,7 @@ setInterval(async () => {
                 if (user.warnings >= 3) {
                     user.is_blacklisted = true;
                     user.duty_status = 'OFF-DUTY';
+                    forceUserLogout(user.username);
                 }
             }
 
