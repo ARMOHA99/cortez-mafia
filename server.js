@@ -281,24 +281,25 @@ const userSockets = {}; // { username: [socketId, ...] }
 
 // ---------------- نظام الصلاحيات المطور ----------------
 const verifyAuth = (roles) => {
-    return async (req, res, next) => {
+    return (req, res, next) => {
         const token = req.headers['authorization']?.split(' ')[1];
         if (!token) return res.status(401).json({ error: "غير مصرح بالدخول." });
         try {
             const decoded = jwt.verify(token, JWT_SECRET);
+            req.user = decoded;
             // التحقق من حالة العضو في قاعدة البيانات (بلاك ليست / رتبة)
-            const currentUser = await User.findOne({ username: decoded.username }).select('is_blacklisted role account_status');
-            if (!currentUser || currentUser.account_status !== 'approved') {
-                return res.status(401).json({ error: "حسابك غير نشط. يرجى التواصل مع الإدارة.", forceLogout: true });
-            }
-            if (currentUser.is_blacklisted) {
-                return res.status(403).json({ error: "تم حظرك ومطاردتك من عائلة كورتيز (بلاك ليست).", forceLogout: true });
-            }
-            // تحديث الرتبة من قاعدة البيانات (إذا تغيرت بعد إصدار التوكن)
-            decoded.role = currentUser.role;
-            const hasAccess = roles.includes(decoded.role) || decoded.role === 'Don';
-            if (!hasAccess) return res.status(403).json({ error: "رتبتك لا تسمح بالدخول إلى هذا القسم." });
-            req.user = decoded; next();
+            User.findOne({ username: decoded.username }).select('is_blacklisted role account_status').then(currentUser => {
+                if (!currentUser || currentUser.account_status !== 'approved') {
+                    return res.status(401).json({ error: "حسابك غير نشط. يرجى التواصل مع الإدارة.", forceLogout: true });
+                }
+                if (currentUser.is_blacklisted) {
+                    return res.status(403).json({ error: "تم حظرك ومطاردتك من عائلة كورتيز (بلاك ليست).", forceLogout: true });
+                }
+                decoded.role = currentUser.role;
+                const hasAccess = roles.includes(decoded.role) || decoded.role === 'Don';
+                if (!hasAccess) return res.status(403).json({ error: "رتبتك لا تسمح بالدخول إلى هذا القسم." });
+                next();
+            }).catch(() => res.status(500).json({ error: "خطأ في التحقق من البيانات." }));
         } catch { res.status(400).json({ error: "جلسة العمل منتهية أو التوكن غير صالح." }); }
     }
 };
@@ -1329,13 +1330,19 @@ setInterval(cleanupExpiredWarnings, 3600000);
 cleanupExpiredWarnings();
 
 // ================== تحديث v8.0: الفحص الدوري لإصدار ملاحظات التغيب الأوتوماتيكية عند 04:00 بتوقيت الخليج ==================
+let lastAutoNoteDate = '';
 setInterval(async () => {
     try {
         const now = new Date();
         const gulfNow = new Date(now.getTime() + (3 * 60 * 60 * 1000));
         const hours = gulfNow.getUTCHours();
         const minutes = gulfNow.getUTCMinutes();
-        if (hours !== 4 || minutes > 5) return;
+        if (hours !== 4 || minutes > 0) return;
+
+        // تأكيد انه ما تم تشغيل الفحص لليوم
+        const todayStr = gulfNow.toISOString().slice(0, 10);
+        if (lastAutoNoteDate === todayStr) return;
+        lastAutoNoteDate = todayStr;
 
         const yesterdayStart = new Date(gulfNow);
         yesterdayStart.setDate(yesterdayStart.getDate() - 1);
@@ -1343,10 +1350,11 @@ setInterval(async () => {
         const yesterdayEnd = new Date(gulfNow);
         yesterdayEnd.setUTCHours(4, 0, 0, 0);
 
+        // استثناء الـ Don فقط، والكل يخضع للفحص
         const users = await User.find({
             is_blacklisted: false,
             account_status: 'approved',
-            role: { $ne: 'Gang_Member' }
+            role: { $nin: ['Don', 'Gang_Member'] }
         });
 
         const approvedLeaves = await Leave.find({ status: 'Approved' });
@@ -1464,6 +1472,28 @@ app.post('/api/admin/remove-warning', verifyAuth(['Don', 'Underboss', 'GRH']), a
         io.emit('dutyUpdated', {});
         io.emit('auditLogUpdated');
         res.json({ msg: `تم إزالة إنذار واحد من "${target_username}". الإنذارات المتبقية: ${user.warnings}` });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ================== تحديث v8.0: حذف إنذار + إزالة بلاك ليست إذا صار 0 ==================
+app.post('/api/admin/blacklist/remove', verifyAuth(['Don']), async (req, res) => {
+    try {
+        const { target_username } = req.body;
+        const user = await User.findOne({ username: target_username });
+        if (!user) return res.status(404).json({ error: "المستخدم غير موجود." });
+        user.is_blacklisted = false;
+        user.warnings = 0;
+        user.warning_dates = [];
+        await user.save();
+        await new AuditLog({
+            action: 'blacklist_removed',
+            target_username,
+            performed_by: req.user.username,
+            details: 'إزالة من البلاك ليست بالكامل'
+        }).save();
+        io.emit('dutyUpdated', {});
+        io.emit('auditLogUpdated');
+        res.json({ msg: `تم إزالة "${target_username}" من البلاك ليست بالكامل.` });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
