@@ -49,7 +49,8 @@ const imageStorage = new CloudinaryStorage({
 
 const imageUpload = multer({
     storage: imageStorage,
-    limits: { fileSize: 5 * 1024 * 1024 } // 5
+    limits: { fileSize: 5 * 1024 * 1024 }
+});
 
 // Rate Limit: منع brute force على التسجيل والدخول
 const authLimiter = rateLimit({
@@ -58,10 +59,9 @@ const authLimiter = rateLimit({
     message: { error: 'طلبات كثيرة جدا. حاول بعد 15 دقيقة.' }
 });
 app.use('/api/auth/', authLimiter);
-app.use('/api/gang-auth/', authLimiter); ???? ??? ????
-});
+app.use('/api/gang-auth/', authLimiter);
 
-// ================== ?????: ????? ?? ??????? ??????/??????? ???????? (Brute Force) ==================
+// ================== تنسيق الأرقام المالية ==================
 // ---------------- ???? ??????? ?????? ----------------
 const formatMoneyShort = (amount) => {
     if (!amount) return '0';
