@@ -10,7 +10,6 @@ const path = require('path');
 const multer = require('multer');
 const cloudinary = require('cloudinary').v2;
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
-const rateLimit = require('express-rate-limit');
 
 const app = express();
 const server = http.createServer(app);
@@ -51,15 +50,6 @@ const imageUpload = multer({
     storage: imageStorage,
     limits: { fileSize: 5 * 1024 * 1024 }
 });
-
-// Rate Limit: منع brute force على التسجيل والدخول
-const authLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 10,
-    message: { error: 'طلبات كثيرة جدا. حاول بعد 15 دقيقة.' }
-});
-app.use('/api/auth/', authLimiter);
-app.use('/api/gang-auth/', authLimiter);
 
 // ================== تنسيق الأرقام المالية ==================
 // ---------------- ???? ??????? ?????? ----------------
