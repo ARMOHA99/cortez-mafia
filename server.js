@@ -1307,8 +1307,6 @@ setInterval(async () => {
         for (let u of allActiveUsers) {
             if (u.last_punch_in && (now - u.last_punch_in > maxTimeMs)) {
                 u.weekly_hours += Math.floor((now - u.last_punch_in) / 60000);
-                u.duty_status = 'OFF-DUTY'; maxTimeMs)) {
-                u.weekly_hours += Math.floor(maxTimeMs / 60000);
                 u.duty_status = 'OFF-DUTY';
                 await u.save();
                 stateChanged = true;
