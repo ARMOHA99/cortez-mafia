@@ -6,7 +6,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
 const path = require('path');
-// ?????: ?????? ????? ?????? � ????: npm install multer cloudinary multer-storage-cloudinary
+// لرفع الصور إلى Cloudinary — التثبيت: npm install multer cloudinary multer-storage-cloudinary
 const multer = require('multer');
 const cloudinary = require('cloudinary').v2;
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
@@ -18,20 +18,20 @@ const io = socketIo(server, { cors: { origin: process.env.CORS_ORIGIN || "http:/
 const JWT_SECRET = process.env.JWT_SECRET || 'CORTEZ_MAFIA_SECURE_KEY_2026';
 const PORT = process.env.PORT || 3000;
 
-// ?????? ????? ?????? ????????
+// الاتصال بقاعدة بيانات MongoDB
 const MONGO_URI = process.env.MONGO_URI;
 
-if (!MONGO_URI) { console.error('MONGO_URI ??? ????. ?????? ????? ?????? MONGO_URI.'); process.exit(1); }
+if (!MONGO_URI) { console.error('MONGO_URI غير معرف. يرجى ضبط متغير البيئة MONGO_URI.'); process.exit(1); }
 mongoose.connect(MONGO_URI)
-  .then(() => console.log('? Connected Strictly to Cortez DB (v8.0 - Notes & Attendance & Inventory Update).'))
-  .catch(err => console.error('? Database Error:', err));
+  .then(() => console.log('تم الاتصال بقاعدة بيانات CORTEZ (v8.0 - الملاحظات والحضور والمخزون).'))
+  .catch(err => console.error('خطأ في الاتصال بقاعدة البيانات:', err));
 
 app.use(cors({ origin: process.env.CORS_ORIGIN || "http://localhost:3000" }));
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ================== ?????: ???? ??? ????? ??? Cloudinary (????? ????? ?? ????? ?????? ??? Render) ==================
-// ???????? ??????? ???? ???? ?? Environment Variables ????? Render (?? ?????? ??????? ?????? ????)
+// ================== إعداد Cloudinary لرفع الصور (يُستخدم مع Render عبر متغيرات البيئة) ==================
+// المتغيرات يجب ضبطها في Environment Variables داخل Render (أو أي استضافة أخرى)
 cloudinary.config({
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
     api_key: process.env.CLOUDINARY_API_KEY,
@@ -51,8 +51,8 @@ const imageUpload = multer({
     limits: { fileSize: 5 * 1024 * 1024 }
 });
 
-// ================== ????? ??????? ??????? ==================
-// ---------------- ???? ??????? ?????? ----------------
+// ================== دوال التنسيق المالية ==================
+// ---------------- تنسيق قصير (M / K) ----------------
 const formatMoneyShort = (amount) => {
     if (!amount) return '0';
     const num = Number(amount);
@@ -66,42 +66,41 @@ const formatMoneyExact = (amount) => {
     return Number(amount).toLocaleString('en-US');
 };
 
-// ================== ????? v8.0: ???? ??? ????? ????? ??????? ???? ??????? ?????? (22:00 - 04:00 ?????? ?????? AST/UTC+3) ==================
+// ================== v8.0: التحقق من نافذة الدوام المسموحة (22:00 - 04:00 بتوقيت الخليج AST/UTC+3) ==================
 function isInDutyTimeWindow() {
     const now = new Date();
-    // ????? ????? ??? ????? ?????? (AST = UTC+3)
+    // حساب الوقت الحالي بتوقيت الخليج (AST = UTC+3)
     const gulfTime = new Date(now.getTime() + (3 * 60 * 60 * 1000));
     const hours = gulfTime.getUTCHours();
     const minutes = gulfTime.getUTCMinutes();
     const totalMinutes = hours * 60 + minutes;
-    // ??????? ????????: ?? 22:00 (1320 ?????) ??? 04:00 (240 ????????)
-    // ?? ??? 22:00 (1320) ? 23:59 (1439) ?? ?? 00:00 (0) ??? 04:00 (240)
+    // النافذة: من 22:00 (1320 دقيقة) حتى 04:00 (240 دقيقة)
+    // أي من 22:00 (1320) إلى 23:59 (1439) أو من 00:00 (0) إلى 04:00 (240)
     return totalMinutes >= 1320 || totalMinutes <= 240;
 }
 
-// ================== ????? v8.0: ?? ???????? ????????????? ?????? ?? ON-DUTY ==================
-// ????? ????? ??? ???? ??? ???? ??
-const MISSED_DUTY_NOTE_TEXT = "?? ????? ???? - ?? ???? ON-DUTY ?? ?????? ????????";
+// ================== v8.0: نص ملاحظة الغياب التلقائي لعدم تفعيل ON-DUTY ==================
+const MISSED_DUTY_NOTE_TEXT = "غاب عن الدوام - لم يسجل ON-DUTY خلال الفترة المسموحة (22:00 - 04:00 بتوقيت الخليج)";
 
-// ---------------- ???????? (Schemas) ----------------
+// ---------------- المخططات (Schemas) ----------------
 const UserSchema = new mongoose.Schema({
     username: { type: String, required: true, unique: true },
     password: { type: String, required: true },
     discord_id: { type: String, required: true },
     role: { type: String, enum: ['Don', 'Underboss', 'Capo', 'Business_Manager', 'Chef_Braquage', 'GRH', 'Soldat', 'Gang_Supervisor', 'Gang_Member'], default: 'Soldat' },
-    // ?????: ???? ????? ???????? ????????? (????? ?? ????? ???????)
+    // اسم عصابة عضو العصابة (يُستخدم لأعضاء العصابات فقط)
     gang_name: { type: String, default: '' },
     account_status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'approved' },
     duty_status: { type: String, enum: ['ON-DUTY', 'OFF-DUTY'], default: 'OFF-DUTY' },
     last_punch_in: { type: Date },
     weekly_hours: { type: Number, default: 0 },
     warnings: { type: Number, default: 0 },
-    // ?????: ????? ?? ????? ??? ???? ??????? ???? ????????? ???????? ??? ???? ??? ?????
+    // سجل تواريخ الإنذارات (يُستخدم لحساب انتهاء صلاحية الإنذار بعد 30 يوماً)
     warning_dates: { type: [Date], default: [] },
     is_blacklisted: { type: Boolean, default: false },
     consecutive_misses: { type: Number, default: 0 },
     total_heists: { type: Number, default: 0 },
-    // ????? v7.7: ???? ???????? ??????? ?????
+    // v7.7: الغرامات المالية المستحقة
     fine_amount: { type: Number, default: 0 },
     fine_reason: { type: String, default: "" }
 });
@@ -116,20 +115,20 @@ const ItemSchema = new mongoose.Schema({
     name: { type: String, required: true },
     price: { type: Number, required: true },
     image_url: { type: String, default: 'https://placehold.co/150x150/0d0d0d/00ff66?text=Item' },
-    // ?????: ???? ??????? ????? ??????
+    // حالة توفر المنتج
     in_stock: { type: Boolean, default: true },
-    max_per_order: { type: Number, default: null }, // null = ???? ?? ??? ???
-    max_per_week: { type: Number, default: null },  // null = ???? ?? ?????? ??? ???
+    max_per_order: { type: Number, default: null }, // null = بدون حد للطلب
+    max_per_week: { type: Number, default: null },  // null = بدون حد أسبوعي
     created_by: String,
     timestamp: { type: Date, default: Date.now }
 });
 
 const OrderSchema = new mongoose.Schema({
     username: String,
-    item_name: String, 
-    price: Number,      
+    item_name: String,
+    price: Number,
     items: Array,
-    total_price: Number, 
+    total_price: Number,
     status: { type: String, enum: ['Pending', 'Paid'], default: 'Pending' },
     timestamp: { type: Date, default: Date.now }
 });
@@ -157,7 +156,7 @@ const HeistLogSchema = new mongoose.Schema({
     timestamp: { type: Date, default: Date.now }
 });
 
-// ================== ?????: ???? ???? ???????? (Gang Tracking) ==================
+// ================== مخطط تتبع العصابات (يُحتفظ به للتوافق مع الإصدارات السابقة) ==================
 const GangSchema = new mongoose.Schema({
     name: { type: String, required: true },
     radio_frequency: { type: String, default: '' },
@@ -184,10 +183,9 @@ const HeistType = mongoose.model('HeistType', HeistTypeSchema);
 const HeistItem = mongoose.model('HeistItem', HeistItemSchema);
 const WeeklyGoal = mongoose.model('WeeklyGoal', WeeklyGoalSchema);
 const HeistLog = mongoose.model('HeistLog', HeistLogSchema);
-// ??????: ? mantenemos el schema de Gang para compatibilidad ?? ????? ???????? ??? ?? ?????? ??? Model
 const Gang = mongoose.model('Gang', GangSchema);
 
-// ================== ????? v8.0: ???? ????????? ==================
+// ================== v8.0: مخطط الملاحظات ==================
 const MemberNoteSchema = new mongoose.Schema({
     username: String,
     reason: String,
@@ -197,7 +195,7 @@ const MemberNoteSchema = new mongoose.Schema({
     timestamp: { type: Date, default: Date.now }
 });
 
-// ================== ????? v8.0: ???? ???? ?????? ????? (????? ????????) ==================
+// ================== v8.0: مخطط أصناف المخزون (حاسبة البزنس مانجر) ==================
 const InventoryItemSchema = new mongoose.Schema({
     name: { type: String, required: true },
     image_url: { type: String, default: 'https://placehold.co/150x150/0d0d0d/00ff66?text=Item' },
@@ -211,7 +209,7 @@ const InventoryItemSchema = new mongoose.Schema({
 const MemberNote = mongoose.model('MemberNote', MemberNoteSchema);
 const InventoryItem = mongoose.model('InventoryItem', InventoryItemSchema);
 
-// ================== ?????: ???? ??? ????? ???????? (????? ?????? ?? ??? ???????) ==================
+// ================== مخطط عناصر شوب العصابات (تبادل مع المافيا) ==================
 const GangShopItemSchema = new mongoose.Schema({
     name: { type: String, required: true },
     item_type: { type: String, enum: ['buy_only', 'sell_only', 'both'], default: 'both' },
@@ -240,7 +238,7 @@ const GangOrderSchema = new mongoose.Schema({
 
 const GangTreasurySchema = new mongoose.Schema({ total_balance: { type: Number, default: 0 } });
 
-// ================== ?????: ???? ???? ???? ?? ??? ?? ?? ???? ??? ??????? (?????? ?? "X ??? ????????") ==================
+// ================== تتبع المشتريات الأسبوعية (لتطبيق حدود "X في الأسبوع") ==================
 const WeeklyPurchaseSchema = new mongoose.Schema({
     username: String,
     item_name: String,
@@ -248,7 +246,7 @@ const WeeklyPurchaseSchema = new mongoose.Schema({
     quantity_bought: { type: Number, default: 0 }
 });
 
-// ================== ?????: ??? ????? (Audit Log) ???? ????????? ?????? ????? ==================
+// ================== سجل التدقيق (Audit Log) للأحداث الإدارية المهمة ==================
 const AuditLogSchema = new mongoose.Schema({
     action: String,
     target_username: String,
@@ -257,18 +255,27 @@ const AuditLogSchema = new mongoose.Schema({
     timestamp: { type: Date, default: Date.now }
 });
 
+// ================== سجل بصمات الدخول/الخروج (أساس نظام الحضور الصحيح) ==================
+const PunchRecordSchema = new mongoose.Schema({
+    username: { type: String, required: true },
+    action: { type: String, enum: ['IN', 'OUT'], required: true },
+    timestamp: { type: Date, default: Date.now }
+});
+PunchRecordSchema.index({ username: 1, timestamp: 1 });
+
 const GangShopItem = mongoose.model('GangShopItem', GangShopItemSchema);
 const GangOrder = mongoose.model('GangOrder', GangOrderSchema);
 const GangTreasury = mongoose.model('GangTreasury', GangTreasurySchema);
 const WeeklyPurchase = mongoose.model('WeeklyPurchase', WeeklyPurchaseSchema);
 const AuditLog = mongoose.model('AuditLog', AuditLogSchema);
+const PunchRecord = mongoose.model('PunchRecord', PunchRecordSchema);
 
 async function initSystemDB() {
     try {
         const treasuryCount = await Treasury.countDocuments({});
         if (treasuryCount === 0) { await new Treasury({ total_balance: 0 }).save(); }
 
-        // ?????: ????? ????? ??? ???????? ????????
+        // خزينة شوب العصابات
         const gangTreasuryCount = await GangTreasury.countDocuments({});
         if (gangTreasuryCount === 0) { await new GangTreasury({ total_balance: 0 }).save(); }
     } catch (err) {
@@ -277,41 +284,42 @@ async function initSystemDB() {
 }
 initSystemDB();
 
-// ================== ????? ??????? ??????? ?????????? (?????? ????? ?????) ==================
+// ================== إدارة اتصالات السوكيت الخاصة بالمستخدمين (لتفعيل الطرد الفوري) ==================
 const userSockets = {}; // { username: [socketId, ...] }
+const socketUsers = {}; // { socketId: username } — للتحقق الأمني من هوية السوكيت
 
-// ---------------- ???? ????????? ?????? ----------------
+// ---------------- دالة المصادقة والصلاحيات ----------------
 const verifyAuth = (roles) => {
     return (req, res, next) => {
         const token = req.headers['authorization']?.split(' ')[1];
-        if (!token) return res.status(401).json({ error: "??? ???? ???????." });
+        if (!token) return res.status(401).json({ error: "لم يتم إرسال رمز التوكن." });
         try {
             const decoded = jwt.verify(token, JWT_SECRET);
             req.user = decoded;
-            // ?????? ?? ???? ????? ?? ????? ???????? (???? ???? / ????)
+            // التحقق من الحالة الحالية للمستخدم (محظور / بانتظار الموافقة / الرتبة الحالية)
             User.findOne({ username: decoded.username }).select('is_blacklisted role account_status').then(currentUser => {
                 if (!currentUser || currentUser.account_status !== 'approved') {
-                    return res.status(401).json({ error: "????? ??? ???. ???? ??????? ?? ???????.", forceLogout: true });
+                    return res.status(401).json({ error: "حسابك غير مفعل بعد. يرجى انتظار الموافقة.", forceLogout: true });
                 }
                 if (currentUser.is_blacklisted) {
-                    return res.status(403).json({ error: "?? ???? ???????? ?? ????? ?????? (???? ????).", forceLogout: true });
+                    return res.status(403).json({ error: "أنت محظور من استخدام النظام (قائمة سوداء).", forceLogout: true });
                 }
                 decoded.role = currentUser.role;
                 const hasAccess = roles.includes(decoded.role) || decoded.role === 'Don';
-                if (!hasAccess) return res.status(403).json({ error: "????? ?? ???? ??????? ??? ??? ?????." });
+                if (!hasAccess) return res.status(403).json({ error: "ليست لديك صلاحية الوصول لهذه الميزة." });
                 next();
-            }).catch(() => res.status(500).json({ error: "??? ?? ?????? ?? ????????." }));
-        } catch { res.status(400).json({ error: "???? ????? ?????? ?? ?????? ??? ????." }); }
+            }).catch(() => res.status(500).json({ error: "خطأ في معالجة الطلب." }));
+        } catch { res.status(400).json({ error: "انتهت صلاحية التوكن أو أنه غير صالح." }); }
     }
 };
 
-// ================== ?????? ?????? ???????? ==================
+// ================== مسارات الواجهة البرمجية ==================
 
-// ?????: ??? ???? ?????? ??? Cloudinary (???? ???? ?? ????? ??? ????? ??? Render)
+// رفع الصور إلى Cloudinary (متاح للقيادة وأصحاب الصلاحيات فقط)
 app.post('/api/upload-image', verifyAuth(['Underboss', 'Business_Manager', 'Gang_Supervisor', 'Don']), (req, res) => {
     imageUpload.single('image')(req, res, (err) => {
-        if (err) return res.status(400).json({ error: err.message || "??? ??? ??????." });
-        if (!req.file) return res.status(400).json({ error: "?? ??? ?????? ?? ???." });
+        if (err) return res.status(400).json({ error: err.message || "خطأ في رفع الصورة." });
+        if (!req.file) return res.status(400).json({ error: "لم يتم العثور على الصورة المرفوعة." });
         res.json({ url: req.file.path });
     });
 });
@@ -319,7 +327,7 @@ app.post('/api/upload-image', verifyAuth(['Underboss', 'Business_Manager', 'Gang
 app.post('/api/auth/register', async (req, res) => {
     try {
         const { username, password, discord_id } = req.body;
-        if (!discord_id) return res.status(400).json({ error: "??? ??? Discord ID ?????." });
+        if (!discord_id) return res.status(400).json({ error: "يجب إدخال Discord ID." });
         const hashedPassword = await bcrypt.hash(password, 10);
         const isFirstUser = (await User.countDocuments({})) === 0;
         const newUser = new User({
@@ -329,18 +337,18 @@ app.post('/api/auth/register', async (req, res) => {
         });
         await newUser.save();
         if (!isFirstUser) io.emit('accountPending');
-        res.status(201).json({ msg: isFirstUser ? `?? ??????? ?????.` : "?? ????? ???? ?????. ???? ?????? ?????? ????? ??????? ?????? ?????." });
-    } catch (err) { res.status(400).json({ error: "??? ???????? ???? ?????? ????????." }); }
+        res.status(201).json({ msg: isFirstUser ? "تم إنشاء الحساب بنجاح." : "تم إرسال طلب الحساب. يرجى انتظار موافقة القيادة العليا." });
+    } catch (err) { res.status(400).json({ error: "خطأ في التسجيل: اسم المستخدم مستخدم مسبقاً." }); }
 });
 
-// ================== ?????: ????? ???? ?????? ?????? ???????? (????? ?????? GRH ?? ?????) ==================
+// ================== تسجيل حساب عضو عصابة (تتم الموافقة عليه من GRH أو الدون) ==================
 app.post('/api/gang-auth/register', async (req, res) => {
     try {
         const { username, password, gang_name, discord_id } = req.body;
-        if (!username || !password || !gang_name) return res.status(400).json({ error: "??? ???????? ????? ?????? ???? ??????? ???? ??????." });
+        if (!username || !password || !gang_name) return res.status(400).json({ error: "يجب تعبئة اسم المستخدم وكلمة المرور واسم العصابة." });
 
         const existing = await User.findOne({ username });
-        if (existing) return res.status(400).json({ error: "??? ???????? ?????? ??????." });
+        if (existing) return res.status(400).json({ error: "اسم المستخدم مستخدم مسبقاً." });
 
         const hashedPassword = await bcrypt.hash(password, 10);
         const newUser = new User({
@@ -349,11 +357,11 @@ app.post('/api/gang-auth/register', async (req, res) => {
         });
         await newUser.save();
         io.emit('accountPending');
-        res.status(201).json({ msg: "?? ????? ???? ?????. ???? ?????? ?????? ????? ??????? ?????? ?????." });
-    } catch (err) { res.status(400).json({ error: "??? ??? ????? ???????? ???? ?? ??? ????????." }); }
+        res.status(201).json({ msg: "تم إرسال طلب حساب العصابة. يرجى انتظار الموافقة من الإدارة." });
+    } catch (err) { res.status(400).json({ error: "خطأ في إنشاء حساب العصابة." }); }
 });
 
-// ??? ????? ???????? ??????? (??????? ??? - ??????? ??? ??????? ??????? ???????)
+// قائمة أسماء العصابات المسجلة (اقتراحات أثناء التسجيل)
 app.get('/api/gangs', async (req, res) => {
     try {
         const gangs = await User.distinct('gang_name', { gang_name: { $ne: '' } });
@@ -365,11 +373,11 @@ app.post('/api/auth/login', async (req, res) => {
     try {
         const { username, password } = req.body;
         const user = await User.findOne({ username });
-        if (!user || !(await bcrypt.compare(password, user.password))) return res.status(400).json({ error: "??? ?? ??? ???????? ?? ???? ??????." });
-        if (user.is_blacklisted) return res.status(403).json({ error: "?? ???? ???????? ?? ????? ?????? (???? ????)." });
+        if (!user || !(await bcrypt.compare(password, user.password))) return res.status(400).json({ error: "اسم المستخدم أو كلمة المرور غير صحيحة." });
+        if (user.is_blacklisted) return res.status(403).json({ error: "أنت محظور من استخدام النظام (قائمة سوداء)." });
 
-        if (user.account_status === 'pending') return res.status(403).json({ error: "????? ??? ??????? ?????? ????? ???????. ???? ??????." });
-        if (user.account_status === 'rejected') return res.status(403).json({ error: "?? ??? ??? ??????? ???? ??????." });
+        if (user.account_status === 'pending') return res.status(403).json({ error: "حسابك لم تتم الموافقة عليه بعد. يرجى الانتظار." });
+        if (user.account_status === 'rejected') return res.status(403).json({ error: "تم رفض حسابك من قبل الإدارة." });
         
         const token = jwt.sign({ id: user._id, role: user.role, username: user.username }, JWT_SECRET, { expiresIn: '24h' });
         res.json({ token, user: { username: user.username, role: user.role, gang_name: user.gang_name, duty_status: user.duty_status, fine_amount: user.fine_amount, fine_reason: user.fine_reason } });
@@ -379,11 +387,11 @@ app.post('/api/auth/login', async (req, res) => {
 app.get('/api/auth/me', async (req, res) => {
     try {
         const token = req.headers['authorization']?.split(' ')[1];
-        if (!token) return res.status(401).json({ error: "??? ????" });
+        if (!token) return res.status(401).json({ error: "غير مصرح" });
         const decoded = jwt.verify(token, JWT_SECRET);
         const user = await User.findById(decoded.id, 'username role duty_status fine_amount fine_reason');
         res.json(user);
-    } catch { res.status(401).json({ error: "???? ??????" }); }
+    } catch { res.status(401).json({ error: "انتهت الجلسة" }); }
 });
 
 app.get('/api/users/list', verifyAuth(['Underboss', 'Chef_Braquage', 'Business_Manager', 'Don']), async (req, res) => {
@@ -409,7 +417,7 @@ app.post('/api/shop/add-item', verifyAuth(['Underboss', 'Business_Manager']), as
         });
         await newItem.save();
         io.emit('shopUpdated');
-        res.status(201).json({ msg: "?? ????? ?????? ????? ??? ????? ???????." });
+        res.status(201).json({ msg: "تمت إضافة المنتج إلى الشوب بنجاح." });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -425,7 +433,7 @@ app.put('/api/shop/item/:id', verifyAuth(['Underboss', 'Business_Manager']), asy
         if (max_per_week !== undefined) update.max_per_week = (max_per_week === '' || max_per_week === null) ? null : Number(max_per_week);
         await Item.findByIdAndUpdate(req.params.id, update);
         io.emit('shopUpdated');
-        res.json({ msg: "?? ????? ?????? ?????." });
+        res.json({ msg: "تم تحديث المنتج بنجاح." });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -433,14 +441,14 @@ app.delete('/api/shop/item/:id', verifyAuth(['Underboss', 'Business_Manager']), 
     try {
         await Item.findByIdAndDelete(req.params.id);
         io.emit('shopUpdated');
-        res.json({ msg: "?? ??? ?????? ?????." });
+        res.json({ msg: "تم حذف المنتج بنجاح." });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/shop/checkout', verifyAuth(['Underboss', 'Soldat', 'GRH', 'Chef_Braquage', 'Business_Manager', 'Gang_Supervisor']), async (req, res) => {
+app.post('/api/shop/checkout', verifyAuth(['Underboss', 'Soldat', 'Capo', 'GRH', 'Chef_Braquage', 'Business_Manager', 'Gang_Supervisor']), async (req, res) => {
     try {
         const { items } = req.body;
-        if (!items || items.length === 0) return res.status(400).json({ error: "????? ?????." });
+        if (!items || items.length === 0) return res.status(400).json({ error: "السلة فارغة." });
 
         const username = req.user.username;
         let total_price = 0;
@@ -448,12 +456,12 @@ app.post('/api/shop/checkout', verifyAuth(['Underboss', 'Soldat', 'GRH', 'Chef_B
 
         for (const i of items) {
             const dbItem = await Item.findOne({ name: i.name });
-            if (!dbItem) return res.status(400).json({ error: `?????? "${i.name}" ??? ?????.` });
-            if (!dbItem.in_stock) return res.status(400).json({ error: `?????? "${i.name}" ???? ????? ?????? (Out of Stock).` });
+            if (!dbItem) return res.status(400).json({ error: `المنتج "${i.name}" غير موجود.` });
+            if (!dbItem.in_stock) return res.status(400).json({ error: `المنتج "${i.name}" غير متوفر حالياً (نفذت الكمية).` });
 
             const qty = Math.max(1, parseInt(i.quantity) || 1);
             if (dbItem.max_per_order && qty > dbItem.max_per_order) {
-                return res.status(400).json({ error: `???? ?????? ????? "${i.name}" ?????? ?????? ?? ${dbItem.max_per_order} ????.` });
+                return res.status(400).json({ error: `الكمية المطلوبة من المنتج "${i.name}" تتجاوز الحد المسموح للطلب (${dbItem.max_per_order} قطع).` });
             }
 
             if (dbItem.max_per_week) {
@@ -461,7 +469,7 @@ app.post('/api/shop/checkout', verifyAuth(['Underboss', 'Soldat', 'GRH', 'Chef_B
                 const alreadyBought = record ? record.quantity_bought : 0;
                 if (alreadyBought + qty > dbItem.max_per_week) {
                     const remaining = Math.max(0, dbItem.max_per_week - alreadyBought);
-                    return res.status(400).json({ error: `???? ???? ???????? ????? "${i.name}" (${dbItem.max_per_week} ????????). ??????? ??: ${remaining}.` });
+                    return res.status(400).json({ error: `لقد وصلت للحد الأسبوعي للمنتج "${i.name}" (${dbItem.max_per_week} قطع). المتبقي: ${remaining}.` });
                 }
             }
 
@@ -484,7 +492,7 @@ app.post('/api/shop/checkout', verifyAuth(['Underboss', 'Soldat', 'GRH', 'Chef_B
         const newOrder = new Order({ username, items: finalItems, total_price, status: 'Pending' });
         await newOrder.save();
         io.emit('ordersUpdated');
-        res.json({ msg: "?? ??? ???? ??????? ?????? ???? ????? ?????? ???? ???????." });
+        res.json({ msg: "تم إرسال طلب الشراء بنجاح. بانتظار استلام الدفعة من الإدارة." });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -496,10 +504,10 @@ app.get('/api/shop/orders', verifyAuth(['Underboss', 'Business_Manager', 'Chef_B
 const confirmPaymentLogic = async (req, res) => {
     try {
         const order_id = req.params.id || req.body.order_id;
-        if (!order_id) return res.status(400).json({ error: "??? ????? ??? ?????." });
+        if (!order_id) return res.status(400).json({ error: "لم يتم تحديد رقم الطلب." });
 
         const order = await Order.findById(order_id);
-        if (!order || order.status === 'Paid') return res.status(400).json({ error: "????? ??? ???? ?? ????? ??????." });
+        if (!order || order.status === 'Paid') return res.status(400).json({ error: "الطلب غير موجود أو تم الدفع مسبقاً." });
         
         order.status = 'Paid';
         await order.save();
@@ -508,7 +516,7 @@ const confirmPaymentLogic = async (req, res) => {
         await Treasury.updateOne({}, { $inc: { total_balance: amountToAdd } });
         
         io.emit('ordersUpdated'); io.emit('treasuryUpdated');
-        res.json({ msg: "?? ????? ????? ?????? ?????? ??? ??????? ?????? ???????." });
+        res.json({ msg: "تم تأكيد استلام المبلغ وإضافته إلى خزينة العصابة بنجاح." });
     } catch (err) { res.status(500).json({ error: err.message }); }
 };
 
@@ -527,22 +535,33 @@ app.post('/api/treasury/reset', verifyAuth(['Don']), async (req, res) => {
     try {
         await Treasury.updateOne({}, { total_balance: 0 });
         io.emit('treasuryUpdated');
-        res.json({ msg: "?? ????? ??????? ??????? ????? ??? ????? ??????? ??????." });
+        res.json({ msg: "تم تصفير الخزينة العليا للعصابة بنجاح." });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
+
+// دالة تهريب النصوص لعرضها بأمان داخل HTML (حماية من XSS)
+const escapeHtml = (str) => {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+};
 
 app.get('/api/shop/invoice/:id', async (req, res) => {
     try {
         const order = await Order.findById(req.params.id);
-        if (!order) return res.status(404).send("????? ??? ?????");
+        if (!order) return res.status(404).send("الفاتورة غير موجودة");
         
         let itemsList = '';
         if (order.items && order.items.length > 0) {
             itemsList = order.items.map(i => {
                 const qty = i.quantity || 1;
-                return `<li>${qty}x ${i.name} - ${formatMoneyExact(i.total || (i.price * qty))}$</li>`;
+                return `<li>${qty}x ${escapeHtml(i.name)} - ${formatMoneyExact(i.total || (i.price * qty))}$</li>`;
             }).join('');
-        } else { itemsList = `<li>1x ${order.item_name} - ${formatMoneyExact(order.price)}$</li>`; }
+        } else { itemsList = `<li>1x ${escapeHtml(order.item_name)} - ${formatMoneyExact(order.price)}$</li>`; }
 
         const total = formatMoneyExact(order.total_price || order.price);
         const html = `
@@ -569,20 +588,20 @@ app.get('/api/shop/invoice/:id', async (req, res) => {
                 <h3>OFFICIAL TRANSACTION RECEIPT</h3>
                 <hr>
                 <div class="details">
-                    <p><b>???? ??????? (ID):</b> ${order._id}</p>
-                    <p><b>?????? ???????:</b> ${order.username}</p>
-                    <p><b>????? ???????:</b> ${new Date(order.timestamp).toLocaleString('en-GB')}</p>
-                    <p><b>???? ??????:</b> ${order.status === 'Paid' ? '<span style="color:#00ff66;">????? ?????? ??????? ??</span>' : '<span style="color:red;">???? ?</span>'}</p>
+                    <p><b>رقم الفاتورة (ID):</b> ${escapeHtml(order._id)}</p>
+                    <p><b>اسم العضو:</b> ${escapeHtml(order.username)}</p>
+                    <p><b>تاريخ الفاتورة:</b> ${new Date(order.timestamp).toLocaleString('en-GB')}</p>
+                    <p><b>حالة الدفع:</b> ${order.status === 'Paid' ? '<span style="color:#00ff66;">تم استلام المبلغ بالكامل</span>' : '<span style="color:red;">غير مدفوعة</span>'}</p>
                 </div>
                 <hr>
                 <ul>${itemsList}</ul>
-                <div class="total">???????? ???????: ${total}$</div>
+                <div class="total">إجمالي الفاتورة: ${total}$</div>
                 ${order.status === 'Paid' ? '<div class="stamp">AUTHORIZED & PAID</div>' : ''}
             </div>
         </body>
         </html>`;
         res.send(html);
-    } catch (err) { res.status(500).send("??? ?? ??? ????????: " + err.message); }
+    } catch (err) { res.status(500).send("خطأ في استرجاع الفاتورة: " + err.message); }
 });
 
 app.get('/api/admin/users', verifyAuth(['Underboss', 'GRH']), async (req, res) => {
@@ -595,29 +614,29 @@ app.get('/api/admin/users', verifyAuth(['Underboss', 'GRH']), async (req, res) =
 app.post('/api/admin/change-role', verifyAuth(['Underboss', 'GRH']), async (req, res) => {
     try {
         const { target_username, new_role } = req.body;
-        if (new_role === 'Don') return res.status(403).json({ error: "?? ???? ??? ???? ????? (Don) ??? ???!" });
+        if (new_role === 'Don') return res.status(403).json({ error: "لا يمكن منح رتبة الدون (Don) بهذه الطريقة!" });
         const oldUser = await User.findOne({ username: target_username }, 'role');
         await User.findOneAndUpdate({ username: target_username }, { role: new_role });
         await new AuditLog({
             action: 'role_changed', target_username, performed_by: req.user.username,
-            details: `?? ${oldUser ? oldUser.role : '?'} ??? ${new_role}`
+            details: `من ${oldUser ? oldUser.role : '?'} إلى ${new_role}`
         }).save();
         forceUserLogout(target_username);
         io.emit('dutyUpdated', {}); io.emit('auditLogUpdated');
-        res.json({ msg: `?? ????? ?????? ?????.` });
+        res.json({ msg: "تم تغيير الرتبة بنجاح." });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.post('/api/admin/reset-password', verifyAuth(['Underboss', 'GRH']), async (req, res) => {
     try {
         const { target_username, new_password } = req.body;
-        if (!new_password || new_password.length < 4) return res.status(400).json({ error: "???? ?????? ??????? ????? ???? (4 ???? ??? ?????)." });
+        if (!new_password || new_password.length < 4) return res.status(400).json({ error: "كلمة المرور الجديدة قصيرة جداً (4 أحرف على الأقل)." });
         const hashedPassword = await bcrypt.hash(new_password, 10);
         const result = await User.findOneAndUpdate({ username: target_username }, { password: hashedPassword });
-        if (!result) return res.status(404).json({ error: "????? ??? ?????." });
+        if (!result) return res.status(404).json({ error: "العضو غير موجود." });
         await new AuditLog({ action: 'password_reset', target_username, performed_by: req.user.username, details: '' }).save();
         io.emit('auditLogUpdated');
-        res.json({ msg: `?? ????? ???? ???? "${target_username}" ?????. ????? ????? ?????? ??????? ??????.` });
+        res.json({ msg: `تمت إعادة تعيين كلمة مرور "${target_username}" بنجاح. يرجى تسليمها له بشكل آمن.` });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -625,22 +644,22 @@ app.post('/api/admin/adjust-hours', verifyAuth(['Underboss', 'GRH']), async (req
     try {
         const { target_username, new_hours } = req.body;
         if (new_hours === undefined || new_hours === '' || isNaN(new_hours) || Number(new_hours) < 0) {
-            return res.status(400).json({ error: "?????? ????? ??? ????? ???? (0 ?? ????)." });
+            return res.status(400).json({ error: "الرقم المدخل غير صالح (0 أو أكثر)." });
         }
         const newMinutes = Math.round(Number(new_hours) * 60);
         const result = await User.findOneAndUpdate(
             { username: target_username },
             { weekly_hours: newMinutes, duty_status: 'OFF-DUTY' }
         );
-        if (!result) return res.status(404).json({ error: "????? ??? ?????." });
+        if (!result) return res.status(404).json({ error: "العضو غير موجود." });
 
         await new AuditLog({
             action: 'hours_adjusted', target_username, performed_by: req.user.username,
-            details: `????? ??????? ??? ${new_hours} ???? (??????? OFF-DUTY ????????)`
+            details: `تصحيح الساعات إلى ${new_hours} ساعة (مع إرجاع الحالة OFF-DUTY)`
         }).save();
         io.emit('dutyUpdated', {});
         io.emit('auditLogUpdated');
-        res.json({ msg: `?? ????? ????? "${target_username}" ??? ${new_hours} ????? ???????? OFF-DUTY.` });
+        res.json({ msg: `تم تصحيح ساعات "${target_username}" إلى ${new_hours} ساعة مع إرجاعه OFF-DUTY.` });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -660,7 +679,7 @@ app.post('/api/admin/reset-weekly-hours', verifyAuth(['Don']), async (req, res) 
         await WeeklyPurchase.deleteMany({});
         
         io.emit('dutyUpdated');
-        res.json({ msg: "??? ????? ??????? ????? ?????? ??????? ????? ?????? ???? ???? ?????." });
+        res.json({ msg: "تمت أرشفة الأسبوع وتصفير الساعات لكل الأعضاء بنجاح." });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -669,12 +688,12 @@ app.get('/api/admin/archive', verifyAuth(['Underboss', 'GRH']), async (req, res)
     catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ================== ????? v7.7: ???? ???????? ?????? ????????? ??????? ==================
+// ================== v7.7: نظام الغرامات والعقوبات الإدارية ==================
 app.post('/api/admin/penalty', verifyAuth(['Underboss', 'GRH']), async (req, res) => {
     try {
         const { target_username, type, reason, fine_amount } = req.body;
         const user = await User.findOne({ username: target_username });
-        if (!user) return res.status(404).json({ error: "???????? ??? ?????." });
+        if (!user) return res.status(404).json({ error: "العضو غير موجود." });
 
         let penaltyAmount = 0;
 
@@ -689,9 +708,9 @@ app.post('/api/admin/penalty', verifyAuth(['Underboss', 'GRH']), async (req, res
             user.is_blacklisted = false; user.warnings = 0; user.warning_dates = [];
         } else if (type === 'Fine') {
             penaltyAmount = Number(fine_amount || 0);
-            if (penaltyAmount <= 0) return res.status(400).json({ error: "???? ????? ???? ??????? ???? ????." });
+            if (penaltyAmount <= 0) return res.status(400).json({ error: "مبلغ الغرامة يجب أن يكون رقماً موجباً." });
             user.fine_amount += penaltyAmount;
-            user.fine_reason = reason || "?????? ???????? ????????";
+            user.fine_reason = reason || "غرامة مفروضة من الإدارة";
         }
         
         await user.save();
@@ -701,11 +720,11 @@ app.post('/api/admin/penalty', verifyAuth(['Underboss', 'GRH']), async (req, res
         io.emit('finesUpdated');
         io.emit('notesUpdated');
         
-        res.json({ msg: "?? ????? ??????? ??????? ??????? ?????." });
+        res.json({ msg: "تم تنفيذ الإجراء بنجاح." });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ??? ????? ??????? ????? ????? ?????? ??? (????? ???????)
+// قائمة الأعضاء الذين عليهم غرامات معلقة (للوحة الإدارة)
 app.get('/api/admin/fines/active', verifyAuth(['Underboss', 'GRH']), async (req, res) => {
     try {
         const finedUsers = await User.find({ fine_amount: { $gt: 0 } }, 'username role fine_amount fine_reason');
@@ -717,7 +736,7 @@ app.post('/api/admin/fines/pay', verifyAuth(['Underboss', 'GRH']), async (req, r
     try {
         const { target_username } = req.body;
         const user = await User.findOne({ username: target_username });
-        if (!user || user.fine_amount <= 0) return res.status(400).json({ error: "???????? ??? ???? ?? ????? ?????." });
+        if (!user || user.fine_amount <= 0) return res.status(400).json({ error: "العضو ليس عليه غرامة معلقة." });
 
         const amountPaid = user.fine_amount;
         
@@ -731,7 +750,7 @@ app.post('/api/admin/fines/pay', verifyAuth(['Underboss', 'GRH']), async (req, r
         io.emit('treasuryUpdated');
         io.emit('dutyUpdated');
         
-        res.json({ msg: `?? ????? ??????? ?????? ?????? ???? ${amountPaid}$ ?????? ??? ????? ???????.` });
+        res.json({ msg: `تم استلام الغرامة بقيمة ${amountPaid}$ وإضافتها إلى الخزينة العليا.` });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -747,17 +766,17 @@ app.get('/api/stats/leaderboard', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/hr/leave', verifyAuth(['Underboss', 'Soldat', 'GRH', 'Chef_Braquage', 'Business_Manager', 'Gang_Supervisor']), async (req, res) => {
+app.post('/api/hr/leave', verifyAuth(['Underboss', 'Soldat', 'Capo', 'GRH', 'Chef_Braquage', 'Business_Manager', 'Gang_Supervisor']), async (req, res) => {
     try {
         await new Leave({ username: req.user.username, reason: req.body.reason, duration: Number(req.body.duration) }).save();
-        io.emit('requestUpdated'); res.json({ msg: "?? ??? ??? ??????? ?????." });
+        io.emit('requestUpdated'); res.json({ msg: "تم إرسال طلب الإجازة بنجاح." });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/hr/justify', verifyAuth(['Underboss', 'Soldat', 'GRH', 'Chef_Braquage', 'Business_Manager', 'Gang_Supervisor']), async (req, res) => {
+app.post('/api/hr/justify', verifyAuth(['Underboss', 'Soldat', 'Capo', 'GRH', 'Chef_Braquage', 'Business_Manager', 'Gang_Supervisor']), async (req, res) => {
     try {
         await new Justification({ username: req.user.username, reason: req.body.reason }).save();
-        io.emit('requestUpdated'); res.json({ msg: "?? ??? ????? ?????? ?????." });
+        io.emit('requestUpdated'); res.json({ msg: "تم إرسال التبرير بنجاح." });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -774,13 +793,13 @@ app.post('/api/hr/action', verifyAuth(['Underboss', 'GRH']), async (req, res) =>
         const { type, id, action } = req.body;
         if (type === 'leave') {
             await Leave.findByIdAndUpdate(id, { status: action });
-            // ????? v8.0: ??? ???????? ??? ???????? ????? ?????? ??????? ?????
+            // عند اعتماد الإجازة تُسجل ملاحظة إدارية للعضو
             if (action === 'Approved') {
                 const leave = await Leave.findById(id);
                 if (leave) {
                     await new MemberNote({
                         username: leave.username,
-                        reason: `??? ???????? ??? ?????: ${leave.reason} ???? ${leave.duration} ????`,
+                        reason: `إجازة معتمدة من الإدارة: ${leave.reason} لمدة ${leave.duration} أيام`,
                         issued_by: req.user.username,
                         bill_amount: 0
                     }).save();
@@ -789,15 +808,15 @@ app.post('/api/hr/action', verifyAuth(['Underboss', 'GRH']), async (req, res) =>
             }
         }
         if (type === 'justify') await Justification.findByIdAndUpdate(id, { status: action });
-        io.emit('requestUpdated'); res.json({ msg: "?? ????? ???? ????? ????? ???." });
+        io.emit('requestUpdated'); res.json({ msg: "تم تحديث حالة الطلب بنجاح." });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ================== ????? v8.0: ???? ????????? ==================
+// ================== v8.0: نظام الملاحظات ==================
 app.post('/api/notes/add', verifyAuth(['Don', 'Underboss', 'GRH']), async (req, res) => {
     try {
         const { username, reason, bill_amount } = req.body;
-        if (!username || !reason) return res.status(400).json({ error: "??? ???????? ?????? ???????." });
+        if (!username || !reason) return res.status(400).json({ error: "اسم المستخدم والسبب مطلوبان." });
 
         const note = new MemberNote({
             username,
@@ -808,11 +827,11 @@ app.post('/api/notes/add', verifyAuth(['Don', 'Underboss', 'GRH']), async (req, 
         await note.save();
         io.emit('notesUpdated');
         io.emit('dutyUpdated');
-        res.status(201).json({ msg: "??? ????? ???????? ?????." });
+        res.status(201).json({ msg: "تمت إضافة الملاحظة بنجاح." });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/api/notes/my', verifyAuth(['Underboss', 'Soldat', 'GRH', 'Chef_Braquage', 'Business_Manager', 'Gang_Supervisor']), async (req, res) => {
+app.get('/api/notes/my', verifyAuth(['Underboss', 'Soldat', 'Capo', 'GRH', 'Chef_Braquage', 'Business_Manager', 'Gang_Supervisor']), async (req, res) => {
     try {
         const notes = await MemberNote.find({ username: req.user.username }).sort({ timestamp: -1 });
         res.json(notes);
@@ -829,7 +848,7 @@ app.get('/api/notes/all', verifyAuth(['Don', 'Underboss', 'GRH']), async (req, r
 app.post('/api/notes/penalize', verifyAuth(['Don', 'Underboss', 'GRH']), async (req, res) => {
     try {
         const { username, reason, bill_amount } = req.body;
-        if (!username || !reason) return res.status(400).json({ error: "??? ???????? ????? ???????." });
+        if (!username || !reason) return res.status(400).json({ error: "اسم المستخدم والسبب مطلوبان." });
 
         const note = new MemberNote({
             username,
@@ -839,7 +858,7 @@ app.post('/api/notes/penalize', verifyAuth(['Don', 'Underboss', 'GRH']), async (
         });
         await note.save();
 
-        // ????: ??? ??? ????? ??? 3 ??????? ?? ????? ????? ?? ????? ??????
+        // قاعدة: عند بلوغ 3 ملاحظات يتم تحويلها إلى إنذار رسمي
         const totalNotes = await MemberNote.countDocuments({ username });
         let warningsIssued = false;
         let blacklisted = false;
@@ -860,7 +879,7 @@ app.post('/api/notes/penalize', verifyAuth(['Don', 'Underboss', 'GRH']), async (
                     target_username: username,
                     admin_username: req.user.username,
                     type: 'Warning',
-                    reason: `????? ??????: ??? ${totalNotes} ???????`,
+                    reason: `ملاحظات متراكمة: بلوغ ${totalNotes} ملاحظات`,
                     fine_amount: 0
                 }).save();
             }
@@ -870,36 +889,45 @@ app.post('/api/notes/penalize', verifyAuth(['Don', 'Underboss', 'GRH']), async (
         io.emit('dutyUpdated');
         io.emit('finesUpdated');
 
-        let msg = "??? ????? ???????? ?????.";
-        if (warningsIssued) msg += ` (${username} ??? ??? 3 ???????? ?? ?????? ????????.`;
-        if (blacklisted) msg += ` ?? ???? (???? ????) ??? 3 ???????.)`;
+        let msg = "تمت إضافة الملاحظة بنجاح.";
+        if (warningsIssued) msg += ` (${username} بلغ 3 ملاحظات وتحولت إلى إنذار رسمي.`;
+        if (blacklisted) msg += ` تم وضعه في القائمة السوداء لبلوغ 3 إنذارات.)`;
         else if (warningsIssued) msg += ")";
 
         res.status(201).json({ msg, total_notes: totalNotes });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ================== ????? v8.0: ??? ?????? ==================
+// ================== v8.0: حذف ملاحظة ==================
 app.delete('/api/notes/:id', verifyAuth(['Don', 'Underboss', 'GRH']), async (req, res) => {
     try {
         const note = await MemberNote.findByIdAndDelete(req.params.id);
-        if (!note) return res.status(404).json({ error: "???????? ??? ??????." });
+        if (!note) return res.status(404).json({ error: "الملاحظة غير موجودة." });
         io.emit('notesUpdated');
-        res.json({ msg: "?? ??? ???????? ?????." });
+        res.json({ msg: "تم حذف الملاحظة بنجاح." });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ================== ????? v8.0: ???? ?????? ???????? ==================
+// ================== v8.0: سجل الحضور الأسبوعي (مبني على بصمات الدخول/الخروج الفعلية) ==================
+// يوم الدوام الواحد يمتد من 22:00 إلى 04:00 بتوقيت الخليج (ليلة الدوام تُحسب لليوم الذي تبدأ فيه)
 app.get('/api/attendance/week', verifyAuth(['Don', 'Underboss', 'GRH', 'Business_Manager']), async (req, res) => {
     try {
+        const GULF_OFFSET_MS = 3 * 60 * 60 * 1000;
+        const now = new Date();
+        const gulfNow = new Date(now.getTime() + GULF_OFFSET_MS);
+
+        // تحديد آخر 7 أيام دوام (كل يوم يبدأ 22:00 بتوقيت الخليج = 19:00 UTC)
         const days = [];
         for (let i = 6; i >= 0; i--) {
-            const d = new Date();
-            d.setDate(d.getDate() - i);
-            d.setHours(0, 0, 0, 0);
-            const end = new Date(d);
-            end.setDate(end.getDate() + 1);
-            days.push({ start: d, end, label: d.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' }) });
+            const startAbs = new Date(Date.UTC(
+                gulfNow.getUTCFullYear(),
+                gulfNow.getUTCMonth(),
+                gulfNow.getUTCDate() - i,
+                19, 0, 0, 0
+            ));
+            const endAbs = new Date(startAbs.getTime() + 6 * 60 * 60 * 1000); // +6 ساعات = 04:00 بتوقيت الخليج
+            const label = startAbs.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
+            days.push({ start: startAbs, end: endAbs, label });
         }
 
         const members = await User.find({
@@ -908,11 +936,26 @@ app.get('/api/attendance/week', verifyAuth(['Don', 'Underboss', 'GRH', 'Business
             role: { $ne: 'Gang_Member' }
         }, 'username role last_punch_in');
 
+        // جلب جميع بصمات الدخول المسجلة خلال الأسبوع
+        const records = await PunchRecord.find({
+            action: 'IN',
+            timestamp: { $gte: days[0].start }
+        });
+
+        const byUser = {};
+        records.forEach(r => {
+            if (!byUser[r.username]) byUser[r.username] = [];
+            byUser[r.username].push(new Date(r.timestamp).getTime());
+        });
+
         const result = members.map(u => {
-            const dayStatus = days.map(d => ({
-                date: d.label,
-                present: u.last_punch_in ? (new Date(u.last_punch_in) >= d.start && new Date(u.last_punch_in) < d.end) : false
-            }));
+            const punches = byUser[u.username] || [];
+            const dayStatus = days.map(d => {
+                const inWindow = punches.some(t => t >= d.start.getTime() && t < d.end.getTime());
+                // احتياط للبيانات القديمة قبل تفعيل سجل البصمات
+                const legacyInWindow = u.last_punch_in && new Date(u.last_punch_in) >= d.start && new Date(u.last_punch_in) < d.end;
+                return { date: d.label, present: inWindow || !!legacyInWindow };
+            });
             const totalPresent = dayStatus.filter(d => d.present).length;
             return {
                 username: u.username,
@@ -926,11 +969,11 @@ app.get('/api/attendance/week', verifyAuth(['Don', 'Underboss', 'GRH', 'Business
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ================== ????? v8.0: ???? ??????? / ???? ?????? ????? ==================
+// ================== v8.0: نظام المخزون / حاسبة البزنس مانجر ==================
 app.post('/api/inventory/add', verifyAuth(['Don', 'Underboss', 'Business_Manager']), async (req, res) => {
     try {
         const { name, image_url, buy_from_gang_price, sell_to_black_price, quantity } = req.body;
-        if (!name) return res.status(400).json({ error: "??? ?????? ?????." });
+        if (!name) return res.status(400).json({ error: "اسم المنتج مطلوب." });
 
         const item = new InventoryItem({
             name,
@@ -942,11 +985,11 @@ app.post('/api/inventory/add', verifyAuth(['Don', 'Underboss', 'Business_Manager
         });
         await item.save();
         io.emit('inventoryUpdated');
-        res.status(201).json({ msg: "??? ????? ?????? ??? ??????? ?????." });
+        res.status(201).json({ msg: "تمت إضافة المنتج للمخزون بنجاح." });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/api/inventory/items', verifyAuth(['Underboss', 'Soldat', 'GRH', 'Chef_Braquage', 'Business_Manager', 'Gang_Supervisor']), async (req, res) => {
+app.get('/api/inventory/items', verifyAuth(['Underboss', 'Soldat', 'Capo', 'GRH', 'Chef_Braquage', 'Business_Manager', 'Gang_Supervisor']), async (req, res) => {
     try {
         const items = await InventoryItem.find().sort({ timestamp: -1 });
         res.json(items);
@@ -965,7 +1008,7 @@ app.put('/api/inventory/item/:id', verifyAuth(['Don', 'Underboss', 'Business_Man
 
         await InventoryItem.findByIdAndUpdate(req.params.id, update);
         io.emit('inventoryUpdated');
-        res.json({ msg: "?? ????? ?????? ?????." });
+        res.json({ msg: "تم تحديث المنتج بنجاح." });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -973,11 +1016,11 @@ app.delete('/api/inventory/item/:id', verifyAuth(['Don', 'Underboss', 'Business_
     try {
         await InventoryItem.findByIdAndDelete(req.params.id);
         io.emit('inventoryUpdated');
-        res.json({ msg: "?? ??? ?????? ?? ??????? ?????." });
+        res.json({ msg: "تم حذف المنتج من المخزون بنجاح." });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ================== ?????: ???????? ??? ?? ???? ???? ????? (????? ?? ?????) � GRH ?? ????? ==================
+// ================== الموافقة على الحسابات الجديدة (مافيا أو عصابات) — GRH أو الدون ==================
 app.get('/api/admin/pending-accounts', verifyAuth(['Underboss', 'GRH']), async (req, res) => {
     try {
         const pending = await User.find({ account_status: 'pending' }, 'username role gang_name discord_id timestamp');
@@ -988,24 +1031,24 @@ app.get('/api/admin/pending-accounts', verifyAuth(['Underboss', 'GRH']), async (
 app.post('/api/admin/pending-accounts/review', verifyAuth(['Underboss', 'GRH']), async (req, res) => {
     try {
         const { target_username, decision } = req.body;
-        if (!['approve', 'reject'].includes(decision)) return res.status(400).json({ error: "???? ??? ????." });
+        if (!['approve', 'reject'].includes(decision)) return res.status(400).json({ error: "قرار غير صالح." });
 
         const user = await User.findOne({ username: target_username, account_status: 'pending' });
-        if (!user) return res.status(404).json({ error: "?????? ??? ????? ?? ??? ??????? ??????." });
+        if (!user) return res.status(404).json({ error: "المستخدم غير موجود أو ليس بانتظار الموافقة." });
 
         user.account_status = decision === 'approve' ? 'approved' : 'rejected';
         await user.save();
         await new AuditLog({
             action: decision === 'approve' ? 'account_approved' : 'account_rejected',
             target_username, performed_by: req.user.username,
-            details: user.role === 'Gang_Member' ? `??? ?????: ${user.gang_name}` : '??? ?????'
+            details: user.role === 'Gang_Member' ? `عضو عصابة: ${user.gang_name}` : 'عضو مافيا'
         }).save();
         io.emit('accountPending'); io.emit('auditLogUpdated');
-        res.json({ msg: decision === 'approve' ? `?? ????? ???? ${target_username} ?????.` : `?? ??? ??? ${target_username}.` });
+        res.json({ msg: decision === 'approve' ? `تم قبول حساب ${target_username} بنجاح.` : `تم رفض حساب ${target_username}.` });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ================== ?????: ??? ????? ???????? (????? ????? ?? ??? ???????) ==================
+// ================== شوب العصابات (التبادل التجاري بين العصابات والمافيا) ==================
 app.get('/api/gang-shop/items', async (req, res) => {
     try { const items = await GangShopItem.find().sort({ timestamp: -1 }); res.json(items); }
     catch (err) { res.status(500).json({ error: err.message }); }
@@ -1017,9 +1060,9 @@ app.post('/api/gang-shop/add-item', verifyAuth(['Underboss', 'Business_Manager']
         const validTypes = ['buy_only', 'sell_only', 'both'];
         const finalType = validTypes.includes(item_type) ? item_type : 'both';
 
-        if (!name) return res.status(400).json({ error: "??? ?????? ?????." });
-        if ((finalType === 'buy_only' || finalType === 'both') && (buy_price === undefined || buy_price === null || buy_price === '')) return res.status(400).json({ error: "??? ?????? ????? ???? ????? ?? ????????." });
-        if ((finalType === 'sell_only' || finalType === 'both') && (sell_price === undefined || sell_price === null || sell_price === '')) return res.status(400).json({ error: "??? ????? ????? ???? ????? ?? ????????." });
+        if (!name) return res.status(400).json({ error: "اسم المنتج مطلوب." });
+        if ((finalType === 'buy_only' || finalType === 'both') && (buy_price === undefined || buy_price === null || buy_price === '')) return res.status(400).json({ error: "سعر الشراء مطلوب لهذا النوع من المنتجات." });
+        if ((finalType === 'sell_only' || finalType === 'both') && (sell_price === undefined || sell_price === null || sell_price === '')) return res.status(400).json({ error: "سعر البيع مطلوب لهذا النوع من المنتجات." });
 
         const newItem = new GangShopItem({
             name, item_type: finalType,
@@ -1032,7 +1075,7 @@ app.post('/api/gang-shop/add-item', verifyAuth(['Underboss', 'Business_Manager']
         });
         await newItem.save();
         io.emit('gangShopUpdated');
-        res.status(201).json({ msg: "??? ????? ?????? ??? ??? ???????? ?????." });
+        res.status(201).json({ msg: "تمت إضافة المنتج إلى شوب العصابات بنجاح." });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -1040,7 +1083,7 @@ app.put('/api/gang-shop/item/:id', verifyAuth(['Underboss', 'Business_Manager'])
     try {
         const { name, item_type, buy_price, sell_price, image_url, in_stock, max_per_order, max_per_week } = req.body;
         const item = await GangShopItem.findById(req.params.id);
-        if (!item) return res.status(404).json({ error: "?????? ??? ?????." });
+        if (!item) return res.status(404).json({ error: "المنتج غير موجود." });
 
         if (name !== undefined) item.name = name;
         if (image_url !== undefined) item.image_url = image_url;
@@ -1053,17 +1096,17 @@ app.put('/api/gang-shop/item/:id', verifyAuth(['Underboss', 'Business_Manager'])
 
         if (item.item_type === 'buy_only' || item.item_type === 'both') {
             if (buy_price !== undefined) item.buy_price = Number(buy_price);
-            if (!item.buy_price) return res.status(400).json({ error: "??? ?????? ????? ???? ????? ?? ????????." });
+            if (!item.buy_price) return res.status(400).json({ error: "سعر الشراء مطلوب لهذا النوع من المنتجات." });
         } else { item.buy_price = null; }
 
         if (item.item_type === 'sell_only' || item.item_type === 'both') {
             if (sell_price !== undefined) item.sell_price = Number(sell_price);
-            if (!item.sell_price) return res.status(400).json({ error: "??? ????? ????? ???? ????? ?? ????????." });
+            if (!item.sell_price) return res.status(400).json({ error: "سعر البيع مطلوب لهذا النوع من المنتجات." });
         } else { item.sell_price = null; }
 
         await item.save();
         io.emit('gangShopUpdated');
-        res.json({ msg: "?? ????? ?????? ?????." });
+        res.json({ msg: "تم تحديث المنتج بنجاح." });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -1071,7 +1114,7 @@ app.delete('/api/gang-shop/item/:id', verifyAuth(['Underboss', 'Business_Manager
     try {
         await GangShopItem.findByIdAndDelete(req.params.id);
         io.emit('gangShopUpdated');
-        res.json({ msg: "?? ??? ?????? ?????." });
+        res.json({ msg: "تم حذف المنتج بنجاح." });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -1081,7 +1124,7 @@ app.post('/api/gang-shop/checkout', verifyAuth(['Gang_Member']), async (req, res
     try {
         const { items_bought, items_sold } = req.body;
         if ((!items_bought || items_bought.length === 0) && (!items_sold || items_sold.length === 0)) {
-            return res.status(400).json({ error: "?? ??? ????? ?? ???? ?????? ?? ?????." });
+            return res.status(400).json({ error: "لا توجد عملية شراء أو بيع." });
         }
 
         const catalog = await GangShopItem.find();
@@ -1092,21 +1135,21 @@ app.post('/api/gang-shop/checkout', verifyAuth(['Gang_Member']), async (req, res
         const processedBought = [];
         for (const i of (items_bought || [])) {
             const catalogItem = findItem(i.name);
-            if (!catalogItem) throw new Error(`?????? "${i.name}" ??? ????? ?????????.`);
-            if (catalogItem.item_type === 'sell_only') throw new Error(`?????? "${i.name}" ??? ???? ?????? (??? ?????? ???).`);
-            if (!catalogItem.in_stock) throw new Error(`?????? "${i.name}" ???? ????? ?????? (Out of Stock).`);
+            if (!catalogItem) throw new Error(`المنتج "${i.name}" غير موجود في الكتالوج.`);
+            if (catalogItem.item_type === 'sell_only') throw new Error(`المنتج "${i.name}" غير قابل للشراء (بيع فقط).`);
+            if (!catalogItem.in_stock) throw new Error(`المنتج "${i.name}" غير متوفر حالياً (نفذت الكمية).`);
 
             const qty = Math.max(1, parseInt(i.quantity) || 1);
-            if (qty > MAX_QTY_PER_LINE) throw new Error(`?????? ???????? ?? "${i.name}" ????? ????? ???? ?? ?????.`);
+            if (qty > MAX_QTY_PER_LINE) throw new Error(`الكمية المطلوبة من "${i.name}" تتجاوز الحد المسموح في الطلب.`);
             if (catalogItem.max_per_order && qty > catalogItem.max_per_order) {
-                throw new Error(`???? ?????? ????? "${i.name}" ?????? ?????? ?? ${catalogItem.max_per_order} ????.`);
+                throw new Error(`الكمية المطلوبة من المنتج "${i.name}" تتجاوز الحد المسموح للطلب (${catalogItem.max_per_order} قطع).`);
             }
             if (catalogItem.max_per_week) {
                 const record = await WeeklyPurchase.findOne({ username, item_name: i.name, shop_type: 'gang_shop' });
                 const alreadyBought = record ? record.quantity_bought : 0;
                 if (alreadyBought + qty > catalogItem.max_per_week) {
                     const remaining = Math.max(0, catalogItem.max_per_week - alreadyBought);
-                    throw new Error(`???? ???? ???????? ????? "${i.name}" (${catalogItem.max_per_week} ????????). ??????? ??: ${remaining}.`);
+                    throw new Error(`لقد وصلت للحد الأسبوعي للمنتج "${i.name}" (${catalogItem.max_per_week} قطع). المتبقي: ${remaining}.`);
                 }
             }
 
@@ -1118,10 +1161,10 @@ app.post('/api/gang-shop/checkout', verifyAuth(['Gang_Member']), async (req, res
         let total_sell_value = 0;
         const processedSold = (items_sold || []).map(i => {
             const catalogItem = findItem(i.name);
-            if (!catalogItem) throw new Error(`?????? "${i.name}" ??? ????? ?????????.`);
-            if (catalogItem.item_type === 'buy_only') throw new Error(`?????? "${i.name}" ??? ???? ????? (??? ??????? ???).`);
+            if (!catalogItem) throw new Error(`المنتج "${i.name}" غير موجود في الكتالوج.`);
+            if (catalogItem.item_type === 'buy_only') throw new Error(`المنتج "${i.name}" غير قابل للبيع (شراء فقط).`);
             const qty = Math.max(1, parseInt(i.quantity) || 1);
-            if (qty > MAX_QTY_PER_LINE) throw new Error(`?????? ???????? ?? "${i.name}" ????? ????? ???? ?? ?????.`);
+            if (qty > MAX_QTY_PER_LINE) throw new Error(`الكمية المطلوبة من "${i.name}" تتجاوز الحد المسموح في الطلب.`);
             const total = catalogItem.sell_price * qty;
             total_sell_value += total;
             return { name: i.name, quantity: qty, unit_price: catalogItem.sell_price, total };
@@ -1149,7 +1192,7 @@ app.post('/api/gang-shop/checkout', verifyAuth(['Gang_Member']), async (req, res
         });
         await newOrder.save();
         io.emit('gangOrdersUpdated');
-        res.status(201).json({ msg: "?? ??? ???? ???????? ???? ????? ??????? ???? ??????? ?? ????? ????????." });
+        res.status(201).json({ msg: "تم إرسال طلب المقايضة بنجاح. بانتظار تأكيد الإدارة." });
     } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
@@ -1168,14 +1211,14 @@ app.get('/api/gang-shop/orders', verifyAuth(['Underboss', 'Business_Manager']), 
 app.post('/api/gang-shop/order/:id/confirm', verifyAuth(['Underboss', 'Business_Manager']), async (req, res) => {
     try {
         const order = await GangOrder.findById(req.params.id);
-        if (!order || order.status !== 'Pending') return res.status(400).json({ error: "????? ??? ????? ?? ??? ??????? ??????." });
+        if (!order || order.status !== 'Pending') return res.status(400).json({ error: "الطلب غير موجود أو لم يعد معلقاً." });
 
         order.status = 'Confirmed';
         await order.save();
         await GangTreasury.updateOne({}, { $inc: { total_balance: order.net_amount } });
 
         io.emit('gangOrdersUpdated'); io.emit('gangTreasuryUpdated');
-        res.json({ msg: "?? ????? ????? ??????? ?????? ????? ??? ????????." });
+        res.json({ msg: "تم تأكيد الطلب وإضافة المبلغ إلى الخزينة." });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -1183,13 +1226,13 @@ app.post('/api/gang-shop/order/:id/reject', verifyAuth(['Underboss', 'Business_M
     try {
         const { reason } = req.body;
         const order = await GangOrder.findById(req.params.id);
-        if (!order || order.status !== 'Pending') return res.status(400).json({ error: "????? ??? ????? ?? ??? ??????? ??????." });
+        if (!order || order.status !== 'Pending') return res.status(400).json({ error: "الطلب غير موجود أو لم يعد معلقاً." });
 
         order.status = 'Rejected';
         order.rejection_reason = reason || '';
         await order.save();
         io.emit('gangOrdersUpdated');
-        res.json({ msg: "?? ??? ?????." });
+        res.json({ msg: "تم رفض الطلب." });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -1205,30 +1248,104 @@ app.post('/api/gang-shop/treasury/reset', verifyAuth(['Don']), async (req, res) 
     try {
         await GangTreasury.updateOne({}, { total_balance: 0 });
         io.emit('gangTreasuryUpdated');
-        res.json({ msg: "?? ????? ????? ??? ???????? ???????." });
+        res.json({ msg: "تم تصفير خزينة شوب العصابات بنجاح." });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ???? ???????
-app.use('/api', (req, res) => {
-    res.status(404).json({ error: "?????? ??? ????? ?? ??? ????? ????: " + req.originalUrl });
+// ================== إزالة الإنذارات (المسارات الإدارية) ==================
+app.post('/api/admin/remove-warning', verifyAuth(['Don', 'Underboss', 'GRH']), async (req, res) => {
+    try {
+        const { target_username } = req.body;
+        const user = await User.findOne({ username: target_username });
+        if (!user) return res.status(404).json({ error: "العضو غير موجود." });
+        if (user.warnings <= 0) return res.status(400).json({ error: "العضو ليس عليه إنذارات." });
+
+        const dates = user.warning_dates || [];
+        if (dates.length > 0) dates.shift();
+        user.warning_dates = dates;
+        user.warnings = dates.length;
+        await user.save();
+
+        await new AuditLog({
+            action: 'warning_removed',
+            target_username,
+            performed_by: req.user.username,
+            details: `إزالة إنذار واحد (المتبقي: ${user.warnings})`
+        }).save();
+
+        io.emit('dutyUpdated', {});
+        io.emit('auditLogUpdated');
+        res.json({ msg: `تمت إزالة إنذار واحد من "${target_username}". الإنذارات المتبقية: ${user.warnings}` });
+    } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ================== ???? ?????? ??? ??? ???? ??????? ???? ==================
+// ================== إزالة القائمة السوداء وتصفير الإنذارات ==================
+app.post('/api/admin/blacklist/remove', verifyAuth(['Don']), async (req, res) => {
+    try {
+        const { target_username } = req.body;
+        const user = await User.findOne({ username: target_username });
+        if (!user) return res.status(404).json({ error: "العضو غير موجود." });
+        user.is_blacklisted = false;
+        user.warnings = 0;
+        user.warning_dates = [];
+        await user.save();
+        await new AuditLog({
+            action: 'blacklist_removed',
+            target_username,
+            performed_by: req.user.username,
+            details: 'الإخراج من القائمة السوداء وتصفير الإنذارات'
+        }).save();
+        io.emit('dutyUpdated', {});
+        io.emit('auditLogUpdated');
+        res.json({ msg: `تم إخراج "${target_username}" من القائمة السوداء بنجاح.` });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ================== قائمة الأعضاء الذين لديهم إنذارات ==================
+app.get('/api/admin/warnings/list', verifyAuth(['Don', 'Underboss', 'GRH', 'Business_Manager']), async (req, res) => {
+    try {
+        const warnedUsers = await User.find(
+            { warnings: { $gt: 0 }, is_blacklisted: false },
+            'username role warnings warning_dates consecutive_misses'
+        ).sort({ warnings: -1 });
+        res.json(warnedUsers.map(u => ({
+            username: u.username,
+            role: u.role,
+            warnings: u.warnings,
+            last_warning_date: u.warning_dates.length > 0 ? u.warning_dates[u.warning_dates.length - 1] : null,
+            consecutive_misses: u.consecutive_misses
+        })));
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ================== تقديم واجهة التطبيق ==================
+// إذا وُجد index.html داخل public/ فيتم تقديمه تلقائياً عبر express.static أعلاه؛
+// وإلا نقدّم الملف من جذر المشروع مباشرة (للعمل المحلي وبدون مجلد public)
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+// ================== معالجة المسارات غير المعروفة (يجب أن يكون في النهاية دائماً) ==================
+app.use('/api', (req, res) => {
+    res.status(404).json({ error: "المسار غير موجود في النظام: " + req.originalUrl });
+});
+
+// ================== طرد المستخدم فوراً عند تغيير صلاحياته أو حظره ==================
 const forceUserLogout = (username) => {
     const sockets = userSockets[username];
     if (sockets) {
         sockets.forEach(sid => {
-            io.to(sid).emit('forceLogout', { reason: '?? ????? ???????? ?? ????. ???? ????? ????? ??????.' });
+            io.to(sid).emit('forceLogout', { reason: 'تم تغيير صلاحياتك أو حظرك من النظام. يرجى إعادة تسجيل الدخول.' });
         });
     }
 };
 
 // ---------------- Sockets ----------------
 io.on('connection', (socket) => {
-    // ????? ???????? ???? ??????? ?????
+    // ربط السوكيت باسم المستخدم المسجل
     socket.on('register', (data) => {
         if (data && data.username) {
+            socketUsers[socket.id] = data.username;
             if (!userSockets[data.username]) userSockets[data.username] = [];
             if (!userSockets[data.username].includes(socket.id)) {
                 userSockets[data.username].push(socket.id);
@@ -1237,34 +1354,47 @@ io.on('connection', (socket) => {
     });
 
     socket.on('disconnect', () => {
+        delete socketUsers[socket.id];
         for (const username in userSockets) {
             userSockets[username] = userSockets[username].filter(id => id !== socket.id);
             if (userSockets[username].length === 0) delete userSockets[username];
         }
     });
 
-    socket.on('triggerEmergency', (data) => {
-        io.emit('emergencyAlert', { 
-            message: "?? ??????? ??? ???? ??????! ???? ??????? ?????? ????????? ?????.",
-            sender: data.username 
+    socket.on('triggerEmergency', async (data) => {
+        const username = socketUsers[socket.id];
+        if (!username) return;
+        // التحقق من الصلاحية: الدون أو النائب فقط
+        const user = await User.findOne({ username }, 'role');
+        if (!user || (user.role !== 'Don' && user.role !== 'Underboss')) return;
+        io.emit('emergencyAlert', {
+            message: "تم تفعيل استنفار عام! جميع الأعضاء يجب أن يتواجدوا فوراً في المدينة.",
+            sender: username
         });
     });
 
     socket.on('toggleDuty', async (data) => {
         try {
+            // تحقق أمني: لا يمكن لأي مستخدم تشغيل/إيقاف دوام مستخدم آخر
+            if (!data || !data.username || socketUsers[socket.id] !== data.username) {
+                socket.emit('statusResponse', { error: 'غير مصرح لك بتنفيذ هذه العملية.' });
+                return;
+            }
             const user = await User.findOne({ username: data.username, is_blacklisted: false });
             if (!user) return;
             const now = new Date();
             if (user.duty_status === 'OFF-DUTY') {
-                // ????? v8.0: ?????? ?? ????? ????? ???????? (22:00 - 04:00 ?????? ??????)
+                // التحقق من نافذة الدوام المسموحة (22:00 - 04:00 بتوقيت الخليج)
                 if (!isInDutyTimeWindow()) {
-                    socket.emit('statusResponse', { error: "?? ????? ?????? ?????? ???? ??????? ???????? (22:00 - 04:00 ?????? ??????)." });
+                    socket.emit('statusResponse', { error: "لا يمكن تفعيل الدوام خارج الساعات المسموحة (22:00 - 04:00 بتوقيت الخليج)." });
                     return;
                 }
                 user.duty_status = 'ON-DUTY'; user.last_punch_in = now;
+                await new PunchRecord({ username: user.username, action: 'IN', timestamp: now }).save();
             } else {
                 if (user.last_punch_in) user.weekly_hours += Math.floor((now - user.last_punch_in) / 60000);
                 user.duty_status = 'OFF-DUTY';
+                await new PunchRecord({ username: user.username, action: 'OUT', timestamp: now }).save();
             }
             await user.save();
             io.emit('dutyUpdated', { username: user.username, duty_status: user.duty_status });
@@ -1274,10 +1404,10 @@ io.on('connection', (socket) => {
     });
 });
 
-// ================== ????? v8.0: ??? ???? ?? 5 ????? ?????? ?? ??? ON-DUTY ???? ??????? ???????? ==================
+// ================== فحص دوري كل 5 دقائق: إيقاف دوام كل من بقي ON-DUTY خارج النافذة أو تجاوز 8 ساعات ==================
 setInterval(async () => {
     try {
-        // ????? ?????? ??? ??? ON-DUTY ???? ????? ????? 22:00-04:00
+        // إيقاف دوام أي مستخدم خارج نافذة 22:00-04:00
         if (!isInDutyTimeWindow()) {
             const activeUsers = await User.find({ duty_status: 'ON-DUTY' });
             for (let u of activeUsers) {
@@ -1288,7 +1418,7 @@ setInterval(async () => {
             if (activeUsers.length > 0) { io.emit('dutyUpdated', {}); io.emit('attendanceUpdated'); }
         }
 
-        // ??????? ??????: ????? ?? ??? ????? 8 ????? ???????
+        // الحد الأقصى: إيقاف الدوام بعد تجاوز 8 ساعات متواصلة
         const allActiveUsers = await User.find({ duty_status: 'ON-DUTY' });
         const maxTimeMs = 8 * 60 * 60 * 1000; 
         const now = new Date();
@@ -1306,7 +1436,7 @@ setInterval(async () => {
     } catch (err) { console.error(err.message); }
 }, 300000); 
 
-// ================== ?????: ??? ????????? (Warnings) ???????? ??? ???? ??? ????? ==================
+// ================== تنظيف الإنذارات المنتهية (بعد 30 يوماً) ==================
 const WARNING_EXPIRY_MS = 30 * 24 * 60 * 60 * 1000;
 
 async function cleanupExpiredWarnings() {
@@ -1324,13 +1454,13 @@ async function cleanupExpiredWarnings() {
             }
         }
         io.emit('dutyUpdated', {});
-    } catch (err) { console.error("??? ?? ????? ????????? ????????:", err.message); }
+    } catch (err) { console.error("خطأ في تنظيف الإنذارات:", err.message); }
 }
 
 setInterval(cleanupExpiredWarnings, 3600000);
 cleanupExpiredWarnings();
 
-// ================== ????? v8.0: ????? ?????? ?????? ??????? ?????? ????????????? ??? 04:00 ?????? ?????? ==================
+// ================== الملاحظات التلقائية للغياب — تُرسل يومياً في الساعة 04:00 بتوقيت الخليج ==================
 let lastAutoNoteDate = '';
 setInterval(async () => {
     try {
@@ -1340,18 +1470,19 @@ setInterval(async () => {
         const minutes = gulfNow.getUTCMinutes();
         if (hours !== 4 || minutes > 0) return;
 
-        // ????? ??? ?? ?? ????? ????? ?????
+        // ضمان إرسال الملاحظة مرة واحدة فقط في اليوم
         const todayStr = gulfNow.toISOString().slice(0, 10);
         if (lastAutoNoteDate === todayStr) return;
         lastAutoNoteDate = todayStr;
 
+        // نافذة الدوام الماضية: من 22:00 ليلة أمس حتى 04:00 اليوم
         const yesterdayStart = new Date(gulfNow);
         yesterdayStart.setDate(yesterdayStart.getDate() - 1);
         yesterdayStart.setUTCHours(22, 0, 0, 0);
         const yesterdayEnd = new Date(gulfNow);
         yesterdayEnd.setUTCHours(4, 0, 0, 0);
 
-        // ??????? ??? Don ???? ????? ???? ?????
+        // استثناء الدون وأعضاء العصابات من الملاحظات التلقائية
         const users = await User.find({
             is_blacklisted: false,
             account_status: 'approved',
@@ -1389,6 +1520,7 @@ setInterval(async () => {
                 continue;
             }
 
+            // تسجيل غياب جديد
             user.consecutive_misses = (user.consecutive_misses || 0) + 1;
 
             await new MemberNote({
@@ -1399,6 +1531,7 @@ setInterval(async () => {
                 is_auto: true
             }).save();
 
+            // الإنذار الرسمي يبدأ فقط بعد تراكم 3 غيابات متتالية
             if (user.consecutive_misses >= 3) {
                 user.warning_dates.push(new Date());
                 user.warnings = user.warning_dates.length;
@@ -1407,7 +1540,7 @@ setInterval(async () => {
                     target_username: user.username,
                     admin_username: 'SYSTEM',
                     type: 'Warning',
-                    reason: `????? ??????: ${user.consecutive_misses} ???? ??????? ???? ON-DUTY`,
+                    reason: `غياب متتالي: ${user.consecutive_misses} أيام بدون تسجيل ON-DUTY`,
                     fine_amount: 0
                 }).save();
 
@@ -1427,7 +1560,7 @@ setInterval(async () => {
     } catch (err) { console.error("Auto-note error:", err.message); }
 }, 60000);
 
-// ================== ????? v8.0: ????? ????????? ????????????? ??? 22:00 ?????? ?????? ==================
+// ================== تنظيف الملاحظات التلقائية القديمة (أقدم من 7 أيام) يومياً عند 22:00 بتوقيت الخليج ==================
 setInterval(async () => {
     try {
         const now = new Date();
@@ -1436,8 +1569,7 @@ setInterval(async () => {
         const minutes = gulfNow.getUTCMinutes();
         if (hours !== 22 || minutes > 0) return;
 
-        const cutoff = new Date(gulfNow);
-        cutoff.setUTCHours(22, 0, 0, 0);
+        const cutoff = new Date(gulfNow.getTime() - 7 * 24 * 60 * 60 * 1000);
 
         const result = await MemberNote.deleteMany({
             is_auto: true,
@@ -1445,74 +1577,10 @@ setInterval(async () => {
         });
 
         if (result.deletedCount > 0) {
-            console.log(`Cleaned ${result.deletedCount} auto notes at 22:00 AST`);
+            console.log(`Cleaned ${result.deletedCount} auto notes older than 7 days`);
             io.emit('notesUpdated');
         }
     } catch (err) { console.error("Auto-note cleanup error:", err.message); }
 }, 60000);
-
-// ================== ????? v8.0: ????? ????? ?? ??? ==================
-app.post('/api/admin/remove-warning', verifyAuth(['Don', 'Underboss', 'GRH']), async (req, res) => {
-    try {
-        const { target_username } = req.body;
-        const user = await User.findOne({ username: target_username });
-        if (!user) return res.status(404).json({ error: "???????? ??? ?????." });
-        if (user.warnings <= 0) return res.status(400).json({ error: "???????? ??? ???? ?? ???????." });
-
-        if (user.warning_dates.length > 0) user.warning_dates.shift();
-        user.warnings = user.warning_dates.length;
-        await user.save();
-
-        await new AuditLog({
-            action: 'warning_removed',
-            target_username,
-            performed_by: req.user.username,
-            details: `????? ????? ???? (???????: ${user.warnings})`
-        }).save();
-
-        io.emit('dutyUpdated', {});
-        io.emit('auditLogUpdated');
-        res.json({ msg: `?? ????? ????? ???? ?? "${target_username}". ????????? ????????: ${user.warnings}` });
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// ================== ????? v8.0: ??? ????? + ????? ???? ???? ??? ??? 0 ==================
-app.post('/api/admin/blacklist/remove', verifyAuth(['Don']), async (req, res) => {
-    try {
-        const { target_username } = req.body;
-        const user = await User.findOne({ username: target_username });
-        if (!user) return res.status(404).json({ error: "???????? ??? ?????." });
-        user.is_blacklisted = false;
-        user.warnings = 0;
-        user.warning_dates = [];
-        await user.save();
-        await new AuditLog({
-            action: 'blacklist_removed',
-            target_username,
-            performed_by: req.user.username,
-            details: '????? ?? ?????? ???? ???????'
-        }).save();
-        io.emit('dutyUpdated', {});
-        io.emit('auditLogUpdated');
-        res.json({ msg: `?? ????? "${target_username}" ?? ?????? ???? ???????.` });
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// ================== ????? v8.0: ??? ??????? ????? ????? ??????? ==================
-app.get('/api/admin/warnings/list', verifyAuth(['Don', 'Underboss', 'GRH', 'Business_Manager']), async (req, res) => {
-    try {
-        const warnedUsers = await User.find(
-            { warnings: { $gt: 0 }, is_blacklisted: false },
-            'username role warnings warning_dates consecutive_misses'
-        ).sort({ warnings: -1 });
-        res.json(warnedUsers.map(u => ({
-            username: u.username,
-            role: u.role,
-            warnings: u.warnings,
-            last_warning_date: u.warning_dates.length > 0 ? u.warning_dates[u.warning_dates.length - 1] : null,
-            consecutive_misses: u.consecutive_misses
-        })));
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
 
 server.listen(PORT, () => console.log("[CORTEZ] Server v8.0 - Notes & Attendance & Inventory Update running on port " + PORT + ""));
