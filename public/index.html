@@ -195,7 +195,7 @@
             <div class="card">
                 <h3 style="color:var(--warning);">📋 طلباتي السابقة</h3>
                 <div class="table-scroll-wrap"><table id="tbl-my-gang-orders">
-                    <thead><tr><th>شراء</th><th>بيع</th><th>الصافي</th><th>الحالة</th><th>التاريخ</th></tr></thead>
+                    <thead><tr><th>شراء</th><th>بيع</th><th>الصافي</th><th>الحالة</th><th>التاريخ</th><th>الإجراء</th></tr></thead>
                     <tbody></tbody>
                 </table></div>
             </div>
@@ -244,7 +244,7 @@
                 <h2 style="color:cyan;">📋 سجل الحضور الأسبوعي</h2>
                 <p style="color:#888; font-size:0.85rem;">آخر 7 أيام — ✅ حضر | ❌ غاب</p>
                 <div class="table-scroll-wrap"><table id="tbl-attendance">
-                    <thead><tr><th>العضو</th><th>الرتبة</th><th id="attendance-days-header"></th><th>إجمالي</th></tr></thead>
+                    <thead><tr id="attendance-header-row"><th>العضو</th><th>الرتبة</th><th></th><th>إجمالي</th></tr></thead>
                     <tbody></tbody>
                 </table></div>
             </div>
@@ -356,6 +356,10 @@
                         <button onclick="submitJustify()">إرسال التبرير</button>
                     </div>
                 </div>
+                <div class="card" style="margin-top:20px;">
+                    <h3 style="color:var(--warning);">📜 سجل طلبات الإجازة وتبرير الغياب (ظاهر للجميع بعد البت فيها)</h3>
+                    <div id="hr-log-list"></div>
+                </div>
             </div>
 
             <div id="panel-hr-review" class="view-panel">
@@ -413,7 +417,7 @@
                     <div class="card">
                         <h3 style="color:var(--warning);">📋 سجل عمليات شوب العصابات</h3>
                         <div class="table-scroll-wrap"><table id="tbl-gang-orders">
-                            <thead><tr><th>العضو</th><th>العصابة</th><th>شراء</th><th>بيع</th><th>الصافي</th><th>الحالة</th><th>الإجراء</th></tr></thead>
+                            <thead><tr><th>العضو</th><th>العصابة</th><th>شراء</th><th>بيع</th><th>الصافي</th><th>الحالة</th><th>الإجراء</th><th>التاريخ</th></tr></thead>
                             <tbody></tbody>
                         </table></div>
                     </div>
@@ -733,6 +737,7 @@
         let gmCatalogData = [];
         let gmCart = {}; // { itemName: { buyQty, sellQty } } — تبقى محفوظة حتى لو بدّل بين تبويب الشراء والبيع
         let gmMode = 'buy'; // 'buy' | 'sell'
+        let myGangOrdersData = []; // آخر طلبات العضو — للوصول السريع عند التعديل/الإلغاء
 
         function initGangMemberSession() {
             document.getElementById('gang-member-screen').style.display = 'block';
@@ -875,12 +880,13 @@
             try {
                 const res = await fetch('/api/gang-shop/my-orders', { headers: { 'Authorization': `Bearer ${userToken}` } });
                 const orders = await res.json();
+                myGangOrdersData = orders;
                 const tbody = document.querySelector('#tbl-my-gang-orders tbody');
                 if(!tbody) return;
                 tbody.innerHTML = '';
 
                 if(orders.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="5" style="color:#555;">لا توجد أي عمليات سابقة.</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="6" style="color:#555;">لا توجد أي عمليات سابقة.</td></tr>';
                     return;
                 }
                 orders.forEach(o => {
@@ -891,15 +897,57 @@
                     let statusText = '⏳ معلّق';
                     if(o.status === 'Confirmed') statusText = '✔️ مؤكد';
                     else if(o.status === 'Rejected') statusText = `❌ مرفوض${o.rejection_reason ? ' - ' + escapeHtml(o.rejection_reason) : ''}`;
+                    else if(o.status === 'Cancelled') statusText = '🗑️ ملغى';
+                    let actionHtml = '';
+                    if(o.status === 'Pending') {
+                        actionHtml = `
+                            <button class="btn-warning" style="width:auto; padding:4px 8px; font-size:0.75rem;" onclick="editGangOrder('${o._id}')">✏️ تعديل</button>
+                            <button class="btn-danger" style="width:auto; padding:4px 8px; font-size:0.75rem;" onclick="cancelGangOrder('${o._id}')">🗑️ إلغاء</button>`;
+                    }
                     tbody.innerHTML += `<tr>
                         <td style="font-size:0.8rem;">${boughtStr}</td>
                         <td style="font-size:0.8rem;">${soldStr}</td>
                         <td style="color:${netColor}; font-weight:bold;">${formatMoneyFrontend(o.net_amount)}$</td>
                         <td style="font-size:0.8rem;">${statusText}</td>
                         <td>${dateStr}</td>
+                        <td>${actionHtml}</td>
                     </tr>`;
                 });
             } catch(err) { customAlert('حدث خطأ غير متوقع، يرجى المحاولة مرة أخرى.'); }
+        }
+
+        function editGangOrder(id) {
+            const order = myGangOrdersData.find(o => o._id === id);
+            if(!order) return customAlert('تعذر العثور على الطلب.');
+            customConfirm("سيتم إلغاء الطلب المعلق الحالي وإعادة فتح السلة لتعديله. متابعة؟", async (yes) => {
+                if(!yes) return;
+                try {
+                    const res = await fetch(`/api/gang-shop/order/${id}/cancel`, { method: 'POST', headers: { 'Authorization': `Bearer ${userToken}` } });
+                    const data = await res.json();
+                    if(!res.ok) throw new Error(data.error);
+
+                    gmCatalogData.forEach(itm => { gmCart[itm.name] = { buyQty: 0, sellQty: 0 }; });
+                    order.items_bought.forEach(i => { if(gmCart[i.name]) gmCart[i.name].buyQty = i.quantity; });
+                    order.items_sold.forEach(i => { if(gmCart[i.name]) gmCart[i.name].sellQty = i.quantity; });
+                    switchGmMode('buy');
+                    updateGangShopSummary();
+                    loadMyGangOrders();
+                    customAlert(data.msg + ' عدّل الكميات ثم اضغط تنفيذ العملية.');
+                } catch(err) { customAlert(err.message); }
+            });
+        }
+
+        function cancelGangOrder(id) {
+            customConfirm("هل تريد إلغاء هذا الطلب المعلق نهائياً؟", async (yes) => {
+                if(!yes) return;
+                try {
+                    const res = await fetch(`/api/gang-shop/order/${id}/cancel`, { method: 'POST', headers: { 'Authorization': `Bearer ${userToken}` } });
+                    const data = await res.json();
+                    if(!res.ok) throw new Error(data.error);
+                    customAlert(data.msg);
+                    loadMyGangOrders();
+                } catch(err) { customAlert(err.message); }
+            });
         }
 
         // --- Time Check Helper ---
@@ -916,23 +964,25 @@
                 const res = await fetch('/api/attendance/week', { headers: { 'Authorization': `Bearer ${userToken}` } });
                 if(!res.ok) return; // بدون صلاحية أو خطأ: نُغلق بصمت دون إزعاج المستخدم بنافذة خطأ
                 const data = await res.json();
-                // تحديث رؤوس الأيام
-                const headerRow = document.getElementById('attendance-days-header');
+                // تحديث رؤوس الأيام: كل يوم بعمود مستقل ليصطف مباشرة فوق نتيجته (إصلاح اختلال محاذاة الجدول)
+                const headerRow = document.getElementById('attendance-header-row');
                 if(headerRow) {
-                    headerRow.colSpan = data.days.length;
-                    headerRow.innerHTML = data.days.map(d => `<span style="display:inline-block;min-width:40px;text-align:center;">${d}</span>`).join(' | ');
+                    let h = '<tr><th>العضو</th><th>الرتبة</th>';
+                    data.days.forEach(d => { h += `<th style="text-align:center;">${d}</th>`; });
+                    h += '<th>إجمالي</th></tr>';
+                    headerRow.innerHTML = h;
                 }
                 const tbody = document.querySelector('#tbl-attendance tbody');
                 if(!tbody) return;
                 tbody.innerHTML = '';
                 data.attendance.forEach(u => {
                     const daysHtml = u.days.map(d => 
-                        `<span style="color:${d.present ? 'var(--primary)' : 'var(--danger)'}; font-weight:bold;display:inline-block;min-width:40px;text-align:center;">${d.present ? '✅' : '❌'}</span>`
-                    ).join(' | ');
+                        `<td style="text-align:center; color:${d.present ? 'var(--primary)' : 'var(--danger)'}; font-weight:bold;">${d.present ? '✅' : '❌'}</td>`
+                    ).join('');
                     tbody.innerHTML += `<tr>
                         <td>${escapeHtml(u.username)}</td>
                         <td>${escapeHtml(u.role)}</td>
-                        <td style="font-size:0.85rem;">${daysHtml}</td>
+                        ${daysHtml}
                         <td style="text-align:center;font-weight:bold;color:${u.total >= 4 ? 'var(--primary)' : 'var(--danger)'};">${u.total}/7</td>
                     </tr>`;
                 });
@@ -1124,6 +1174,7 @@
             loadShopItems();
             loadMyNotes();
             loadInventoryItems();
+            loadHRLog();
             
             if(['Don', 'Underboss', 'GRH', 'Business_Manager', 'Chef_Braquage'].includes(userData.role)) {
                 loadOrdersData();
@@ -1509,6 +1560,22 @@
             });
         }
 
+        function rejectOrder(orderId) {
+            customConfirm("هل تريد رفض طلب الشراء هذا؟ لن يُضاف أي مبلغ إلى الخزينة.", async (yes) => {
+                if(!yes) return;
+                try {
+                    const res = await fetch(`/api/shop/order/${orderId}/reject`, {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${userToken}` }
+                    });
+                    const data = await res.json();
+                    if(!res.ok) throw new Error(data.error || "حدث خطأ أثناء رفض الطلب.");
+                    customAlert(data.msg);
+                    loadOrdersData();
+                } catch(err) { customAlert(err.message); }
+            });
+        }
+
         async function loadOrdersData() {
             if(!userToken) return;
             try {
@@ -1525,14 +1592,23 @@
 
                     const total = o.total_price || o.price;
                     const isPaid = o.status === 'Paid';
+                    const isRejected = o.status === 'Rejected';
                     
-                    // زر تأكيد الدفع يظهر فقط لمن يملك صلاحية قبض الأموال (لا يظهر للشيف أو GRH)
+                    // زر تأكيد الدفع/الرفض يظهر فقط لمن يملك صلاحية قبض الأموال (لا يظهر للشيف أو GRH)
                     const canConfirmPayment = userData && ['Don', 'Underboss', 'Business_Manager'].includes(userData.role);
-                    let actionBtn = isPaid ? 
-                        `<span style="color:var(--primary); font-weight:bold;">✔️ مدفوع للترزري</span>` : 
-                        (canConfirmPayment
-                            ? `<button onclick="confirmOrderPayment('${o._id}')" class="btn-success" style="padding:4px 8px; font-size:0.8rem; width:auto;">تأكيد قبض الأموال</button>`
-                            : `<span style="color:#666;">بانتظار تأكيد الدفع</span>`);
+                    let actionBtn;
+                    if(isPaid) {
+                        actionBtn = `<span style="color:var(--primary); font-weight:bold;">✔️ مدفوع للترزري</span>`;
+                    } else if(isRejected) {
+                        actionBtn = `<span style="color:var(--danger); font-weight:bold;">❌ مرفوض</span>`;
+                    } else if(canConfirmPayment) {
+                        actionBtn = `<div style="display:flex; gap:6px; flex-wrap:wrap;">
+                            <button onclick="confirmOrderPayment('${o._id}')" class="btn-success" style="padding:4px 8px; font-size:0.8rem; width:auto;">تأكيد قبض الأموال</button>
+                            <button onclick="rejectOrder('${o._id}')" class="btn-danger" style="padding:4px 8px; font-size:0.8rem; width:auto;">رفض الطلب</button>
+                        </div>`;
+                    } else {
+                        actionBtn = `<span style="color:#666;">بانتظار تأكيد الدفع</span>`;
+                    }
 
                     container.innerHTML += `
                         <div class="card" style="border-color:${isPaid ? '#222' : 'var(--warning)'}; font-size:0.85rem;">
@@ -1857,7 +1933,7 @@
                 tbody.innerHTML = '';
 
                 if(orders.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="7" style="color:#555;">لا توجد أي عمليات مسجلة حتى الآن.</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="8" style="color:#555;">لا توجد أي عمليات مسجلة حتى الآن.</td></tr>';
                     return;
                 }
                 orders.forEach(o => {
@@ -1873,6 +1949,9 @@
                     } else if(o.status === 'Confirmed') {
                         statusText = '✔️ مؤكد';
                         actionHtml = `<span style="color:var(--primary);">تم</span>`;
+                    } else if(o.status === 'Cancelled') {
+                        statusText = '🗑️ ملغى (بواسطة العضو)';
+                        actionHtml = `<span style="color:#888;">—</span>`;
                     } else {
                         statusText = '❌ مرفوض';
                         actionHtml = `<span style="color:var(--danger); font-size:0.75rem;" title="${escapeHtml(o.rejection_reason || '')}">${escapeHtml(o.rejection_reason) || '-'}</span>`;
@@ -1886,6 +1965,7 @@
                         <td style="color:${netColor}; font-weight:bold;">${formatMoneyFrontend(o.net_amount)}$</td>
                         <td>${statusText}</td>
                         <td>${actionHtml}</td>
+                        <td style="font-size:0.8rem;">${formatDateTime(o.timestamp)}</td>
                     </tr>`;
                 });
             } catch(err) { customAlert('حدث خطأ غير متوقع، يرجى المحاولة مرة أخرى.'); }
@@ -1978,6 +2058,38 @@
                 customAlert(data.msg);
                 document.getElementById('just-reason').value = '';
             } catch(err) { customAlert(err.message); }
+        }
+
+        async function loadHRLog() {
+            if(!userToken) return;
+            try {
+                const res = await fetch('/api/hr/log', { headers: { 'Authorization': `Bearer ${userToken}` } });
+                if(!res.ok) return;
+                const data = await res.json();
+                const container = document.getElementById('hr-log-list');
+                if(!container) return;
+
+                const all = [
+                    ...data.leaves.map(l => ({ type: 'leave', username: l.username, reason: l.reason, duration: l.duration, status: l.status, timestamp: l.timestamp })),
+                    ...data.justifications.map(j => ({ type: 'justify', username: j.username, reason: j.reason, status: j.status, timestamp: j.timestamp }))
+                ];
+                all.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+                if(all.length === 0) {
+                    container.innerHTML = '<p style="color:#555;">لا توجد أي طلبات مسجلة بعد.</p>';
+                    return;
+                }
+                const statusLabel = {
+                    Pending: '<span style="color:var(--warning);">⏳ معلّق</span>',
+                    Approved: '<span style="color:var(--primary);">✔️ معتمد</span>',
+                    Rejected: '<span style="color:var(--danger);">❌ مرفوض</span>'
+                };
+                container.innerHTML = all.map(r => `
+                    <div style="border-bottom:1px solid #333; padding:8px 0;">
+                        <b>${escapeHtml(r.username)}</b> — ${r.type === 'leave' ? `إجازة (${r.duration} أيام)` : 'تبرير غياب'}: ${escapeHtml(r.reason)} | ${statusLabel[r.status] || escapeHtml(r.status)} | <span style="font-size:0.8rem; color:#888;">${formatDateTime(r.timestamp)}</span>
+                    </div>
+                `).join('');
+            } catch(err) { /* نغلق بصمت: السجل غير متاح لمن ليس له صلاحية */ }
         }
 
         async function loadHRRequests() {
@@ -2424,7 +2536,11 @@
         socket.on('gangTreasuryUpdated', () => { if(userToken && ['Don','Underboss','Business_Manager'].includes(userData?.role)) loadGangTreasuryBalance(); });
         socket.on('ordersUpdated', () => { if(userToken && ['Don', 'Underboss', 'GRH', 'Business_Manager', 'Chef_Braquage'].includes(userData?.role)) loadOrdersData(); });
         socket.on('treasuryUpdated', () => { if(userToken && ['Don', 'Underboss', 'Business_Manager'].includes(userData?.role)) loadTreasuryBalance(); });
-        socket.on('requestUpdated', () => { if(userToken && ['Don', 'Underboss', 'GRH'].includes(userData?.role)) loadHRRequests(); });
+        socket.on('requestUpdated', () => {
+            if(!userToken || !userData) return;
+            if(['Don', 'Underboss', 'GRH'].includes(userData.role)) loadHRRequests();
+            if(userData.role !== 'Gang_Member') loadHRLog();
+        });
         socket.on('notesUpdated', () => {
             if(!userToken) return;
             loadMyNotes();
