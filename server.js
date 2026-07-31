@@ -129,7 +129,7 @@ const OrderSchema = new mongoose.Schema({
     price: Number,
     items: Array,
     total_price: Number,
-    status: { type: String, enum: ['Pending', 'Paid'], default: 'Pending' },
+    status: { type: String, enum: ['Pending', 'Paid', 'Rejected'], default: 'Pending' },
     timestamp: { type: Date, default: Date.now }
 });
 
@@ -231,7 +231,7 @@ const GangOrderSchema = new mongoose.Schema({
     total_buy_value: { type: Number, default: 0 },
     total_sell_value: { type: Number, default: 0 },
     net_amount: { type: Number, default: 0 },
-    status: { type: String, enum: ['Pending', 'Confirmed', 'Rejected'], default: 'Pending' },
+    status: { type: String, enum: ['Pending', 'Confirmed', 'Rejected', 'Cancelled'], default: 'Pending' },
     rejection_reason: { type: String, default: '' },
     timestamp: { type: Date, default: Date.now }
 });
@@ -523,6 +523,19 @@ const confirmPaymentLogic = async (req, res) => {
 app.post('/api/shop/order/:id/pay', verifyAuth(['Underboss', 'Business_Manager']), confirmPaymentLogic);
 app.put('/api/shop/order/:id/pay', verifyAuth(['Underboss', 'Business_Manager']), confirmPaymentLogic);
 
+// رفض طلب شراء من شوب الأعضاء (لا يُضاف أي مبلغ إلى الخزينة)
+app.post('/api/shop/order/:id/reject', verifyAuth(['Underboss', 'Business_Manager']), async (req, res) => {
+    try {
+        const order = await Order.findById(req.params.id);
+        if (!order || order.status === 'Paid') return res.status(400).json({ error: "الطلب غير موجود أو تم قبضه مسبقاً." });
+
+        order.status = 'Rejected';
+        await order.save();
+        io.emit('ordersUpdated');
+        res.json({ msg: "تم رفض الطلب." });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.get('/api/treasury/balance', verifyAuth(['Underboss', 'Business_Manager']), async (req, res) => {
     try {
         const treasury = await Treasury.findOne({});
@@ -777,6 +790,15 @@ app.post('/api/hr/justify', verifyAuth(['Underboss', 'Soldat', 'Capo', 'GRH', 'C
     try {
         await new Justification({ username: req.user.username, reason: req.body.reason }).save();
         io.emit('requestUpdated'); res.json({ msg: "تم إرسال التبرير بنجاح." });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// سجل طلبات الإجازة وتبرير الغياب بعد البت فيها — ظاهر لجميع الأعضاء في روم ABSENCE-CONGE
+app.get('/api/hr/log', verifyAuth(['Underboss', 'Soldat', 'Capo', 'GRH', 'Chef_Braquage', 'Business_Manager', 'Gang_Supervisor']), async (req, res) => {
+    try {
+        const leaves = await Leave.find().sort({ timestamp: -1 });
+        const justifications = await Justification.find().sort({ timestamp: -1 });
+        res.json({ leaves, justifications });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -1200,6 +1222,20 @@ app.get('/api/gang-shop/my-orders', verifyAuth(['Gang_Member']), async (req, res
     try {
         const orders = await GangOrder.find({ gang_member_username: req.user.username }).sort({ timestamp: -1 });
         res.json(orders);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// إلغاء/تعديل طلب معلّق من العضو صاحب الطلب نفسه فقط
+app.post('/api/gang-shop/order/:id/cancel', verifyAuth(['Gang_Member']), async (req, res) => {
+    try {
+        const order = await GangOrder.findById(req.params.id);
+        if (!order || order.gang_member_username !== req.user.username || order.status !== 'Pending') {
+            return res.status(400).json({ error: "الطلب غير موجود أو لم يعد معلقاً (لا يمكن إلغاؤه)." });
+        }
+        order.status = 'Cancelled';
+        await order.save();
+        io.emit('gangOrdersUpdated');
+        res.json({ msg: "تم إلغاء الطلب." });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
