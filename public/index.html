@@ -560,6 +560,7 @@
         // (الرقم بعد الفاصلة كسر عشري من الساعة، مو دقائق مباشرة — هذا التنسيق يشيل اللخبطة نهائياً)
         function formatHoursMinutes(totalMinutes) {
             const mins = Math.round(Number(totalMinutes) || 0);
+            if (mins <= 0) return 'لا يوجد نشاط';
             const h = Math.floor(mins / 60);
             const m = mins % 60;
             return `${h} ساعة و ${m} دقيقة`;
@@ -665,7 +666,7 @@
                 const res = await fetch('/api/gangs');
                 const gangs = await res.json();
                 document.getElementById('gang-name-suggestions').innerHTML = gangs.map(g => `<option value="${escapeHtml(g.name)}">`).join('');
-            } catch(err) { customAlert('??? ?? ????? ????????'); }
+            } catch(err) { customAlert('حدث خطأ غير متوقع، يرجى المحاولة مرة أخرى.'); }
         }
 
         async function register() {
@@ -747,7 +748,7 @@
                 gmCatalogData = await res.json();
                 gmCatalogData.forEach(itm => { if(!gmCart[itm.name]) gmCart[itm.name] = { buyQty: 0, sellQty: 0 }; });
                 renderGmCatalog();
-            } catch(err) { customAlert('??? ?? ????? ????????'); }
+            } catch(err) { customAlert('حدث خطأ غير متوقع، يرجى المحاولة مرة أخرى.'); }
         }
 
         function switchGmMode(mode) {
@@ -773,7 +774,8 @@
             }
             relevant.forEach(itm => {
                 const price = gmMode === 'buy' ? itm.buy_price : itm.sell_price;
-                const qty = gmMode === 'buy' ? gmCart[itm.name].buyQty : gmCart[itm.name].sellQty;
+                const cartEntry = gmCart[itm.name] || { buyQty: 0, sellQty: 0 };
+                const qty = gmMode === 'buy' ? cartEntry.buyQty : cartEntry.sellQty;
                 const colorClass = gmMode === 'buy' ? 'gs-buy-color' : 'gs-sell-color';
 
                 // تحديث: المخزون وحدود الطلب/الأسبوع تخص جهة الشراء من المافيا فقط
@@ -897,7 +899,7 @@
                         <td>${dateStr}</td>
                     </tr>`;
                 });
-            } catch(err) { customAlert('??? ?? ????? ????????'); }
+            } catch(err) { customAlert('حدث خطأ غير متوقع، يرجى المحاولة مرة أخرى.'); }
         }
 
         // --- Time Check Helper ---
@@ -912,6 +914,7 @@
             if(!userToken) return;
             try {
                 const res = await fetch('/api/attendance/week', { headers: { 'Authorization': `Bearer ${userToken}` } });
+                if(!res.ok) return; // بدون صلاحية أو خطأ: نُغلق بصمت دون إزعاج المستخدم بنافذة خطأ
                 const data = await res.json();
                 // تحديث رؤوس الأيام
                 const headerRow = document.getElementById('attendance-days-header');
@@ -933,7 +936,7 @@
                         <td style="text-align:center;font-weight:bold;color:${u.total >= 4 ? 'var(--primary)' : 'var(--danger)'};">${u.total}/7</td>
                     </tr>`;
                 });
-            } catch(err) { customAlert('??? ?? ????? ????????'); }
+            } catch(err) { customAlert('حدث خطأ غير متوقع، يرجى المحاولة مرة أخرى.'); }
         }
 
         // --- Notes ---
@@ -954,7 +957,7 @@
                         <p style="margin:2px 0; font-size:0.8rem; color:#888;">بواسطة: ${escapeHtml(n.issued_by)} — ${formatDateTime(n.timestamp)}</p>
                     </div>
                 `).join('');
-            } catch(err) { customAlert('??? ?? ????? ????????'); }
+            } catch(err) { customAlert('حدث خطأ غير متوقع، يرجى المحاولة مرة أخرى.'); }
         }
 
         // --- Inventory / Calculator ---
@@ -969,7 +972,7 @@
                 inventoryData.forEach(itm => { if(!invCart[itm._id]) invCart[itm._id] = { buyQty: 0, sellQty: 0 }; });
                 renderInventoryCalc();
                 renderInventoryTable();
-            } catch(err) { customAlert('??? ?? ????? ????????'); }
+            } catch(err) { customAlert('حدث خطأ غير متوقع، يرجى المحاولة مرة أخرى.'); }
         }
 
         function renderInventoryCalc() {
@@ -1119,7 +1122,6 @@
             
             loadLeaderboardData();
             loadShopItems();
-            loadAttendance();
             loadMyNotes();
             loadInventoryItems();
             
@@ -1127,6 +1129,9 @@
                 loadOrdersData();
             }
             if(['Don', 'Underboss', 'GRH', 'Business_Manager'].includes(userData.role)) {
+                loadAttendance();
+            }
+            if(['Don', 'Underboss', 'GRH'].includes(userData.role)) {
                 loadAllUsersTable();
                 loadHRRequests();
                 loadArchiveData();
@@ -1172,7 +1177,9 @@
 
         // --- Duty / Punch Operations ---
         function triggerPunch() {
-            if (!isDutyTimeAllowed()) {
+            const isOnDuty = userData && userData.duty_status === 'ON-DUTY';
+            // منع تفعيل الدوام فقط خارج النافذة؛ أما تسجيل الخروج (OFF) فيبقى متاحاً في أي وقت
+            if (!isOnDuty && !isDutyTimeAllowed()) {
                 customAlert("لا يمكن تفعيل الدوام خارج ساعات العمل (22:00 - 04:00)");
                 return;
             }
@@ -1188,6 +1195,21 @@
                 btn.className = "punch-btn";
                 btn.innerText = "[ STATUS: OFF-DUTY 🔴 ]";
             }
+        }
+
+        // تحديث: جلب حالة الدوام الخاصة بالعضو من الخادم — يستعمل عندما يُغيّر النظام الحالة تلقائياً
+        // (مثل إيقاف الدوام عند نهاية النافذة 04:00) دون أن يكون لديها اسم مستخدم في حدث السوكيت
+        async function refreshMyDutyStatus() {
+            if(!userToken || !userData) return;
+            try {
+                const res = await fetch('/api/auth/me', { headers: { 'Authorization': `Bearer ${userToken}` } });
+                const me = await res.json();
+                if(me && !me.error && me.duty_status && me.duty_status !== userData.duty_status) {
+                    userData.duty_status = me.duty_status;
+                    localStorage.setItem('user', JSON.stringify(userData));
+                    updatePunchButtonUI(me.duty_status);
+                }
+            } catch(e) { /* صامت: لا نزعج المستخدم عند فشل الفحص الدوري */ }
         }
 
         // --- Leaderboards Management ---
@@ -1270,7 +1292,7 @@
                             ${adminControlsHtml}
                         </div>`;
                 });
-            } catch(err) { customAlert('??? ?? ????? ????????'); }
+            } catch(err) { customAlert('حدث خطأ غير متوقع، يرجى المحاولة مرة أخرى.'); }
         }
 
         function toggleShopItemStock(id, currentlyInStock) {
@@ -1504,9 +1526,13 @@
                     const total = o.total_price || o.price;
                     const isPaid = o.status === 'Paid';
                     
+                    // زر تأكيد الدفع يظهر فقط لمن يملك صلاحية قبض الأموال (لا يظهر للشيف أو GRH)
+                    const canConfirmPayment = userData && ['Don', 'Underboss', 'Business_Manager'].includes(userData.role);
                     let actionBtn = isPaid ? 
                         `<span style="color:var(--primary); font-weight:bold;">✔️ مدفوع للترزري</span>` : 
-                        `<button onclick="confirmOrderPayment('${o._id}')" class="btn-success" style="padding:4px 8px; font-size:0.8rem; width:auto;">تأكيد قبض الأموال</button>`;
+                        (canConfirmPayment
+                            ? `<button onclick="confirmOrderPayment('${o._id}')" class="btn-success" style="padding:4px 8px; font-size:0.8rem; width:auto;">تأكيد قبض الأموال</button>`
+                            : `<span style="color:#666;">بانتظار تأكيد الدفع</span>`);
 
                     container.innerHTML += `
                         <div class="card" style="border-color:${isPaid ? '#222' : 'var(--warning)'}; font-size:0.85rem;">
@@ -1520,11 +1546,11 @@
                         </div>`;
                 });
 
-                // تأمين جلب الخزينة: فقط الدون والبيزنس مانجر يستطيعون جلبها لمنع الـ 403 Forbidden للشيف
-                if(userData && ['Don', 'Business_Manager'].includes(userData.role)) {
+                // تأمين جلب الخزينة: فقط من يملك صلاحية جلبها (الدون/النائب/البيزنس مانجر) لمنع الـ 403 Forbidden
+                if(userData && ['Don', 'Underboss', 'Business_Manager'].includes(userData.role)) {
                     loadTreasuryBalance();
                 }
-            } catch(err) { customAlert('??? ?? ????? ????????'); }
+            } catch(err) { customAlert('حدث خطأ غير متوقع، يرجى المحاولة مرة أخرى.'); }
         }
 
         async function loadTreasuryBalance() {
@@ -1534,7 +1560,7 @@
                 if(!res.ok) return;
                 const data = await res.json();
                 document.getElementById('treasury-balance').innerText = data.balance_formatted;
-            } catch(err) { customAlert('??? ?? ????? ????????'); }
+            } catch(err) { customAlert('حدث خطأ غير متوقع، يرجى المحاولة مرة أخرى.'); }
         }
 
         async function resetTreasury() {
@@ -1543,8 +1569,9 @@
                 try {
                     const res = await fetch('/api/treasury/reset', { method: 'POST', headers: { 'Authorization': `Bearer ${userToken}` } });
                     const data = await res.json();
+                    if(!res.ok) throw new Error(data.error);
                     customAlert(data.msg);
-                } catch(err) { customAlert('??? ?? ????? ????????'); }
+                } catch(err) { customAlert('حدث خطأ غير متوقع، يرجى المحاولة مرة أخرى.'); }
             });
         }
 
@@ -1580,7 +1607,7 @@
                         </td>
                     </tr>`;
                 });
-            } catch(err) { customAlert('??? ?? ????? ????????'); }
+            } catch(err) { customAlert('حدث خطأ غير متوقع، يرجى المحاولة مرة أخرى.'); }
         }
 
         function reviewPendingAccount(username, decision) {
@@ -1634,7 +1661,7 @@
                         <td style="font-size:0.75rem;">${dateStr}</td>
                     </tr>`;
                 });
-            } catch(err) { customAlert('??? ?? ????? ????????'); }
+            } catch(err) { customAlert('حدث خطأ غير متوقع، يرجى المحاولة مرة أخرى.'); }
         }
 
         // ================== تحديث: إدارة كتالوج شوب العصابات (Business_Manager / الدون) ==================
@@ -1676,7 +1703,7 @@
                             </div>
                         </div>`;
                 });
-            } catch(err) { customAlert('??? ?? ????? ????????'); }
+            } catch(err) { customAlert('حدث خطأ غير متوقع، يرجى المحاولة مرة أخرى.'); }
         }
 
         function toggleGangShopItemStock(id, currentlyInStock) {
@@ -1861,7 +1888,7 @@
                         <td>${actionHtml}</td>
                     </tr>`;
                 });
-            } catch(err) { customAlert('??? ?? ????? ????????'); }
+            } catch(err) { customAlert('حدث خطأ غير متوقع، يرجى المحاولة مرة أخرى.'); }
         }
 
         function confirmGangOrder(id) {
@@ -1902,7 +1929,7 @@
                 const data = await res.json();
                 const el = document.getElementById('gang-treasury-balance');
                 if(el) el.innerText = formatMoneyFrontend(data.balance_raw) + '$';
-            } catch(err) { customAlert('??? ?? ????? ????????'); }
+            } catch(err) { customAlert('حدث خطأ غير متوقع، يرجى المحاولة مرة أخرى.'); }
         }
 
         function resetGangTreasury() {
@@ -1911,9 +1938,10 @@
                 try {
                     const res = await fetch('/api/gang-shop/treasury/reset', { method: 'POST', headers: { 'Authorization': `Bearer ${userToken}` } });
                     const data = await res.json();
+                    if(!res.ok) throw new Error(data.error);
                     customAlert(data.msg);
                     loadGangTreasuryBalance();
-                } catch(err) { customAlert('??? ?? ????? ????????'); }
+                } catch(err) { customAlert('حدث خطأ غير متوقع، يرجى المحاولة مرة أخرى.'); }
             });
         }
 
@@ -1929,6 +1957,7 @@
                     body: JSON.stringify({ reason, duration })
                 });
                 const data = await res.json();
+                if(!res.ok) throw new Error(data.error);
                 customAlert(data.msg);
                 document.getElementById('leave-reason').value = '';
                 document.getElementById('leave-days').value = '';
@@ -1945,6 +1974,7 @@
                     body: JSON.stringify({ reason })
                 });
                 const data = await res.json();
+                if(!res.ok) throw new Error(data.error);
                 customAlert(data.msg);
                 document.getElementById('just-reason').value = '';
             } catch(err) { customAlert(err.message); }
@@ -1983,7 +2013,7 @@
                             </div>
                         </div>`;
                 });
-            } catch(err) { customAlert('??? ?? ????? ????????'); }
+            } catch(err) { customAlert('حدث خطأ غير متوقع، يرجى المحاولة مرة أخرى.'); }
         }
 
         async function handleHRAction(type, id, action) {
@@ -1994,6 +2024,7 @@
                     body: JSON.stringify({ type, id, action })
                 });
                 const data = await res.json();
+                if(!res.ok) throw new Error(data.error);
                 customAlert(data.msg);
             } catch(err) { customAlert(err.message); }
         }
@@ -2033,7 +2064,7 @@
                         <td>${u.warnings > 0 ? `<button class="btn-danger" style="width:auto; padding:5px 8px; font-size:0.7rem;" onclick="removeMemberWarning('${escapeJsStr(u.username)}')">🗑️ إزالة إنذار</button>` : '-'}</td>
                     </tr>`;
                 });
-            } catch(err) { customAlert('??? ?? ????? ????????'); }
+            } catch(err) { customAlert('حدث خطأ غير متوقع، يرجى المحاولة مرة أخرى.'); }
         }
 
         // تحديث: إعادة تعيين كلمة مرور أي عضو من طرف GRH — بما إنه ما فيه نظام بريد إلكتروني بالتطبيق لاسترجاعها
@@ -2132,7 +2163,7 @@
                         <td><button class="btn-danger" style="width:auto; padding:3px 8px; font-size:0.7rem;" onclick="deleteNote('${n._id}')">🗑️ حذف</button></td>
                     </tr>`;
                 });
-            } catch(err) { customAlert('??? ?? ????? ????????'); }
+            } catch(err) { customAlert('حدث خطأ غير متوقع، يرجى المحاولة مرة أخرى.'); }
         }
 
         async function loadWarnedUsers() {
@@ -2159,7 +2190,7 @@
                         <td><button class="btn-danger" style="width:auto; padding:5px 8px; font-size:0.7rem;" onclick="removeMemberWarning('${escapeJsStr(u.username)}')">🗑️ إزالة إنذار</button></td>
                     </tr>`;
                 });
-            } catch(err) { customAlert('??? ?? ????? ????????'); }
+            } catch(err) { customAlert('حدث خطأ غير متوقع، يرجى المحاولة مرة أخرى.'); }
         }
 
         async function changeMemberRole(username, new_role) {
@@ -2171,6 +2202,7 @@
                     body: JSON.stringify({ target_username: username, new_role })
                 });
                 const data = await res.json();
+                if(!res.ok) throw new Error(data.error);
                 customAlert(data.msg);
                 loadAllUsersTable();
             } catch(err) { customAlert(err.message); }
@@ -2248,7 +2280,7 @@
                         <td><button class="btn-success" style="width:auto; padding:5px 12px; font-size:0.8rem;" onclick="payMemberFine('${escapeJsStr(u.username)}')">✔️ تم الدفع</button></td>
                     </tr>`;
                 });
-            } catch(err) { customAlert('??? ?? ????? ????????'); }
+            } catch(err) { customAlert('حدث خطأ غير متوقع، يرجى المحاولة مرة أخرى.'); }
         }
 
         function payMemberFine(username) {
@@ -2291,7 +2323,7 @@
                     localStorage.setItem('user', JSON.stringify(userData));
                     renderFineAlert();
                 }
-            } catch(err) { customAlert('??? ?? ????? ????????'); }
+            } catch(err) { customAlert('حدث خطأ غير متوقع، يرجى المحاولة مرة أخرى.'); }
         }
 
         function triggerEmergency() {
@@ -2305,8 +2337,9 @@
                 try {
                     const res = await fetch('/api/admin/reset-weekly-hours', { method: 'POST', headers: { 'Authorization': `Bearer ${userToken}` } });
                     const data = await res.json();
+                    if(!res.ok) throw new Error(data.error);
                     customAlert(data.msg);
-                } catch(err) { customAlert('??? ?? ????? ????????'); }
+                } catch(err) { customAlert('حدث خطأ غير متوقع، يرجى المحاولة مرة أخرى.'); }
             });
         }
 
@@ -2326,7 +2359,7 @@
                             <ul style="margin:10px 0; padding-right:20px; font-size:0.85rem; color:#aaa;">${recordsHtml}</ul>
                         </div>`;
                 });
-            } catch(err) { customAlert('??? ?? ????? ????????'); }
+            } catch(err) { customAlert('حدث خطأ غير متوقع، يرجى المحاولة مرة أخرى.'); }
         }
 
         // ================== طرد فوري إذا تم حظر العضو أو تغيير رتبته ==================
@@ -2350,9 +2383,12 @@
                 userData.duty_status = data.duty_status;
                 localStorage.setItem('user', JSON.stringify(userData));
                 updatePunchButtonUI(data.duty_status);
+            } else if(!data || !data.username) {
+                // إيقاف تلقائي من النظام (نهاية نافذة الدوام أو تجاوز 8 ساعات): تحديث الحالة من الخادم
+                refreshMyDutyStatus();
             }
             loadLeaderboardData();
-            if(['Don', 'Underboss', 'GRH', 'Business_Manager'].includes(userData.role)) {
+            if(['Don', 'Underboss', 'GRH'].includes(userData.role)) {
                 loadAllUsersTable();
                 loadWarnedUsers();
             }
@@ -2371,7 +2407,7 @@
         socket.on('finesUpdated', () => {
             if(!userToken) return;
             refreshUserFineStatus();
-            if(['Don', 'Underboss', 'GRH', 'Business_Manager'].includes(userData?.role)) loadActiveFinesTable();
+            if(['Don', 'Underboss', 'GRH'].includes(userData?.role)) loadActiveFinesTable();
         });
         socket.on('accountPending', () => { if(userToken && ['Don','Underboss','GRH'].includes(userData?.role)) loadPendingAccounts(); });
         socket.on('auditLogUpdated', () => { if(userToken && ['Don','Underboss','GRH'].includes(userData?.role)) loadAuditLog(); });
@@ -2387,8 +2423,8 @@
         });
         socket.on('gangTreasuryUpdated', () => { if(userToken && ['Don','Underboss','Business_Manager'].includes(userData?.role)) loadGangTreasuryBalance(); });
         socket.on('ordersUpdated', () => { if(userToken && ['Don', 'Underboss', 'GRH', 'Business_Manager', 'Chef_Braquage'].includes(userData?.role)) loadOrdersData(); });
-        socket.on('treasuryUpdated', () => { if(userToken && ['Don', 'Underboss', 'GRH', 'Business_Manager'].includes(userData?.role)) loadTreasuryBalance(); });
-        socket.on('requestUpdated', () => { if(userToken && ['Don', 'Underboss', 'GRH', 'Business_Manager'].includes(userData?.role)) loadHRRequests(); });
+        socket.on('treasuryUpdated', () => { if(userToken && ['Don', 'Underboss', 'Business_Manager'].includes(userData?.role)) loadTreasuryBalance(); });
+        socket.on('requestUpdated', () => { if(userToken && ['Don', 'Underboss', 'GRH'].includes(userData?.role)) loadHRRequests(); });
         socket.on('notesUpdated', () => {
             if(!userToken) return;
             loadMyNotes();
