@@ -1,4 +1,14 @@
 {
+  "name": "cortez-system",
+  "version": "8.0.0",
+  "description": "CORTEZ SYSTEM v8.0 - نظام إدارة عائلة المافيا (دوام، حضور، ملاحظات، مخزون، شوب)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
   "dependencies": {
     "bcryptjs": "^2.4.3",
     "cloudinary": "^1.41.3",
