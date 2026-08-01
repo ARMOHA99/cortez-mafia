@@ -1018,8 +1018,9 @@
         // --- Time Check Helper ---
         function isDutyTimeAllowed() {
             const now = new Date();
-            const astHour = (now.getUTCHours() + 3) % 24;
-            return astHour >= 22 || astHour < 4;
+            // توقيت الجزائر = UTC+1
+            const dzHour = (now.getUTCHours() + 1) % 24;
+            return dzHour >= 22 || dzHour < 4;
         }
 
         // --- Attendance ---
