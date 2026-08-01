@@ -66,13 +66,13 @@ const formatMoneyExact = (amount) => {
     return Number(amount).toLocaleString('en-US');
 };
 
-// ================== v8.0: التحقق من نافذة الدوام المسموحة (22:00 - 04:00 بتوقيت الخليج AST/UTC+3) ==================
+// ================== v8.0: التحقق من نافذة الدوام المسموحة (22:00 - 04:00 بتوقيت الجزائر CET/UTC+1) ==================
 function isInDutyTimeWindow() {
     const now = new Date();
-    // حساب الوقت الحالي بتوقيت الخليج (AST = UTC+3)
-    const gulfTime = new Date(now.getTime() + (3 * 60 * 60 * 1000));
-    const hours = gulfTime.getUTCHours();
-    const minutes = gulfTime.getUTCMinutes();
+    // حساب الوقت الحالي بتوقيت الجزائر (CET = UTC+1)
+    const dzTime = new Date(now.getTime() + (60 * 60 * 1000));
+    const hours = dzTime.getUTCHours();
+    const minutes = dzTime.getUTCMinutes();
     const totalMinutes = hours * 60 + minutes;
     // النافذة: من 22:00 (1320 دقيقة) حتى 04:00 (240 دقيقة)
     // أي من 22:00 (1320) إلى 23:59 (1439) أو من 00:00 (0) إلى 04:00 (240)
@@ -80,7 +80,7 @@ function isInDutyTimeWindow() {
 }
 
 // ================== v8.0: نص ملاحظة الغياب التلقائي لعدم تفعيل ON-DUTY ==================
-const MISSED_DUTY_NOTE_TEXT = "غاب عن الدوام - لم يسجل ON-DUTY خلال الفترة المسموحة (22:00 - 04:00 بتوقيت الخليج)";
+const MISSED_DUTY_NOTE_TEXT = "غاب عن الدوام - لم يسجل ON-DUTY خلال الفترة المسموحة (22:00 - 04:00 بتوقيت الجزائر)";
 
 // ---------------- المخططات (Schemas) ----------------
 const UserSchema = new mongoose.Schema({
@@ -931,23 +931,23 @@ app.delete('/api/notes/:id', verifyAuth(['Don', 'Underboss', 'GRH']), async (req
 });
 
 // ================== v8.0: سجل الحضور الأسبوعي (مبني على بصمات الدخول/الخروج الفعلية) ==================
-// يوم الدوام الواحد يمتد من 22:00 إلى 04:00 بتوقيت الخليج (ليلة الدوام تُحسب لليوم الذي تبدأ فيه)
+// يوم الدوام الواحد يمتد من 22:00 إلى 04:00 بتوقيت الجزائر (ليلة الدوام تُحسب لليوم الذي تبدأ فيه)
 app.get('/api/attendance/week', verifyAuth(['Don', 'Underboss', 'GRH', 'Business_Manager']), async (req, res) => {
     try {
-        const GULF_OFFSET_MS = 3 * 60 * 60 * 1000;
+        const DZ_OFFSET_MS = 60 * 60 * 1000;
         const now = new Date();
-        const gulfNow = new Date(now.getTime() + GULF_OFFSET_MS);
+        const dzNow = new Date(now.getTime() + DZ_OFFSET_MS);
 
-        // تحديد آخر 7 أيام دوام (كل يوم يبدأ 22:00 بتوقيت الخليج = 19:00 UTC)
+        // تحديد آخر 7 أيام دوام (كل يوم يبدأ 22:00 بتوقيت الجزائر = 21:00 UTC)
         const days = [];
         for (let i = 6; i >= 0; i--) {
             const startAbs = new Date(Date.UTC(
-                gulfNow.getUTCFullYear(),
-                gulfNow.getUTCMonth(),
-                gulfNow.getUTCDate() - i,
-                19, 0, 0, 0
+                dzNow.getUTCFullYear(),
+                dzNow.getUTCMonth(),
+                dzNow.getUTCDate() - i,
+                21, 0, 0, 0
             ));
-            const endAbs = new Date(startAbs.getTime() + 6 * 60 * 60 * 1000); // +6 ساعات = 04:00 بتوقيت الخليج
+            const endAbs = new Date(startAbs.getTime() + 6 * 60 * 60 * 1000); // +6 ساعات = 04:00 بتوقيت الجزائر
             const label = startAbs.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
             days.push({ start: startAbs, end: endAbs, label });
         }
@@ -1420,9 +1420,9 @@ io.on('connection', (socket) => {
             if (!user) return;
             const now = new Date();
             if (user.duty_status === 'OFF-DUTY') {
-                // التحقق من نافذة الدوام المسموحة (22:00 - 04:00 بتوقيت الخليج)
+                // التحقق من نافذة الدوام المسموحة (22:00 - 04:00 بتوقيت الجزائر)
                 if (!isInDutyTimeWindow()) {
-                    socket.emit('statusResponse', { error: "لا يمكن تفعيل الدوام خارج الساعات المسموحة (22:00 - 04:00 بتوقيت الخليج)." });
+                    socket.emit('statusResponse', { error: "لا يمكن تفعيل الدوام خارج الساعات المسموحة (22:00 - 04:00 بتوقيت الجزائر)." });
                     return;
                 }
                 user.duty_status = 'ON-DUTY'; user.last_punch_in = now;
@@ -1496,26 +1496,26 @@ async function cleanupExpiredWarnings() {
 setInterval(cleanupExpiredWarnings, 3600000);
 cleanupExpiredWarnings();
 
-// ================== الملاحظات التلقائية للغياب — تُرسل يومياً في الساعة 04:00 بتوقيت الخليج ==================
+// ================== الملاحظات التلقائية للغياب — تُرسل يومياً في الساعة 04:00 بتوقيت الجزائر ==================
 let lastAutoNoteDate = '';
 setInterval(async () => {
     try {
         const now = new Date();
-        const gulfNow = new Date(now.getTime() + (3 * 60 * 60 * 1000));
-        const hours = gulfNow.getUTCHours();
-        const minutes = gulfNow.getUTCMinutes();
+        const dzNow = new Date(now.getTime() + (60 * 60 * 1000));
+        const hours = dzNow.getUTCHours();
+        const minutes = dzNow.getUTCMinutes();
         if (hours !== 4 || minutes > 0) return;
 
         // ضمان إرسال الملاحظة مرة واحدة فقط في اليوم
-        const todayStr = gulfNow.toISOString().slice(0, 10);
+        const todayStr = dzNow.toISOString().slice(0, 10);
         if (lastAutoNoteDate === todayStr) return;
         lastAutoNoteDate = todayStr;
 
         // نافذة الدوام الماضية: من 22:00 ليلة أمس حتى 04:00 اليوم
-        const yesterdayStart = new Date(gulfNow);
+        const yesterdayStart = new Date(dzNow);
         yesterdayStart.setDate(yesterdayStart.getDate() - 1);
         yesterdayStart.setUTCHours(22, 0, 0, 0);
-        const yesterdayEnd = new Date(gulfNow);
+        const yesterdayEnd = new Date(dzNow);
         yesterdayEnd.setUTCHours(4, 0, 0, 0);
 
         // استثناء الدون وأعضاء العصابات من الملاحظات التلقائية
@@ -1544,9 +1544,16 @@ setInterval(async () => {
                 continue;
             }
 
-            const wasOnDuty = user.last_punch_in &&
+            // التحقق من الحضور عبر سجل البصمات (IN) داخل نافذة الدوام، مع احتياط للبيانات القديمة قبل تفعيل سجل البصمات
+            const inPunchCount = await PunchRecord.countDocuments({
+                username: user.username,
+                action: 'IN',
+                timestamp: { $gte: yesterdayStart, $lt: yesterdayEnd }
+            });
+            const legacyInWindow = user.last_punch_in &&
                 user.last_punch_in >= yesterdayStart &&
-                user.last_punch_in <= yesterdayEnd;
+                user.last_punch_in < yesterdayEnd;
+            const wasOnDuty = inPunchCount > 0 || !!legacyInWindow;
 
             if (wasOnDuty) {
                 if (user.consecutive_misses > 0) {
@@ -1567,8 +1574,8 @@ setInterval(async () => {
                 is_auto: true
             }).save();
 
-            // الإنذار الرسمي يبدأ فقط بعد تراكم 3 غيابات متتالية
-            if (user.consecutive_misses >= 3) {
+            // الإنذار الرسمي يُمنح مرة واحدة فقط عند بلوغ 3 غيابات متتالية (وليس مع كل ملاحظة)
+            if (user.consecutive_misses === 3) {
                 user.warning_dates.push(new Date());
                 user.warnings = user.warning_dates.length;
 
@@ -1596,16 +1603,16 @@ setInterval(async () => {
     } catch (err) { console.error("Auto-note error:", err.message); }
 }, 60000);
 
-// ================== تنظيف الملاحظات التلقائية القديمة (أقدم من 7 أيام) يومياً عند 22:00 بتوقيت الخليج ==================
+// ================== تنظيف الملاحظات التلقائية القديمة (أقدم من 7 أيام) يومياً عند 22:00 بتوقيت الجزائر ==================
 setInterval(async () => {
     try {
         const now = new Date();
-        const gulfNow = new Date(now.getTime() + (3 * 60 * 60 * 1000));
-        const hours = gulfNow.getUTCHours();
-        const minutes = gulfNow.getUTCMinutes();
+        const dzNow = new Date(now.getTime() + (60 * 60 * 1000));
+        const hours = dzNow.getUTCHours();
+        const minutes = dzNow.getUTCMinutes();
         if (hours !== 22 || minutes > 0) return;
 
-        const cutoff = new Date(gulfNow.getTime() - 7 * 24 * 60 * 60 * 1000);
+        const cutoff = new Date(dzNow.getTime() - 7 * 24 * 60 * 60 * 1000);
 
         const result = await MemberNote.deleteMany({
             is_auto: true,
