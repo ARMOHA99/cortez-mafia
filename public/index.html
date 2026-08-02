@@ -273,8 +273,17 @@
         ::-webkit-scrollbar-thumb{ background:rgba(0,255,102,0.3); border-radius:99px; }
         ::-webkit-scrollbar-thumb:hover{ background:rgba(0,255,102,0.5); }
 
+        /* ============ GANG SHOP / INVENTORY ============ */
+        .gs-buy-color{ color:var(--red); }
+        .gs-sell-color{ color:var(--green); }
+        .three-col{ display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:16px; }
+        #gang-modal-overlay .modal-box{ width:480px; max-width:100%; text-align:right; max-height:92vh; overflow-y:auto; }
+        #gang-modal-body .input-group{ margin-bottom:12px; }
+        #gang-modal-body .input-group label{ display:block; font-family:var(--mono); font-size:.62rem; letter-spacing:1px; color:var(--green); margin-bottom:5px; }
+        #gang-modal-body .input-group input, #gang-modal-body .input-group select{ width:100%; }
+
         @media (max-width:900px){
-            .dash-grid,.req-grid,.shop-layout,.stat-row,.form-grid{ grid-template-columns:1fr; }
+            .dash-grid,.req-grid,.shop-layout,.stat-row,.form-grid,.three-col{ grid-template-columns:1fr; }
             .quick-grid{ grid-template-columns:1fr; }
             #gang-map{ height:260px; }
         }
@@ -361,6 +370,8 @@
             <button class="nav-btn" data-nav="tracking" onclick="goSection('tracking')"><i class="fa-solid fa-map-location-dot"></i> TRACKING</button>
             <button class="nav-btn" data-nav="attendance" id="nav-attendance" style="display:none;" onclick="goSection('attendance')"><i class="fa-solid fa-clipboard-check"></i> ATTENDANCE</button>
             <button class="nav-btn" data-nav="requests" onclick="goSection('requests')"><i class="fa-solid fa-envelope-open-text"></i> REQUESTS</button>
+            <button class="nav-btn" data-nav="gangshop" id="nav-gangshop" style="display:none;" onclick="goSection('gangshop')"><i class="fa-solid fa-people-group"></i> GANG SHOP</button>
+            <button class="nav-btn" data-nav="inventory" id="nav-inventory" style="display:none;" onclick="goSection('inventory')"><i class="fa-solid fa-calculator"></i> INVENTORY</button>
             <button class="nav-btn" data-nav="ops" id="nav-ops" style="display:none;" onclick="goSection('ops')"><i class="fa-solid fa-user-shield"></i> OPS CENTER</button>
         </div>
 
@@ -409,6 +420,11 @@
                     <div class="qb-t">TRIGGER EMERGENCY</div>
                     <div class="qb-s">استنفار عام فوري</div>
                 </div>
+            </div>
+
+            <div class="glass hud-corner" style="padding:22px; margin-top:16px;" data-tilt>
+                <h3 class="glass-title" style="margin-top:0;"><i class="fa-solid fa-book" style="margin-left:8px;"></i>MY NOTES / ملاحظاتي</h3>
+                <div id="myNotesList" style="margin-top:6px;"><div class="empty">لا توجد ملاحظات إدارية</div></div>
             </div>
         </section>
 
@@ -500,8 +516,9 @@
                     <div class="ops-tab active" data-ops="penalty" onclick="opsTab('penalty')">العقوبات</div>
                     <div class="ops-tab" data-ops="pending" onclick="opsTab('pending')">حسابات معلقة</div>
                     <div class="ops-tab" data-ops="fines" onclick="opsTab('fines')">الغرامات</div>
-                    <div class="ops-tab" data-ops="warnings" onclick="opsTab('warnings')">الإنذارات</div>
-                    <div class="ops-tab" data-ops="treasury" onclick="opsTab('treasury')">الخزينة</div>
+                        <div class="ops-tab" data-ops="warnings" onclick="opsTab('warnings')">الإنذارات</div>
+                        <div class="ops-tab" data-ops="notes" onclick="opsTab('notes')">الملاحظات</div>
+                        <div class="ops-tab" data-ops="treasury" onclick="opsTab('treasury')">الخزينة</div>
                     <div class="ops-tab" data-ops="audit" onclick="opsTab('audit')">سجل التدقيق</div>
                     <div class="ops-tab" data-ops="market" onclick="opsTab('market')">إدارة السوق</div>
                 </div>
@@ -585,6 +602,15 @@
                     </div></div>
                 </div>
 
+                <div id="ops-panel-notes" class="ops-panel">
+                    <div class="table-wrap"><div class="scroll">
+                        <table class="data-table" id="tbl-all-notes">
+                            <thead><tr><th>MEMBER</th><th>REASON</th><th>BY</th><th>AMOUNT</th><th>AUTO</th><th>DATE</th><th>ACTION</th></tr></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div></div>
+                </div>
+
                 <div id="ops-panel-treasury" class="ops-panel">
                     <div class="stat-row">
                         <div class="stat-mini glass"><div class="sv" id="treasuryVal" style="color:var(--amber);">0$</div><div class="st">MAFIA TREASURY</div></div>
@@ -616,31 +642,136 @@
                                 <button class="btn-cyber btn-green" onclick="addMarketItem()">نشر المنتج</button>
                             </div>
                         </div>
-                        <div class="full">
-                            <div class="form-label">إضافة منتج لمخزون البزنس مانجر (INVENTORY)</div>
-                            <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                                <input class="cyber-input" id="inv-name" placeholder="اسم المنتج" style="flex:2; min-width:140px;">
-                                <input class="cyber-input" id="inv-buy" type="number" placeholder="شراء من العصابة $" style="flex:1;">
-                                <input class="cyber-input" id="inv-sell" type="number" placeholder="بيع على البلاك $" style="flex:1;">
-                                <button class="btn-cyber btn-green" onclick="addInvItem()">إضافة</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- GANG SHOP -->
+        <section id="sec-gangshop" class="section">
+            <div id="gm-member-zone">
+                <div class="glass" style="padding:20px;">
+                    <h2 class="glass-title" style="margin-top:0;"><i class="fa-solid fa-people-group" style="margin-left:10px;"></i>GANG SHOP — سوق المقايضة</h2>
+                    <div class="ops-tabs" id="gmTabs" style="margin-top:14px;">
+                        <div class="ops-tab active" id="gm-tab-buy" onclick="switchGmMode('buy')">🛒 أشتري من المافيا</div>
+                        <div class="ops-tab" id="gm-tab-sell" onclick="switchGmMode('sell')">💰 أبيع للمافيا</div>
+                    </div>
+                    <div class="item-grid" id="gm-catalog-container" style="margin-top:14px;"><div class="loading">جاري التحميل...</div></div>
+                </div>
+                <div class="glass" style="padding:20px; margin-top:16px;">
+                    <div class="three-col" style="margin-top:0;">
+                        <div class="stat-mini glass"><div class="sv gs-buy-color" id="gm-total-buy">0$</div><div class="st">إجمالي الشراء</div></div>
+                        <div class="stat-mini glass"><div class="sv gs-sell-color" id="gm-total-sell">0$</div><div class="st">إجمالي البيع</div></div>
+                        <div class="stat-mini glass"><div class="sv" id="gm-net-amount" style="color:var(--amber);">0$</div><div class="st">الصافي</div></div>
+                    </div>
+                    <button class="btn-cyber btn-green" style="width:100%; padding:14px; margin-top:14px;" id="btn-submit-gm-order" onclick="submitGangOrder()">تنفيذ العملية ✓</button>
+                </div>
+                <div class="glass" style="padding:20px; margin-top:16px;">
+                    <h3 class="glass-title" style="margin-top:0;"><i class="fa-solid fa-clock-rotate-left" style="margin-left:8px;"></i>MY TRADES / طلباتي السابقة</h3>
+                    <div class="table-wrap"><div class="scroll">
+                        <table class="data-table" id="tbl-my-gang-orders">
+                            <thead><tr><th>BOUGHT</th><th>SOLD</th><th>NET</th><th>STATUS</th><th>DATE</th><th>ACTION</th></tr></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div></div>
+                </div>
+            </div>
+
+            <div id="gm-admin-zone" style="display:none;">
+                <div class="glass" style="padding:20px;">
+                    <h2 class="glass-title" style="margin-top:0;"><i class="fa-solid fa-user-shield" style="margin-left:10px;"></i>GANG SHOP ADMIN — إدارة السوق</h2>
+                    <div class="ops-tabs" id="gangAdminTabs" style="margin-top:14px;">
+                        <div class="ops-tab active" data-gtab="manage" onclick="gangTab('manage')">إدارة الكتالوج</div>
+                        <div class="ops-tab" data-gtab="orders" onclick="gangTab('orders')">الطلبات</div>
+                        <div class="ops-tab" data-gtab="treasury" onclick="gangTab('treasury')">الخزينة</div>
+                    </div>
+
+                    <div id="gang-panel-manage" class="ops-panel active">
+                        <div class="glass" style="padding:18px; margin-bottom:16px; background:rgba(0,0,0,0.25);">
+                            <div class="form-label">إضافة منتج جديد</div>
+                            <div class="form-grid">
+                                <div><div class="form-label">اسم المنتج</div><input class="cyber-input" id="gs-name" placeholder="اسم المنتج"></div>
+                                <div><div class="form-label">نوع المنتج</div>
+                                    <select class="cyber-input" id="gs-type" onchange="toggleGsPriceFields()">
+                                        <option value="both">شراء وبيع (الاثنين)</option>
+                                        <option value="buy_only">شراء فقط (المافيا تبيعه)</option>
+                                        <option value="sell_only">بيع فقط (المافيا تشتريه)</option>
+                                    </select>
+                                </div>
+                                <div id="gs-buy-group"><div class="form-label">سعر الشراء (من المافيا) $</div><input class="cyber-input" id="gs-buy-price" type="number" placeholder="0"></div>
+                                <div id="gs-sell-group"><div class="form-label">سعر البيع (للمافيا) $</div><input class="cyber-input" id="gs-sell-price" type="number" placeholder="0"></div>
+                                <div><div class="form-label">أقصى كمية بالطلب (اختياري)</div><input class="cyber-input" id="gs-max-order" type="number" placeholder="بدون حد"></div>
+                                <div><div class="form-label">أقصى كمية أسبوعياً (اختياري)</div><input class="cyber-input" id="gs-max-week" type="number" placeholder="بدون حد"></div>
+                                <div class="full"><div class="form-label">رابط الصورة</div><input class="cyber-input" id="gs-img" placeholder="https://..."></div>
+                                <div class="full" style="display:flex; gap:10px; align-items:center;">
+                                    <button class="btn-cyber btn-green" style="padding:12px 26px;" onclick="addGangShopItem()"><i class="fa-solid fa-plus" style="margin-left:6px;"></i>نشر المنتج</button>
+                                    <input type="file" id="upload-gs-img" accept="image/*" style="display:none;" onchange="uploadImageFile(this,'gs-img')">
+                                    <button class="btn-cyber btn-ghost" style="padding:12px 18px;" onclick="document.getElementById('upload-gs-img').click()">📷 رفع صورة</button>
+                                </div>
                             </div>
                         </div>
-                        <div class="full">
-                            <div class="form-label">إضافة منتج لشوب العصابات (GANG SHOP)</div>
-                            <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                                <input class="cyber-input" id="gs-name" placeholder="اسم المنتج" style="flex:2; min-width:140px;">
-                                <select class="cyber-input" id="gs-type" style="flex:1;">
-                                    <option value="both">شراء وبيع</option>
-                                    <option value="buy_only">شراء فقط</option>
-                                    <option value="sell_only">بيع فقط</option>
-                                </select>
-                                <input class="cyber-input" id="gs-buy" type="number" placeholder="سعر الشراء $" style="flex:1;">
-                                <input class="cyber-input" id="gs-sell" type="number" placeholder="سعر البيع $" style="flex:1;">
-                                <button class="btn-cyber btn-green" onclick="addGangItem()">إضافة</button>
+                        <div class="item-grid" id="gang-shop-catalog-container"><div class="loading">جاري تحميل الكتالوج...</div></div>
+                    </div>
+
+                    <div id="gang-panel-orders" class="ops-panel">
+                        <div class="table-wrap"><div class="scroll">
+                            <table class="data-table" id="tbl-gang-orders">
+                                <thead><tr><th>MEMBER</th><th>GANG</th><th>BOUGHT</th><th>SOLD</th><th>NET</th><th>STATUS</th><th>ACTION</th><th>DATE</th></tr></thead>
+                                <tbody></tbody>
+                            </table>
+                        </div></div>
+                    </div>
+
+                    <div id="gang-panel-treasury" class="ops-panel">
+                        <div class="stat-row">
+                            <div class="stat-mini glass"><div class="sv" id="gang-treasury-balance" style="color:var(--amber);">0$</div><div class="st">GANG SHOP TREASURY</div></div>
+                        </div>
+                        <button class="btn-cyber btn-red" id="btn-gang-treasury-reset" style="display:none;" onclick="resetGangTreasury()">تصفير خزينة شوب العصابات</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- INVENTORY -->
+        <section id="sec-inventory" class="section">
+            <div class="glass" style="padding:20px;">
+                <h2 class="glass-title" style="margin-top:0;"><i class="fa-solid fa-calculator" style="margin-left:10px;"></i>CALCUL MANAGER — حاسبة المخزون</h2>
+                <div style="color:var(--muted); font-size:.78rem; margin-bottom:16px;">حدد كميات الشراء من العصابة والبيع على البلاك لحساب صافي الربح/الخسارة.</div>
+
+                <div id="inv-admin-add" style="display:none;">
+                    <div class="glass" style="padding:18px; margin-bottom:16px; background:rgba(0,0,0,0.25);">
+                        <div class="form-label">إضافة منتج للمخزون</div>
+                        <div class="form-grid">
+                            <div><div class="form-label">اسم المنتج</div><input class="cyber-input" id="inv-name" placeholder="اسم الايتم"></div>
+                            <div><div class="form-label">سعر الشراء من العصابة ($)</div><input class="cyber-input" id="inv-buy-price" type="number" placeholder="0"></div>
+                            <div><div class="form-label">سعر البيع على البلاك ($)</div><input class="cyber-input" id="inv-sell-price" type="number" placeholder="0"></div>
+                            <div><div class="form-label">رابط الصورة</div><input class="cyber-input" id="inv-img" placeholder="https://..."></div>
+                            <div class="full" style="display:flex; gap:10px; align-items:center;">
+                                <button class="btn-cyber btn-green" style="padding:12px 26px;" onclick="addInventoryItem()"><i class="fa-solid fa-plus" style="margin-left:6px;"></i>إضافة</button>
+                                <input type="file" id="upload-inv-img" accept="image/*" style="display:none;" onchange="uploadImageFile(this,'inv-img')">
+                                <button class="btn-cyber btn-ghost" style="padding:12px 18px;" onclick="document.getElementById('upload-inv-img').click()">📷 رفع صورة</button>
                             </div>
                         </div>
                     </div>
                 </div>
+
+                <div class="item-grid" id="inventory-calc-grid"><div class="loading">جاري تحميل المخزون...</div></div>
+
+                <div class="three-col">
+                    <div class="stat-mini glass"><div class="sv gs-buy-color" id="inv-total-buy">0$</div><div class="st">إجمالي الشراء من العصابة</div></div>
+                    <div class="stat-mini glass"><div class="sv gs-sell-color" id="inv-total-sell">0$</div><div class="st">إجمالي البيع على البلاك</div></div>
+                    <div class="stat-mini glass"><div class="sv" id="inv-total-profit" style="color:var(--amber);">0$</div><div class="st">صافي الربح/الخسارة</div></div>
+                </div>
+            </div>
+
+            <div class="glass" style="padding:20px; margin-top:16px;">
+                <h3 class="glass-title" style="margin-top:0;"><i class="fa-solid fa-box" style="margin-left:8px;"></i>ITEMS / المنتجات المسجلة</h3>
+                <div class="table-wrap"><div class="scroll">
+                    <table class="data-table" id="tbl-inventory">
+                        <thead><tr><th>IMG</th><th>NAME</th><th>BUY (من العصابة)</th><th>SELL (على البلاك)</th><th>ACTION</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div></div>
             </div>
         </section>
 
@@ -673,6 +804,25 @@
         </div>
     </div>
 
+    <div class="modal-backdrop" id="gang-modal-overlay">
+        <div class="modal-box glass">
+            <h3 class="glass-title" id="gang-modal-title">✏️ تعديل</h3>
+            <div id="gang-modal-body" style="margin:16px 0;"></div>
+            <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap;" id="gang-modal-actions"></div>
+        </div>
+    </div>
+
+    <div class="modal-backdrop" id="promptBackdrop">
+        <div class="modal-box glass">
+            <h3 class="glass-title" id="promptTitle">إدخال</h3>
+            <input class="cyber-input" id="promptInput" style="margin-top:14px;" placeholder="...">
+            <div style="display:flex; gap:10px; justify-content:center; margin-top:18px;">
+                <button class="btn-cyber btn-green" id="promptOk" style="padding:11px 24px;">موافق</button>
+                <button class="btn-cyber btn-ghost" style="padding:11px 24px;" onclick="closePrompt()">إلغاء</button>
+            </div>
+        </div>
+    </div>
+
     <div id="toast-wrap"></div>
 
     <div id="emergency-overlay">
@@ -698,6 +848,13 @@
     let shopItems = [];
     let myWeeklyHours = 0;
     const HEIST_TARGET_H = 40;
+    let gmCatalogData = [];
+    let gmCart = {};
+    let gmMode = 'buy';
+    let myGangOrdersData = [];
+    let gangShopAdminCatalog = [];
+    let inventoryData = [];
+    let invCart = {};
 
     /* ---------- Tiny helpers ---------- */
     const $ = id => document.getElementById(id);
@@ -738,6 +895,26 @@
     }
     function closeModal(){ $('modalBackdrop').classList.remove('open'); }
     function initials(u){ if(!u) return '?'; return u.split(/[\s_]+/).filter(Boolean).slice(0,2).map(s=>s[0].toUpperCase()).join('') || '?'; }
+    function escJs(str){ return String(str==null?'':str).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+    function fmtDate(iso){ const d = new Date(iso); if(isNaN(d.getTime())) return '-'; const p = n => String(n).padStart(2,'0'); return `${p(d.getDate())}/${p(d.getMonth()+1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`; }
+    async function uploadImageFile(fileInputEl, targetInputId){
+        const file = fileInputEl.files[0];
+        if(!file) return;
+        const formData = new FormData();
+        formData.append('image', file);
+        try {
+            const res = await fetch('/api/upload-image', { method:'POST', headers: { 'Authorization': 'Bearer ' + userToken }, body: formData });
+            const data = await res.json();
+            if(!res.ok) throw new Error(data.error);
+            $(targetInputId).value = data.url;
+            toast('تم رفع الصورة، الرابط تعبّى تلقائياً.');
+        } catch(e){ toast(e.message, 'err'); }
+        fileInputEl.value = '';
+    }
+    let promptCb = null;
+    function openPrompt(title, placeholder, cb){ $('promptTitle').textContent = title; $('promptInput').placeholder = placeholder || ''; $('promptInput').value = ''; promptCb = cb; $('promptBackdrop').classList.add('open'); setTimeout(()=>{ $('promptInput').focus(); }, 60); }
+    function closePrompt(){ $('promptBackdrop').classList.remove('open'); promptCb = null; }
+    $('promptOk').addEventListener('click', () => { const v = $('promptInput').value.trim(); closePrompt(); if(promptCb) promptCb(v); });
 
     /* ---------- Particles background ---------- */
     (function particles(){
@@ -905,16 +1082,16 @@
         });
         socket.on('accountPending', () => { if(isVisible('ops')) loadPending(); toast('حساب جديد بانتظار الموافقة.', 'warn'); });
         socket.on('finesUpdated', () => { renderDashboard(); if(isVisible('ops')) loadFines(); });
-        socket.on('notesUpdated', () => { if(isVisible('ops')) loadWarnings(); });
+        socket.on('notesUpdated', () => { loadMyNotes(); if(isVisible('ops')) loadAllNotes(); });
         socket.on('shopUpdated', () => { if(isVisible('shop')) loadShopItems(false); });
         socket.on('ordersUpdated', () => { if(isVisible('shop')) loadMyOrders(); });
         socket.on('requestUpdated', () => { if(isVisible('requests')) loadReqLog(); });
         socket.on('auditLogUpdated', () => { if(isVisible('ops')) loadAudit(); });
         socket.on('treasuryUpdated', () => { if(isVisible('ops')) loadTreasury(); });
-        socket.on('inventoryUpdated', () => {});
-        socket.on('gangShopUpdated', () => {});
-        socket.on('gangOrdersUpdated', () => {});
-        socket.on('gangTreasuryUpdated', () => { if(isVisible('ops')) loadTreasury(); });
+        socket.on('inventoryUpdated', () => { if(isVisible('inventory')) loadInventory(); });
+        socket.on('gangShopUpdated', () => { if(isVisible('gangshop')){ loadGangCatalog(); if(isGangAdmin()) loadGangShopCatalog(); } });
+        socket.on('gangOrdersUpdated', () => { if(isVisible('gangshop')){ if(userData && userData.role === 'Gang_Member') loadMyGangOrders(); if(isGangAdmin()) loadGangOrders(); } });
+        socket.on('gangTreasuryUpdated', () => { if(isVisible('gangshop') && isGangAdmin()) loadGangTreasury(); });
     }
     function isVisible(sec){ return $('sec-'+sec) && $('sec-'+sec).classList.contains('active'); }
     function applyDutyUI(){
@@ -942,11 +1119,18 @@
         const isMafia = role !== 'Gang_Member';
         $('nav-attendance').style.display = ['Don','Underboss','GRH','Business_Manager'].includes(role) ? 'flex' : 'none';
         $('nav-ops').style.display = ['Don','Underboss','GRH','Business_Manager'].includes(role) ? 'flex' : 'none';
+        $('nav-gangshop').style.display = (role === 'Gang_Member' || isGangAdmin()) ? 'flex' : 'none';
+        $('nav-inventory').style.display = ['Don','Underboss','Soldat','Capo','GRH','Chef_Braquage','Business_Manager','Gang_Supervisor'].includes(role) ? 'flex' : 'none';
         $('btn-treasury-reset').style.display = role==='Don' ? 'inline-block' : 'none';
         $('btn-weekly-reset').style.display = role==='Don' ? 'inline-block' : 'none';
+        $('btn-gang-treasury-reset').style.display = role==='Don' ? 'inline-block' : 'none';
+        $('gm-member-zone').style.display = role === 'Gang_Member' ? 'block' : 'none';
+        $('gm-admin-zone').style.display = isGangAdmin() ? 'block' : 'none';
+        $('inv-admin-add').style.display = ['Don','Underboss','Business_Manager'].includes(role) ? 'block' : 'none';
 
         connectSocket();
         renderDashboard();
+        loadMyNotes();
         loadLeaderboard(true);
         loadShopItems(true);
         loadUsersList();
@@ -968,6 +1152,12 @@
         if(name==='tracking') loadLeaderboard(false);
         if(name==='attendance') loadAttendance();
         if(name==='requests') loadReqLog();
+        if(name==='gangshop'){
+            loadGangCatalog();
+            if(userData && userData.role === 'Gang_Member') loadMyGangOrders();
+            if(isGangAdmin()){ loadGangShopCatalog(); loadGangOrders(); loadGangTreasury(); }
+        }
+        if(name==='inventory') loadInventory();
         if(name==='ops') loadOps();
         gsapFrom('#sec-'+name+' > *', { duration:0.5, y:20, opacity:0, stagger:0.06, ease:'power2.out' });
         // re-tilt any new tilt elements
@@ -1188,11 +1378,11 @@
 
     /* ---------- OPS ---------- */
     function opsTab(name){
-        document.querySelectorAll('.ops-tab').forEach(t => t.classList.toggle('active', t.dataset.ops===name));
-        document.querySelectorAll('.ops-panel').forEach(p => p.classList.remove('active'));
+        document.querySelectorAll('#opsTabs .ops-tab').forEach(t => t.classList.toggle('active', t.dataset.ops===name));
+        document.querySelectorAll('#sec-ops .ops-panel').forEach(p => p.classList.remove('active'));
         $('ops-panel-'+name).classList.add('active');
     }
-    function loadOps(){ loadPending(); loadFines(); loadWarnings(); loadAudit(); loadTreasury(); }
+    function loadOps(){ loadPending(); loadFines(); loadWarnings(); loadAllNotes(); loadAudit(); loadTreasury(); }
     async function loadUsersList(){
         try {
             const users = await api('/api/users/list');
@@ -1202,13 +1392,20 @@
             $('hours-user').innerHTML = opts;
         } catch(e){}
     }
-    function toggleFineField(){ $('fine-amount-box').style.display = $('penalty-type').value === 'Fine' ? 'block' : 'none'; }
+    function toggleFineField(){ const t = $('penalty-type').value; $('fine-amount-box').style.display = (t === 'Fine' || t === 'Note') ? 'block' : 'none'; }
     async function doPenalty(){
         const username = $('penalty-user').value;
         const type = $('penalty-type').value;
         const reason = $('penalty-reason').value.trim();
         if(!username){ toast('اختر العضو', 'warn'); return; }
         try {
+            if(type === 'Note'){
+                if(!reason){ toast('اكتب سبب الملاحظة', 'warn'); return; }
+                const d = await api('/api/notes/add', { method:'POST', body:{ username, reason, bill_amount: $('penalty-fine').value || 0 } });
+                toast(d.msg); $('penalty-reason').value=''; $('penalty-fine').value='';
+                loadAllNotes(); loadMyNotes();
+                return;
+            }
             const d = await api('/api/admin/penalty', { method:'POST', body:{ target_username: username, type, reason, fine_amount: type==='Fine' ? $('penalty-fine').value : undefined } });
             toast(d.msg); $('penalty-reason').value=''; $('penalty-fine').value='';
             loadFines(); loadWarnings(); renderDashboard();
@@ -1336,17 +1533,494 @@
         try { const d = await api('/api/shop/add-item', { method:'POST', body:{ name, price, image_url } }); toast(d.msg); $('mkt-name').value=''; $('mkt-price').value=''; $('mkt-img').value=''; loadShopItems(false); }
         catch(e){ toast(e.message, 'err'); }
     }
-    async function addInvItem(){
-        const name = $('inv-name').value.trim();
-        if(!name){ toast('أدخل اسم المنتج', 'warn'); return; }
-        try { const d = await api('/api/inventory/add', { method:'POST', body:{ name, buy_from_gang_price: $('inv-buy').value, sell_to_black_price: $('inv-sell').value } }); toast(d.msg); $('inv-name').value=''; }
-        catch(e){ toast(e.message, 'err'); }
+
+    /* ============================================================
+       GANG SHOP — MEMBER (شراء/بيع)
+       ============================================================ */
+    async function loadGangCatalog(){
+        try {
+            const items = await api('/api/gang-shop/items');
+            gmCatalogData = items || [];
+            gmCatalogData.forEach(itm => { if(!gmCart[itm.name]) gmCart[itm.name] = { buyQty:0, sellQty:0 }; });
+            renderGmCatalog();
+        } catch(e){ const c = $('gm-catalog-container'); if(c) c.innerHTML = '<div class="empty">تعذر تحميل السوق</div>'; }
     }
-    async function addGangItem(){
+    function switchGmMode(mode){
+        gmMode = mode;
+        $('gm-tab-buy').classList.toggle('active', mode === 'buy');
+        $('gm-tab-sell').classList.toggle('active', mode === 'sell');
+        renderGmCatalog();
+    }
+    function renderGmCatalog(){
+        const container = $('gm-catalog-container'); if(!container) return;
+        container.innerHTML = '';
+        gmCatalogData.forEach((itm, idx) => {
+            const isRel = gmMode === 'buy' ? (itm.item_type === 'buy_only' || itm.item_type === 'both') : (itm.item_type === 'sell_only' || itm.item_type === 'both');
+            if(!isRel) return;
+            const price = gmMode === 'buy' ? itm.buy_price : itm.sell_price;
+            const c = gmCart[itm.name] || { buyQty:0, sellQty:0 };
+            const qty = gmMode === 'buy' ? c.buyQty : c.sellQty;
+            const isOut = gmMode === 'buy' && !itm.in_stock;
+            const priceColor = gmMode === 'buy' ? 'var(--red)' : 'var(--green)';
+            let limits = '';
+            if(gmMode === 'buy'){
+                if(itm.max_per_order) limits += `<div style="font-size:.7rem; color:var(--muted);">أقصى بالطلب: ${itm.max_per_order}</div>`;
+                if(itm.max_per_week) limits += `<div style="font-size:.7rem; color:var(--muted);">أقصى بالأسبوع: ${itm.max_per_week}</div>`;
+            }
+            const disabledAttr = isOut ? 'disabled' : '';
+            container.innerHTML += `<div class="item-card" data-tilt>
+                <img src="${esc(itm.image_url||'')}" onerror="this.src='https://placehold.co/150x150/0d0d0d/00ff66?text=ITEM'" style="${isOut?'opacity:.4;':''}">
+                <div class="ic-body">
+                    <div class="ic-name">${esc(itm.name)}</div>
+                    <div class="ic-price" style="color:${priceColor};">${money(price)}</div>
+                    ${isOut ? '<div class="ic-out">OUT OF STOCK</div>' : limits}
+                    <div class="qty-row">
+                        <button class="mini-btn" onclick="adjustGmQty(${idx},-1)" ${disabledAttr}>−</button>
+                        <input id="gm-qty-${idx}" value="${qty}" min="0" type="number" onchange="setGmQty(${idx}, this.value)" ${disabledAttr}>
+                        <button class="mini-btn" onclick="adjustGmQty(${idx},1)" ${disabledAttr}>+</button>
+                    </div>
+                </div>
+            </div>`;
+        });
+        if(!gmCatalogData.some(itm => gmMode === 'buy' ? (itm.item_type === 'buy_only' || itm.item_type === 'both') : (itm.item_type === 'sell_only' || itm.item_type === 'both'))){
+            container.innerHTML = `<div class="empty">لا توجد منتجات متاحة لل${gmMode === 'buy' ? 'شراء' : 'بيع'} حالياً</div>`;
+        }
+        if(typeof VanillaTilt !== 'undefined') VanillaTilt.init(document.querySelectorAll('#gm-catalog-container [data-tilt]'), { max:7, speed:600, glare:true, 'max-glare':0.2, scale:1.02 });
+    }
+    function adjustGmQty(idx, delta){
+        const itm = gmCatalogData[idx]; if(!itm) return;
+        if(!gmCart[itm.name]) gmCart[itm.name] = { buyQty:0, sellQty:0 };
+        const key = gmMode === 'buy' ? 'buyQty' : 'sellQty';
+        gmCart[itm.name][key] = Math.max(0, (gmCart[itm.name][key] || 0) + delta);
+        renderGmCatalog(); updateGangShopSummary();
+    }
+    function setGmQty(idx, value){
+        const itm = gmCatalogData[idx]; if(!itm) return;
+        if(!gmCart[itm.name]) gmCart[itm.name] = { buyQty:0, sellQty:0 };
+        const key = gmMode === 'buy' ? 'buyQty' : 'sellQty';
+        gmCart[itm.name][key] = Math.max(0, parseInt(value) || 0);
+        updateGangShopSummary();
+    }
+    function updateGangShopSummary(){
+        let totalBuy = 0, totalSell = 0;
+        gmCatalogData.forEach(itm => {
+            const c = gmCart[itm.name]; if(!c) return;
+            totalBuy += (itm.buy_price || 0) * c.buyQty;
+            totalSell += (itm.sell_price || 0) * c.sellQty;
+        });
+        const net = totalBuy - totalSell;
+        $('gm-total-buy').innerText = money(totalBuy);
+        $('gm-total-sell').innerText = money(totalSell);
+        const netEl = $('gm-net-amount');
+        netEl.innerText = (net >= 0 ? 'تدفع أنت: ' : 'تستلم أنت: ') + money(Math.abs(net));
+        netEl.style.color = net >= 0 ? 'var(--red)' : 'var(--green)';
+    }
+    async function submitGangOrder(){
+        const items_bought = [], items_sold = [];
+        gmCatalogData.forEach(itm => {
+            const c = gmCart[itm.name]; if(!c) return;
+            if(c.buyQty > 0) items_bought.push({ name: itm.name, quantity: c.buyQty });
+            if(c.sellQty > 0) items_sold.push({ name: itm.name, quantity: c.sellQty });
+        });
+        if(!items_bought.length && !items_sold.length){ toast('حدد كمية شراء أو بيع لمنتج واحد على الأقل', 'warn'); return; }
+        const btn = $('btn-submit-gm-order');
+        if(btn.disabled) return;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري الإرسال...';
+        try {
+            const d = await api('/api/gang-shop/checkout', { method:'POST', body:{ items_bought, items_sold } });
+            toast(d.msg);
+            gmCatalogData.forEach(itm => { gmCart[itm.name] = { buyQty:0, sellQty:0 }; });
+            renderGmCatalog(); updateGangShopSummary(); loadMyGangOrders();
+        } catch(e){ toast(e.message, 'err'); }
+        finally { btn.disabled = false; btn.innerHTML = 'تنفيذ العملية ✓'; }
+    }
+    async function loadMyGangOrders(){
+        if(!userToken) return;
+        try {
+            const orders = await api('/api/gang-shop/my-orders');
+            myGangOrdersData = orders;
+            const tbody = $('tbl-my-gang-orders tbody'); if(!tbody) return;
+            tbody.innerHTML = orders.length ? '' : '<tr><td colspan="6" class="empty">لا توجد أي عمليات سابقة</td></tr>';
+            orders.forEach(o => {
+                const boughtStr = (o.items_bought || []).map(i => `${i.quantity}x ${esc(i.name)}`).join('، ') || '-';
+                const soldStr = (o.items_sold || []).map(i => `${i.quantity}x ${esc(i.name)}`).join('، ') || '-';
+                const netColor = o.net_amount >= 0 ? 'var(--red)' : 'var(--green)';
+                let statusText = '<span class="badge Pending">⏳ معلّق</span>';
+                let actionHtml = '';
+                if(o.status === 'Confirmed') statusText = '<span class="badge Approved">✔️ مؤكد</span>';
+                else if(o.status === 'Rejected') statusText = `<span class="badge Rejected">❌ مرفوض${o.rejection_reason ? ' — ' + esc(o.rejection_reason) : ''}</span>`;
+                else if(o.status === 'Cancelled') statusText = '<span class="badge">🗑️ ملغى</span>';
+                else if(o.status === 'Pending'){
+                    actionHtml = `<button class="btn-cyber btn-ghost" style="padding:5px 10px; font-size:.7rem;" onclick="editGangOrder('${o._id}')">✏️ تعديل</button>
+                        <button class="btn-cyber btn-red" style="padding:5px 10px; font-size:.7rem;" onclick="cancelGangOrder('${o._id}')">🗑️ إلغاء</button>`;
+                }
+                tbody.innerHTML += `<tr>
+                    <td style="font-size:.78rem;">${boughtStr}</td>
+                    <td style="font-size:.78rem;">${soldStr}</td>
+                    <td style="color:${netColor}; font-weight:700; font-family:var(--mono);">${money(o.net_amount)}</td>
+                    <td>${statusText}</td>
+                    <td style="font-size:.75rem;">${fmtDate(o.timestamp)}</td>
+                    <td style="display:flex; gap:6px; flex-wrap:wrap;">${actionHtml}</td>
+                </tr>`;
+            });
+        } catch(e){}
+    }
+    function editGangOrder(id){
+        const order = myGangOrdersData.find(o => o._id === id);
+        if(!order){ toast('تعذر العثور على الطلب', 'err'); return; }
+        openModal('تعديل الطلب', 'سيتم إلغاء الطلب المعلق وإعادة فتح السلة لتعديله. متابعة؟', async () => {
+            try {
+                const d = await api('/api/gang-shop/order/' + id + '/cancel', { method:'POST' });
+                gmCatalogData.forEach(itm => { gmCart[itm.name] = { buyQty:0, sellQty:0 }; });
+                (order.items_bought || []).forEach(i => { if(gmCart[i.name]) gmCart[i.name].buyQty = i.quantity; });
+                (order.items_sold || []).forEach(i => { if(gmCart[i.name]) gmCart[i.name].sellQty = i.quantity; });
+                switchGmMode('buy'); updateGangShopSummary(); loadMyGangOrders();
+                toast(d.msg + ' عدّل الكميات ثم نفذ العملية.');
+            } catch(e){ toast(e.message, 'err'); }
+        });
+    }
+    function cancelGangOrder(id){
+        openModal('إلغاء الطلب', 'هل تريد إلغاء هذا الطلب المعلق نهائياً؟', async () => {
+            try { const d = await api('/api/gang-shop/order/' + id + '/cancel', { method:'POST' }); toast(d.msg); loadMyGangOrders(); }
+            catch(e){ toast(e.message, 'err'); }
+        });
+    }
+
+    /* ============================================================
+       GANG SHOP — ADMIN (إدارة الكتالوج / الطلبات / الخزينة)
+       ============================================================ */
+    function isGangAdmin(){ return userData && ['Don','Underboss','Business_Manager'].includes(userData.role); }
+    function gangTab(name){
+        document.querySelectorAll('#gangAdminTabs .ops-tab').forEach(t => t.classList.toggle('active', t.dataset.gtab === name));
+        document.querySelectorAll('#gm-admin-zone .ops-panel').forEach(p => p.classList.remove('active'));
+        $('gang-panel-' + name).classList.add('active');
+    }
+    async function loadGangShopCatalog(){
+        try {
+            const items = await api('/api/gang-shop/items');
+            gangShopAdminCatalog = items;
+            const container = $('gang-shop-catalog-container'); if(!container) return;
+            container.innerHTML = items.length ? '' : '<div class="empty">لا توجد منتجات</div>';
+            items.forEach(itm => {
+                const typeLabel = itm.item_type === 'buy_only' ? '🛒 شراء فقط' : (itm.item_type === 'sell_only' ? '💰 بيع فقط' : '🔄 شراء وبيع');
+                let priceHtml = '';
+                if(itm.item_type === 'buy_only' || itm.item_type === 'both') priceHtml += `<span style="color:var(--red); display:block; font-size:.8rem;">شراء: ${money(itm.buy_price)}</span>`;
+                if(itm.item_type === 'sell_only' || itm.item_type === 'both') priceHtml += `<span style="color:var(--green); display:block; font-size:.8rem;">بيع: ${money(itm.sell_price)}</span>`;
+                const limitsHtml = (itm.max_per_order ? `<div style="font-size:.7rem; color:var(--muted);">أقصى بالطلب: ${itm.max_per_order}</div>` : '') + (itm.max_per_week ? `<div style="font-size:.7rem; color:var(--muted);">أقصى بالأسبوع: ${itm.max_per_week}</div>` : '');
+                const outBadge = !itm.in_stock ? `<div style="position:absolute; top:8px; right:8px; color:var(--red); background:rgba(0,0,0,.75); font-family:var(--mono); font-size:.66rem; padding:3px 9px; border-radius:8px; border:1px solid rgba(255,45,85,.5);">نفذت الكمية</div>` : '';
+                const stockBtn = itm.in_stock ? '🚫 نفذت الكمية' : '✅ توفير الكمية';
+                container.innerHTML += `<div class="item-card" style="position:relative;" data-tilt>
+                    <img src="${esc(itm.image_url||'')}" onerror="this.src='https://placehold.co/150x150/0d0d0d/00ff66?text=ITEM'" style="${itm.in_stock ? '' : 'opacity:.4;'}">
+                    ${outBadge}
+                    <div class="ic-body">
+                        <div class="ic-name">${esc(itm.name)}</div>
+                        <div style="color:var(--muted); font-size:.72rem;">${typeLabel}</div>
+                        ${priceHtml}${limitsHtml}
+                        <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:10px;">
+                            <button class="btn-cyber btn-ghost" style="padding:5px 9px; font-size:.68rem;" onclick="editGangShopItem('${itm._id}')">تعديل</button>
+                            <button class="btn-cyber btn-ghost" style="padding:5px 9px; font-size:.68rem;" onclick="toggleGangShopItemStock('${itm._id}', ${itm.in_stock})">${stockBtn}</button>
+                            <button class="btn-cyber btn-red" style="padding:5px 9px; font-size:.68rem;" onclick="deleteGangShopItem('${itm._id}')">حذف</button>
+                        </div>
+                    </div>
+                </div>`;
+            });
+            if(typeof VanillaTilt !== 'undefined') VanillaTilt.init(document.querySelectorAll('#gang-shop-catalog-container [data-tilt]'), { max:7, speed:600, glare:true, 'max-glare':0.2, scale:1.02 });
+        } catch(e){}
+    }
+    function toggleGsPriceFields(){
+        const t = $('gs-type').value;
+        $('gs-buy-group').style.display = t === 'sell_only' ? 'none' : 'block';
+        $('gs-sell-group').style.display = t === 'buy_only' ? 'none' : 'block';
+    }
+    async function addGangShopItem(){
         const name = $('gs-name').value.trim();
-        if(!name){ toast('أدخل اسم المنتج', 'warn'); return; }
-        try { const d = await api('/api/gang-shop/add-item', { method:'POST', body:{ name, item_type: $('gs-type').value, buy_price: $('gs-buy').value, sell_price: $('gs-sell').value } }); toast(d.msg); $('gs-name').value=''; }
-        catch(e){ toast(e.message, 'err'); }
+        const item_type = $('gs-type').value;
+        const buy_price = $('gs-buy-price').value;
+        const sell_price = $('gs-sell-price').value;
+        const max_per_order = $('gs-max-order').value;
+        const max_per_week = $('gs-max-week').value;
+        const image_url = $('gs-img').value.trim();
+        if(!name){ toast('اسم المنتج مطلوب', 'warn'); return; }
+        if((item_type === 'buy_only' || item_type === 'both') && !buy_price){ toast('سعر الشراء مطلوب لهذا النوع', 'warn'); return; }
+        if((item_type === 'sell_only' || item_type === 'both') && !sell_price){ toast('سعر البيع مطلوب لهذا النوع', 'warn'); return; }
+        try {
+            const d = await api('/api/gang-shop/add-item', { method:'POST', body:{ name, item_type, buy_price, sell_price, max_per_order, max_per_week, image_url } });
+            toast(d.msg);
+            ['gs-name','gs-buy-price','gs-sell-price','gs-max-order','gs-max-week','gs-img'].forEach(id => $(id).value = '');
+            loadGangShopCatalog();
+        } catch(e){ toast(e.message, 'err'); }
+    }
+    function editGangShopItem(id){
+        const itm = gangShopAdminCatalog.find(i => i._id === id); if(!itm) return;
+        $('gang-modal-title').innerText = '✏️ تعديل: ' + itm.name;
+        $('gang-modal-body').innerHTML = `
+            <div class="input-group"><label>اسم المنتج:</label><input class="cyber-input" id="ed-gs-name" value="${esc(itm.name)}"></div>
+            <div class="input-group"><label>نوع المنتج:</label>
+                <select class="cyber-input" id="ed-gs-type" onchange="toggleEdGsPriceFields()">
+                    <option value="both" ${itm.item_type === 'both' ? 'selected' : ''}>شراء وبيع (الاثنين)</option>
+                    <option value="buy_only" ${itm.item_type === 'buy_only' ? 'selected' : ''}>شراء فقط (المافيا تبيعه)</option>
+                    <option value="sell_only" ${itm.item_type === 'sell_only' ? 'selected' : ''}>بيع فقط (المافيا تشتريه)</option>
+                </select>
+            </div>
+            <div class="input-group" id="ed-gs-buy-group"><label>سعر الشراء (من المافيا) $:</label><input class="cyber-input" id="ed-gs-buy-price" type="number" value="${itm.buy_price || ''}"></div>
+            <div class="input-group" id="ed-gs-sell-group"><label>سعر البيع (للمافيا) $:</label><input class="cyber-input" id="ed-gs-sell-price" type="number" value="${itm.sell_price || ''}"></div>
+            <div class="input-group"><label>أقصى كمية بالطلب (اتركه فاضي = بدون حد):</label><input class="cyber-input" id="ed-gs-max-order" type="number" value="${itm.max_per_order ?? ''}"></div>
+            <div class="input-group"><label>أقصى كمية أسبوعياً (اتركه فاضي = بدون حد):</label><input class="cyber-input" id="ed-gs-max-week" type="number" value="${itm.max_per_week ?? ''}"></div>
+            <div class="input-group"><label>رابط الصورة:</label><input class="cyber-input" id="ed-gs-img" value="${esc(itm.image_url || '')}"></div>
+            <div style="display:flex; gap:8px; align-items:center; margin-top:4px;">
+                <input type="file" id="upload-ed-gs-img" accept="image/*" style="display:none;" onchange="uploadImageFile(this,'ed-gs-img')">
+                <button type="button" class="btn-cyber btn-ghost" style="padding:8px 14px;" onclick="document.getElementById('upload-ed-gs-img').click()">📷 رفع صورة جديدة</button>
+            </div>`;
+        toggleEdGsPriceFields();
+        const actionsEl = $('gang-modal-actions');
+        actionsEl.innerHTML = '';
+        const saveBtn = document.createElement('button');
+        saveBtn.className = 'btn-cyber btn-green'; saveBtn.style.padding = '10px 22px';
+        saveBtn.innerText = 'حفظ التعديلات';
+        saveBtn.onclick = () => saveGangShopItemEdit(id);
+        actionsEl.appendChild(saveBtn);
+        const cancelBtn = document.createElement('button');
+        cancelBtn.className = 'btn-cyber btn-red'; cancelBtn.style.padding = '10px 22px';
+        cancelBtn.innerText = 'إلغاء';
+        cancelBtn.onclick = closeGangModal;
+        actionsEl.appendChild(cancelBtn);
+        $('gang-modal-overlay').classList.add('open');
+    }
+    function toggleEdGsPriceFields(){
+        const t = $('ed-gs-type').value;
+        $('ed-gs-buy-group').style.display = t === 'sell_only' ? 'none' : 'block';
+        $('ed-gs-sell-group').style.display = t === 'buy_only' ? 'none' : 'block';
+    }
+    function closeGangModal(){ $('gang-modal-overlay').classList.remove('open'); }
+    async function saveGangShopItemEdit(id){
+        const name = $('ed-gs-name').value.trim();
+        const item_type = $('ed-gs-type').value;
+        const buy_price = $('ed-gs-buy-price').value;
+        const sell_price = $('ed-gs-sell-price').value;
+        const max_per_order = $('ed-gs-max-order').value;
+        const max_per_week = $('ed-gs-max-week').value;
+        const image_url = $('ed-gs-img').value.trim();
+        if(!name){ toast('اسم المنتج مطلوب', 'warn'); return; }
+        try {
+            const d = await api('/api/gang-shop/item/' + id, { method:'PUT', body:{ name, item_type, buy_price, sell_price, max_per_order, max_per_week, image_url } });
+            toast(d.msg); closeGangModal(); loadGangShopCatalog();
+        } catch(e){ toast(e.message, 'err'); }
+    }
+    function toggleGangShopItemStock(id, currentlyInStock){
+        openModal('تغيير الحالة', currentlyInStock ? 'تأكيد: تحديد هذا المنتج كـ (نفذت الكمية)؟' : 'تأكيد: توفير هذا المنتج للشراء مجدداً؟', async () => {
+            try { const d = await api('/api/gang-shop/item/' + id, { method:'PUT', body:{ in_stock: !currentlyInStock } }); toast(d.msg); loadGangShopCatalog(); }
+            catch(e){ toast(e.message, 'err'); }
+        });
+    }
+    function deleteGangShopItem(id){
+        openModal('حذف المنتج', 'هل أنت متأكد من حذف هذا المنتج من شوب العصابات نهائياً؟', async () => {
+            try { const d = await api('/api/gang-shop/item/' + id, { method:'DELETE' }); toast(d.msg); loadGangShopCatalog(); }
+            catch(e){ toast(e.message, 'err'); }
+        });
+    }
+    async function loadGangOrders(){
+        try {
+            const orders = await api('/api/gang-shop/orders');
+            const tbody = $('tbl-gang-orders tbody'); if(!tbody) return;
+            tbody.innerHTML = orders.length ? '' : '<tr><td colspan="8" class="empty">لا توجد أي عمليات مسجلة</td></tr>';
+            orders.forEach(o => {
+                const boughtStr = (o.items_bought || []).map(i => `${i.quantity}x ${esc(i.name)}`).join('، ') || '-';
+                const soldStr = (o.items_sold || []).map(i => `${i.quantity}x ${esc(i.name)}`).join('، ') || '-';
+                const netColor = o.net_amount >= 0 ? 'var(--green)' : 'var(--red)';
+                let statusText, actionHtml;
+                if(o.status === 'Pending'){
+                    statusText = '<span class="badge Pending">⏳ معلّق</span>';
+                    actionHtml = `<button class="btn-cyber btn-green" style="padding:5px 10px; font-size:.7rem;" onclick="confirmGangOrder('${o._id}')">✔️ تأكيد</button>
+                                  <button class="btn-cyber btn-red" style="padding:5px 10px; font-size:.7rem;" onclick="rejectGangOrder('${o._id}')">✖️ رفض</button>`;
+                } else if(o.status === 'Confirmed'){
+                    statusText = '<span class="badge Approved">✔️ مؤكد</span>'; actionHtml = '<span style="color:var(--green);">تم</span>';
+                } else if(o.status === 'Cancelled'){
+                    statusText = '<span class="badge">🗑️ ملغى (بواسطة العضو)</span>'; actionHtml = '<span style="color:var(--muted);">—</span>';
+                } else {
+                    statusText = '<span class="badge Rejected">❌ مرفوض</span>'; actionHtml = `<span style="color:var(--red); font-size:.7rem;">${esc(o.rejection_reason) || '-'}</span>`;
+                }
+                tbody.innerHTML += `<tr>
+                    <td>${esc(o.gang_member_username)}</td>
+                    <td style="color:var(--muted);">${esc(o.gang_name) || '-'}</td>
+                    <td style="font-size:.78rem;">${boughtStr}</td>
+                    <td style="font-size:.78rem;">${soldStr}</td>
+                    <td style="color:${netColor}; font-weight:700; font-family:var(--mono);">${money(o.net_amount)}</td>
+                    <td>${statusText}</td>
+                    <td style="display:flex; gap:6px; flex-wrap:wrap;">${actionHtml}</td>
+                    <td style="font-size:.75rem;">${fmtDate(o.timestamp)}</td>
+                </tr>`;
+            });
+        } catch(e){}
+    }
+    function confirmGangOrder(id){
+        openModal('تأكيد الطلب', 'هل تأكدت من إتمام تسليم الأشياء/الفلوس مع العضو فعلياً بالمدينة؟', async () => {
+            try { const d = await api('/api/gang-shop/order/' + id + '/confirm', { method:'POST' }); toast(d.msg); loadGangOrders(); loadGangTreasury(); }
+            catch(e){ toast(e.message, 'err'); }
+        });
+    }
+    function rejectGangOrder(id){
+        openPrompt('رفض الطلب', 'سبب الرفض (اختياري):', async (reason) => {
+            try { const d = await api('/api/gang-shop/order/' + id + '/reject', { method:'POST', body:{ reason: reason || '' } }); toast(d.msg); loadGangOrders(); }
+            catch(e){ toast(e.message, 'err'); }
+        });
+    }
+    async function loadGangTreasury(){
+        try { const d = await api('/api/gang-shop/treasury'); $('gang-treasury-balance').innerText = money(d.balance_raw); }
+        catch(e){}
+    }
+    function resetGangTreasury(){
+        openModal('تصفير الخزينة', 'تحذير: تصفير خزينة شوب العصابات بالكامل؟ هذا الإجراء لا يمكن التراجع عنه.', async () => {
+            try { const d = await api('/api/gang-shop/treasury/reset', { method:'POST' }); toast(d.msg); loadGangTreasury(); }
+            catch(e){ toast(e.message, 'err'); }
+        });
+    }
+
+    /* ============================================================
+       INVENTORY — CALCUL MANAGER
+       ============================================================ */
+    async function loadInventory(){
+        if(!userToken) return;
+        try {
+            const items = await api('/api/inventory/items');
+            inventoryData = items;
+            inventoryData.forEach(itm => { if(!invCart[itm._id]) invCart[itm._id] = { buyQty:0, sellQty:0 }; });
+            renderInventoryCalc(); renderInventoryTable();
+        } catch(e){ const c = $('inventory-calc-grid'); if(c) c.innerHTML = '<div class="empty">تعذر تحميل المخزون</div>'; }
+    }
+    function renderInventoryCalc(){
+        const container = $('inventory-calc-grid'); if(!container) return;
+        container.innerHTML = inventoryData.length ? '' : '<div class="empty">لا توجد أيتمات مضافة. أضف أيتمات من الإدارة أولاً.</div>';
+        inventoryData.forEach(itm => {
+            const c = invCart[itm._id] || { buyQty:0, sellQty:0 };
+            container.innerHTML += `<div class="item-card" data-tilt>
+                <img src="${esc(itm.image_url||'')}" onerror="this.src='https://placehold.co/150x150/0d0d0d/ff66cc?text=ITEM'">
+                <div class="ic-body">
+                    <div class="ic-name">${esc(itm.name)}</div>
+                    <div style="font-size:.78rem; margin:6px 0;">
+                        <span style="color:var(--red);">شراء: ${money(itm.buy_from_gang_price)}</span> | <span style="color:var(--green);">بيع: ${money(itm.sell_to_black_price)}</span>
+                    </div>
+                    <div style="border-top:1px solid var(--green-line); padding-top:10px;">
+                        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+                            <span style="font-size:.72rem; color:var(--red);">شراء من العصابة:</span>
+                            <div class="qty-row" style="margin:0;">
+                                <button class="mini-btn" onclick="adjInvQty('${itm._id}','buy',-1)">−</button>
+                                <input style="width:52px;" value="${c.buyQty}" min="0" type="number" onchange="setInvQty('${itm._id}','buy',this.value)">
+                                <button class="mini-btn" onclick="adjInvQty('${itm._id}','buy',1)">+</button>
+                            </div>
+                        </div>
+                        <div style="display:flex; align-items:center; justify-content:space-between;">
+                            <span style="font-size:.72rem; color:var(--green);">بيع على البلاك:</span>
+                            <div class="qty-row" style="margin:0;">
+                                <button class="mini-btn" onclick="adjInvQty('${itm._id}','sell',-1)">−</button>
+                                <input style="width:52px;" value="${c.sellQty}" min="0" type="number" onchange="setInvQty('${itm._id}','sell',this.value)">
+                                <button class="mini-btn" onclick="adjInvQty('${itm._id}','sell',1)">+</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+        });
+        calcInvSummary();
+        if(typeof VanillaTilt !== 'undefined') VanillaTilt.init(document.querySelectorAll('#inventory-calc-grid [data-tilt]'), { max:7, speed:600, glare:true, 'max-glare':0.2, scale:1.02 });
+    }
+    function adjInvQty(id, type, delta){
+        if(!invCart[id]) invCart[id] = { buyQty:0, sellQty:0 };
+        invCart[id][type + 'Qty'] = Math.max(0, invCart[id][type + 'Qty'] + delta);
+        renderInventoryCalc();
+    }
+    function setInvQty(id, type, val){
+        if(!invCart[id]) invCart[id] = { buyQty:0, sellQty:0 };
+        invCart[id][type + 'Qty'] = Math.max(0, parseInt(val) || 0);
+        calcInvSummary();
+    }
+    function calcInvSummary(){
+        let totalBuy = 0, totalSell = 0;
+        inventoryData.forEach(itm => {
+            const c = invCart[itm._id] || { buyQty:0, sellQty:0 };
+            totalBuy += (itm.buy_from_gang_price || 0) * c.buyQty;
+            totalSell += (itm.sell_to_black_price || 0) * c.sellQty;
+        });
+        const profit = totalSell - totalBuy;
+        $('inv-total-buy').innerText = money(totalBuy);
+        $('inv-total-sell').innerText = money(totalSell);
+        const el = $('inv-total-profit');
+        el.innerText = (profit >= 0 ? 'ربح: ' : 'خسارة: ') + money(Math.abs(profit));
+        el.style.color = profit >= 0 ? 'var(--green)' : 'var(--red)';
+    }
+    function renderInventoryTable(){
+        const tbody = $('tbl-inventory tbody'); if(!tbody) return;
+        tbody.innerHTML = inventoryData.length ? '' : '<tr><td colspan="5" class="empty">لا توجد منتجات</td></tr>';
+        const canDelete = userData && ['Don','Underboss','Business_Manager'].includes(userData.role);
+        inventoryData.forEach(itm => {
+            tbody.innerHTML += `<tr>
+                <td><img src="${esc(itm.image_url||'')}" onerror="this.src='https://placehold.co/40x40/0d0d0d/ff66cc?text=I'" style="width:38px; height:38px; object-fit:cover; border-radius:8px;"></td>
+                <td>${esc(itm.name)}</td>
+                <td style="color:var(--red); font-family:var(--mono);">${money(itm.buy_from_gang_price)}</td>
+                <td style="color:var(--green); font-family:var(--mono);">${money(itm.sell_to_black_price)}</td>
+                <td>${canDelete ? `<button class="btn-cyber btn-red" style="padding:4px 9px; font-size:.68rem;" onclick="deleteInventoryItem('${itm._id}')">حذف</button>` : '<span style="color:var(--muted);">—</span>'}</td>
+            </tr>`;
+        });
+    }
+    async function addInventoryItem(){
+        const name = $('inv-name').value.trim();
+        if(!name){ toast('اسم المنتج مطلوب', 'warn'); return; }
+        try {
+            const d = await api('/api/inventory/add', { method:'POST', body:{ name, buy_from_gang_price: $('inv-buy-price').value, sell_to_black_price: $('inv-sell-price').value, quantity: 0, image_url: $('inv-img').value.trim() } });
+            toast(d.msg);
+            ['inv-name','inv-buy-price','inv-sell-price','inv-img'].forEach(id => $(id).value = '');
+            loadInventory();
+        } catch(e){ toast(e.message, 'err'); }
+    }
+    function deleteInventoryItem(id){
+        openModal('حذف المنتج', 'هل أنت متأكد من حذف هذا المنتج؟', async () => {
+            try { const d = await api('/api/inventory/item/' + id, { method:'DELETE' }); toast(d.msg); delete invCart[id]; loadInventory(); }
+            catch(e){ toast(e.message, 'err'); }
+        });
+    }
+
+    /* ============================================================
+       NOTES
+       ============================================================ */
+    async function loadMyNotes(){
+        const list = $('myNotesList'); if(!list) return;
+        const allowed = ['Underboss','Soldat','Capo','GRH','Chef_Braquage','Business_Manager','Gang_Supervisor'];
+        if(!userToken || !userData || !allowed.includes(userData.role)){ list.innerHTML = '<div class="empty">لا توجد ملاحظات إدارية</div>'; return; }
+        try {
+            const notes = await api('/api/notes/my');
+            list.innerHTML = notes.length ? '' : '<div class="empty">لا توجد ملاحظات إدارية</div>';
+            notes.slice(0, 10).forEach(n => {
+                list.innerHTML += `<div class="log-item">
+                    <p style="margin:0;"><b>السبب:</b> ${esc(n.reason)}</p>
+                    ${n.bill_amount > 0 ? `<p style="margin:2px 0; color:var(--red);"><b>المبلغ:</b> ${money(n.bill_amount)}</p>` : ''}
+                    <p style="margin:2px 0; font-size:.72rem; color:var(--muted);">بواسطة: ${esc(n.issued_by)} — ${fmtDate(n.timestamp)}</p>
+                </div>`;
+            });
+        } catch(e){ list.innerHTML = '<div class="empty">لا يمكن تحميل الملاحظات</div>'; }
+    }
+    async function loadAllNotes(){
+        try {
+            const notes = await api('/api/notes/all');
+            const tbody = $('tbl-all-notes tbody'); if(!tbody) return;
+            tbody.innerHTML = notes.length ? '' : '<tr><td colspan="7" class="empty">لا توجد ملاحظات</td></tr>';
+            notes.forEach(n => {
+                tbody.innerHTML += `<tr>
+                    <td>${esc(n.username)}</td>
+                    <td style="font-size:.8rem;">${esc(n.reason)}</td>
+                    <td style="color:var(--muted);">${esc(n.issued_by)}</td>
+                    <td style="color:${n.bill_amount > 0 ? 'var(--red)' : 'var(--muted)'};">${n.bill_amount > 0 ? money(n.bill_amount) : '-'}</td>
+                    <td style="color:var(--muted);">${n.is_auto ? '🤖 نعم' : '✋ يدوي'}</td>
+                    <td style="font-size:.75rem;">${fmtDate(n.timestamp)}</td>
+                    <td><button class="btn-cyber btn-red" style="padding:4px 9px; font-size:.68rem;" onclick="deleteNote('${n._id}')">🗑️ حذف</button></td>
+                </tr>`;
+            });
+        } catch(e){}
+    }
+    function deleteNote(noteId){
+        openModal('حذف الملاحظة', 'هل أنت متأكد من حذف هذه الملاحظة؟', async () => {
+            try { const d = await api('/api/notes/' + noteId, { method:'DELETE' }); toast(d.msg); loadAllNotes(); loadMyNotes(); }
+            catch(e){ toast(e.message, 'err'); }
+        });
     }
 
     /* ---------- Emergency ---------- */
