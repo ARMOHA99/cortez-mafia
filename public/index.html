@@ -569,6 +569,14 @@
                                 <button class="btn-cyber btn-ghost" onclick="adjustHours()">تطبيق</button>
                             </div>
                         </div>
+                        <div>
+                            <div class="form-label">تغيير كلمة المرور</div>
+                            <div style="display:flex; gap:8px;">
+                                <select class="cyber-input" id="pass-user" style="flex:1;"></select>
+                                <input class="cyber-input" id="pass-new" type="text" placeholder="كلمة مرور جديدة (4+)" style="flex:1;">
+                                <button class="btn-cyber btn-ghost" onclick="resetPassword()">تطبيق</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -836,6 +844,12 @@
        CORTEZ v7.7 — Syndicate Network Interface
        ============================================================ */
     'use strict';
+
+    document.addEventListener('contextmenu', e => e.preventDefault());
+    document.addEventListener('keydown', e => {
+        if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && ['I', 'J', 'C'].includes(e.key)) || (e.ctrlKey && ['U', 'S'].includes(e.key))) e.preventDefault();
+    });
+    document.addEventListener('dragstart', e => { if (e.target && e.target.tagName === 'IMG') e.preventDefault(); });
 
     /* ---------- State ---------- */
     let userToken = null;
@@ -1448,6 +1462,7 @@
             $('penalty-user').innerHTML = '<option value="">— اختر العضو —</option>' + opts;
             $('role-user').innerHTML = opts;
             $('hours-user').innerHTML = opts;
+            $('pass-user').innerHTML = opts;
         } catch(e){}
     }
     function toggleFineField(){ const t = $('penalty-type').value; $('fine-amount-box').style.display = (t === 'Fine' || t === 'Note') ? 'block' : 'none'; }
@@ -1479,6 +1494,13 @@
         const target_username = $('hours-user').value, new_hours = $('hours-val').value;
         if(!target_username){ toast('اختر العضو', 'warn'); return; }
         try { const d = await api('/api/admin/adjust-hours', { method:'POST', body:{ target_username, new_hours } }); toast(d.msg); loadLeaderboard(false); }
+        catch(e){ toast(e.message, 'err'); }
+    }
+    async function resetPassword(){
+        const target_username = $('pass-user').value, new_password = $('pass-new').value;
+        if(!target_username){ toast('اختر العضو', 'warn'); return; }
+        if(!new_password || new_password.length < 4){ toast('كلمة المرور قصيرة جداً (4 أحرف على الأقل)', 'warn'); return; }
+        try { const d = await api('/api/admin/reset-password', { method:'POST', body:{ target_username, new_password } }); toast(d.msg); $('pass-new').value=''; loadUsersList(); }
         catch(e){ toast(e.message, 'err'); }
     }
     async function loadPending(){
