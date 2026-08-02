@@ -1358,22 +1358,51 @@
     }
     async function loadMyOrders(){
         const box = $('ordersBox');
-        const allowed = ['Underboss','Business_Manager','Chef_Braquage','GRH'].includes(userData.role);
+        const allowed = ['Don','Underboss','Business_Manager','Chef_Braquage','GRH'].includes(userData.role);
         if(!allowed){ box.innerHTML = '<div class="empty">الطلبات متاحة فقط للقيادة والـ GRH</div>'; return; }
         try {
             const orders = await api('/api/shop/orders');
             box.innerHTML = orders.length ? '' : '<div class="empty">لا توجد طلبات</div>';
             orders.slice(0, 20).forEach(o => {
                 const itemsTxt = (o.items||[]).map(i => `${esc(i.name)} ×${i.quantity}`).join('، ') || o.item_name || '-';
+                let statusTxt = `<span class="badge ${o.status}">${o.status}</span>`;
+                let actions = '';
+                if(o.status === 'Pending'){
+                    statusTxt = '<span class="badge Pending">⏳ معلّق</span>';
+                    if(canApproveShopOrders()){
+                        actions = `<div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;">
+                            <button class="btn-cyber btn-green" style="padding:5px 10px; font-size:.7rem;" onclick="confirmOrderPayment('${o._id}')">✔️ تأكيد قبض الأموال</button>
+                            <button class="btn-cyber btn-red" style="padding:5px 10px; font-size:.7rem;" onclick="rejectOrder('${o._id}')">✖️ رفض الطلب</button>
+                        </div>`;
+                    }
+                } else if(o.status === 'Paid'){
+                    statusTxt = '<span class="badge Approved">✔️ مدفوع للخزينة</span>';
+                } else if(o.status === 'Rejected'){
+                    statusTxt = '<span class="badge Rejected">❌ مرفوض</span>';
+                }
                 box.innerHTML += `<div class="log-item">
                     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
                         <span><b>${esc(o.username)}</b> — ${itemsTxt}</span>
-                        <span class="badge ${o.status}">${o.status}</span>
+                        ${statusTxt}
                     </div>
                     <div style="font-family:var(--mono); color:var(--amber); font-size:.72rem; margin-top:4px;">${money(o.total_price)}</div>
+                    ${actions}
                 </div>`;
             });
         } catch(e){ box.innerHTML = '<div class="empty">لا يمكن عرض الطلبات</div>'; }
+    }
+    function canApproveShopOrders(){ return userData && ['Don','Underboss','Business_Manager','GRH','Chef_Braquage'].includes(userData.role); }
+    function confirmOrderPayment(id){
+        openModal('تأكيد قبض الأموال', 'هل أنت متأكد من استلام المبلغ بالكامل وإضافته إلى خزينة العصابة؟', async () => {
+            try { const d = await api('/api/shop/order/' + id + '/pay', { method:'POST' }); toast(d.msg); loadMyOrders(); }
+            catch(e){ toast(e.message, 'err'); }
+        });
+    }
+    function rejectOrder(id){
+        openModal('رفض الطلب', 'هل تريد رفض طلب الشراء هذا؟ لن يُضاف أي مبلغ إلى الخزينة.', async () => {
+            try { const d = await api('/api/shop/order/' + id + '/reject', { method:'POST' }); toast(d.msg); loadMyOrders(); }
+            catch(e){ toast(e.message, 'err'); }
+        });
     }
 
     /* ---------- Requests ---------- */
@@ -1722,7 +1751,7 @@
     /* ============================================================
        GANG SHOP — ADMIN (إدارة الكتالوج / الطلبات / الخزينة)
        ============================================================ */
-    function isGangAdmin(){ return userData && ['Don','Underboss','Business_Manager'].includes(userData.role); }
+    function isGangAdmin(){ return userData && ['Don','Underboss','Business_Manager','GRH','Chef_Braquage'].includes(userData.role); }
     function gangTab(name){
         document.querySelectorAll('#gangAdminTabs .ops-tab').forEach(t => t.classList.toggle('active', t.dataset.gtab === name));
         document.querySelectorAll('#gm-admin-zone .ops-panel').forEach(p => p.classList.remove('active'));
