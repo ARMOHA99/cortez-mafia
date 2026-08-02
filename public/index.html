@@ -365,11 +365,11 @@
         </div>
 
         <div id="nav">
-            <button class="nav-btn active" data-nav="dashboard" onclick="goSection('dashboard')"><i class="fa-solid fa-gauge-high"></i> DASHBOARD</button>
-            <button class="nav-btn" data-nav="shop" onclick="goSection('shop')"><i class="fa-solid fa-gun"></i> BLACK MARKET</button>
-            <button class="nav-btn" data-nav="tracking" onclick="goSection('tracking')"><i class="fa-solid fa-map-location-dot"></i> TRACKING</button>
+            <button class="nav-btn active" id="nav-dashboard" data-nav="dashboard" onclick="goSection('dashboard')"><i class="fa-solid fa-gauge-high"></i> DASHBOARD</button>
+            <button class="nav-btn" id="nav-shop" data-nav="shop" onclick="goSection('shop')"><i class="fa-solid fa-gun"></i> BLACK MARKET</button>
+            <button class="nav-btn" id="nav-tracking" data-nav="tracking" onclick="goSection('tracking')"><i class="fa-solid fa-map-location-dot"></i> TRACKING</button>
             <button class="nav-btn" data-nav="attendance" id="nav-attendance" style="display:none;" onclick="goSection('attendance')"><i class="fa-solid fa-clipboard-check"></i> ATTENDANCE</button>
-            <button class="nav-btn" data-nav="requests" onclick="goSection('requests')"><i class="fa-solid fa-envelope-open-text"></i> REQUESTS</button>
+            <button class="nav-btn" id="nav-requests" data-nav="requests" onclick="goSection('requests')"><i class="fa-solid fa-envelope-open-text"></i> REQUESTS</button>
             <button class="nav-btn" data-nav="gangshop" id="nav-gangshop" style="display:none;" onclick="goSection('gangshop')"><i class="fa-solid fa-people-group"></i> GANG SHOP</button>
             <button class="nav-btn" data-nav="inventory" id="nav-inventory" style="display:none;" onclick="goSection('inventory')"><i class="fa-solid fa-calculator"></i> INVENTORY</button>
             <button class="nav-btn" data-nav="ops" id="nav-ops" style="display:none;" onclick="goSection('ops')"><i class="fa-solid fa-user-shield"></i> OPS CENTER</button>
@@ -1115,17 +1115,33 @@
         $('avatar').textContent = initials(userData.username);
         applyDutyUI();
 
-        // صلاحيات الأقسام
+        // عضو العصابة: مسار منفصل — يرى شوب العصابة فقط ولا يلمس أي بيانات/أقسام خاصة بالمافيا
+        if(userData.role === 'Gang_Member'){
+            ['nav-dashboard','nav-shop','nav-tracking','nav-attendance','nav-requests','nav-inventory','nav-ops'].forEach(id => { const el = $(id); if(el) el.style.display = 'none'; });
+            $('nav-gangshop').style.display = 'flex';
+            $('dutySwitch').style.display = 'none';
+            $('gm-member-zone').style.display = 'block';
+            $('gm-admin-zone').style.display = 'none';
+            connectSocket();
+            goSection('gangshop');
+            return;
+        }
+
+        // صلاحيات الأقسام (المافيا)
         const role = userData.role;
-        const isMafia = role !== 'Gang_Member';
+        $('dutySwitch').style.display = 'flex';
+        $('nav-dashboard').style.display = 'flex';
+        $('nav-shop').style.display = 'flex';
+        $('nav-tracking').style.display = 'flex';
+        $('nav-requests').style.display = 'flex';
         $('nav-attendance').style.display = ['Don','Underboss','GRH','Business_Manager'].includes(role) ? 'flex' : 'none';
         $('nav-ops').style.display = ['Don','Underboss','GRH','Business_Manager'].includes(role) ? 'flex' : 'none';
-        $('nav-gangshop').style.display = (role === 'Gang_Member' || isGangAdmin()) ? 'flex' : 'none';
-        $('nav-inventory').style.display = ['Don','Underboss','Soldat','Capo','GRH','Chef_Braquage','Business_Manager','Gang_Supervisor'].includes(role) ? 'flex' : 'none';
+        $('nav-gangshop').style.display = isGangAdmin() ? 'flex' : 'none';
+        $('nav-inventory').style.display = ['Don','Underboss','Business_Manager'].includes(role) ? 'flex' : 'none';
         $('btn-treasury-reset').style.display = role==='Don' ? 'inline-block' : 'none';
         $('btn-weekly-reset').style.display = role==='Don' ? 'inline-block' : 'none';
         $('btn-gang-treasury-reset').style.display = role==='Don' ? 'inline-block' : 'none';
-        $('gm-member-zone').style.display = role === 'Gang_Member' ? 'block' : 'none';
+        $('gm-member-zone').style.display = 'none';
         $('gm-admin-zone').style.display = isGangAdmin() ? 'block' : 'none';
         $('inv-admin-add').style.display = ['Don','Underboss','Business_Manager'].includes(role) ? 'block' : 'none';
 
