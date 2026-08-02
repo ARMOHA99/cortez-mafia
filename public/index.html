@@ -271,6 +271,74 @@
         .cortez-topbar .ct-hud { display: flex; gap: 8px; flex-wrap: wrap; font-family: var(--font-mono); font-size: 0.75rem; letter-spacing: 1px; }
         .cortez-topbar .ct-chip { padding: 6px 12px; border-radius: 6px; border: 1px solid rgba(46,204,113,0.25); color: var(--green); background: rgba(46,204,113,0.05); }
 
+        /* ============ إعادة تصميم كل الغرف (الشبكة، الأقسام، العناوين، الإحصائيات) ============ */
+        .sidebar > .sb-sec, .sidebar > .sb-brand { background: transparent !important; border: none !important; padding: 0 !important; }
+        .sb-brand { display: flex; align-items: center; gap: 12px; padding: 2px 6px 16px; border-bottom: 1px solid rgba(46,204,113,0.15); }
+        .sb-logo { width: 44px; height: 44px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; color: var(--green-bright); background: linear-gradient(160deg, rgba(46,204,113,0.2), rgba(46,204,113,0.04)); border: 1px solid rgba(46,204,113,0.35); box-shadow: 0 0 16px rgba(46,204,113,0.22); text-shadow: 0 0 10px rgba(46,204,113,0.6); }
+        .sb-brand b { font-family: var(--font-mono); font-size: 1.1rem; letter-spacing: 4px; color: var(--green-bright); text-shadow: 0 0 10px rgba(46,204,113,0.5); }
+        .sb-brand span { display: block; font-family: var(--font-mono); font-size: 0.62rem; letter-spacing: 3px; color: var(--muted); }
+        .sb-user { display: flex; align-items: center; gap: 10px; margin: 16px 0 6px; padding: 10px 12px; border-radius: 10px; background: rgba(46,204,113,0.06); border: 1px solid rgba(46,204,113,0.18); box-shadow: inset 0 1px 0 rgba(255,255,255,0.03); }
+        .sb-user-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--green-bright); box-shadow: 0 0 10px var(--green-bright); animation: punchDot 2.2s infinite; flex-shrink: 0; }
+        .sb-user-info { font-size: 0.78rem; color: var(--muted); text-align: right; line-height: 1.5; }
+        .sb-user-info b { color: #fff; font-family: var(--font-mono); letter-spacing: 1px; }
+        .sb-user-info span { display: block; color: gold; font-size: 0.68rem; }
+        .sb-sec { font-family: var(--font-mono); font-size: 0.6rem; letter-spacing: 2px; color: var(--green-dim); margin: 18px 4px 8px 6px; }
+        .sb-sec::before { content: '// '; color: var(--green-dim); }
+        .sb-logout { border: 1px solid rgba(255,51,51,0.28); border-radius: 8px; }
+        .sb-logout:hover { background: rgba(255,51,51,0.14); }
+
+        /* عناوين كل غرفة */
+        .view-panel > h2 { display: flex; align-items: center; gap: 10px; font-family: var(--font-mono); font-size: 1.05rem; letter-spacing: 1px; color: var(--green-bright); background: linear-gradient(90deg, rgba(46,204,113,0.13), rgba(46,204,113,0.02), transparent); border-right: 3px solid var(--green-bright); border-radius: 8px; padding: 12px 16px; margin: 0 0 18px; text-shadow: 0 0 10px rgba(46,204,113,0.35); }
+        .view-panel > h2::before { content: '▸'; color: var(--green-dim); font-size: 0.9rem; }
+        .view-panel > h2 + p { color: var(--muted); font-size: 0.8rem; margin: -10px 0 16px; }
+        .view-panel h3 { color: var(--green); font-family: var(--font-mono); letter-spacing: 1px; }
+
+        /* بطاقات الإحصائيات */
+        .stat-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 24px; }
+        .stat-card { position: relative; padding: 18px 14px; border-radius: 12px; text-align: center; background: linear-gradient(170deg, rgba(18,27,21,0.8), rgba(11,16,12,0.85)); border: 1px solid rgba(46,204,113,0.2); box-shadow: 0 8px 22px rgba(0,0,0,0.35); overflow: hidden; }
+        .stat-card::before { content: ''; position: absolute; top: -35%; right: -30%; width: 90px; height: 90px; border-radius: 50%; background: radial-gradient(circle, rgba(46,204,113,0.16), transparent 70%); }
+        .stat-card .stat-v { font-family: var(--font-mono); font-size: 1.55rem; font-weight: 700; color: var(--green-bright); text-shadow: 0 0 14px rgba(46,204,113,0.55); }
+        .stat-card .stat-t { font-size: 0.72rem; color: var(--muted); margin-top: 6px; }
+        @media (max-width: 1000px) { .stat-cards { grid-template-columns: repeat(2, 1fr); } }
+
+        /* منطقة الزر الدائري */
+        .punch-stage { display: flex; justify-content: center; padding: 20px 0 10px; }
+        .punch-stage .punch-btn { max-width: 230px; }
+
+        /* لوحة الدون */
+        .don-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+        .don-actions button { border-radius: 8px; font-weight: 600; letter-spacing: 0.5px; }
+
+        /* رأس الشوب + الخزينة */
+        .shop-head { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; border-bottom: 1px solid rgba(46,204,113,0.22); padding-bottom: 12px; margin-bottom: 20px; }
+        .shop-head h2 { margin: 0; }
+        .treasury-badge { background: linear-gradient(135deg, rgba(255,193,7,0.16), rgba(255,193,7,0.04)); padding: 10px 20px; border: 1px solid rgba(255,193,7,0.45); border-radius: 10px; color: gold; font-weight: bold; font-family: var(--font-mono); font-size: 0.85rem; box-shadow: 0 0 18px rgba(255,193,7,0.12); }
+
+        /* عربة السلة */
+        #cart-box { display: none; background: rgba(255,170,0,0.05); border: 1px solid rgba(255,170,0,0.3); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+        #cart-box .cart-empty { color: var(--muted); font-size: 0.85rem; text-align: center; padding: 10px; }
+
+        /* بطاقات HR */
+        .hr-section-card { display: flex; gap: 12px; margin-top: 16px; }
+        .hr-section-card > div { flex: 1; border-radius: 10px; padding: 14px; background: rgba(46,204,113,0.05); border: 1px solid rgba(46,204,113,0.16); min-width: 0; }
+        .hr-section-card h3 { margin-top: 0; color: var(--green-bright); font-size: 0.9rem; }
+        .hr-section-card .hr-item { font-size: 0.78rem; padding: 6px 0; border-bottom: 1px dashed rgba(46,204,113,0.15); }
+        .hr-section-card .hr-item:last-child { border-bottom: none; }
+
+        /* حقول النماذج */
+        input[type="text"], input[type="number"], input[type="password"], select, textarea { border-radius: 8px; }
+
+        /* وسوم توضيحية (مثل الحضور) */
+        .panel-legend { display: flex; gap: 8px; flex-wrap: wrap; margin: -6px 0 16px; }
+        .panel-legend .lg { font-size: 0.72rem; padding: 4px 12px; border-radius: 20px; border: 1px solid rgba(46,204,113,0.2); background: rgba(46,204,113,0.06); color: var(--muted); }
+        .panel-legend .lg-ok { color: var(--green-bright); border-color: rgba(46,204,113,0.45); }
+        .panel-legend .lg-miss { color: var(--danger); border-color: rgba(255,51,51,0.35); }
+
+        /* ميداليات المتصدرين الثلاثة الأوائل */
+        #tbl-leaderboard tbody tr:nth-child(1) td:first-child b { color: #ffd700; text-shadow: 0 0 8px rgba(255,215,0,0.55); }
+        #tbl-leaderboard tbody tr:nth-child(2) td:first-child b { color: #c0c0c0; text-shadow: 0 0 6px rgba(192,192,192,0.4); }
+        #tbl-leaderboard tbody tr:nth-child(3) td:first-child b { color: #cd7f32; text-shadow: 0 0 6px rgba(205,127,50,0.4); }
+
         @media (prefers-reduced-motion: reduce) {
             body.theme-3d, body.theme-3d *, body.theme-3d *::before, body.theme-3d *::after { animation: none !important; transition: none !important; }
         }
@@ -366,26 +434,40 @@
 
     <div id="app-screen">
         <div class="sidebar">
-            <h3>CORTEZ SYSTEM</h3>
-            <div style="font-size:0.8rem; text-align:center; margin-bottom:20px; color:#666;">
-                العضو: <span id="user-display" style="color:#fff;">-</span> | <span id="role-display" style="color:gold;">-</span>
+            <div class="sb-brand">
+                <span class="sb-logo">▚</span>
+                <div><b>CORTEZ</b><span>SYSTEM_NETWORK</span></div>
             </div>
+            <div class="sb-user">
+                <span class="sb-user-dot"></span>
+                <div class="sb-user-info">العضو: <b id="user-display">-</b><span id="role-display">-</span></div>
+            </div>
+            <div class="sb-sec">الشبكة</div>
             <button class="menu-btn active" onclick="changeTab('panel-dashboard', this)">⏱️ ON-OFF</button>
-            <button class="menu-btn" onclick="changeTab('panel-leaderboard', this)">🏆PRESENCE</button>
-            <button class="menu-btn" onclick="changeTab('panel-shop', this)">🛒MEMBER SHOP</button>
+            <button class="menu-btn" onclick="changeTab('panel-leaderboard', this)">🏆 PRESENCE</button>
+            <div class="sb-sec">الطلبات والمتجر</div>
+            <button class="menu-btn" onclick="changeTab('panel-shop', this)">🛒 MEMBER SHOP</button>
             <button class="menu-btn" onclick="changeTab('panel-requests', this)">📝 ABSENCE-CONGE</button>
+            <div class="sb-sec" id="sb-sec-admin" style="display:none;">الإدارة العليا</div>
             <button class="menu-btn" id="nav-hr" style="display:none; color:orange;" onclick="changeTab('panel-hr-review', this)">🕵 GRH</button>
             <button class="menu-btn" id="nav-gang-shop-admin" style="display:none; color:#ff66cc;" onclick="changeTab('panel-gang-shop-admin', this)">🏴 GANG SHOP ADMIN</button>
             <button class="menu-btn" id="nav-archive" style="display:none; color:var(--purple);" onclick="changeTab('panel-archive', this)">📚 PRESENCE LOG</button>
             <button class="menu-btn" id="nav-inventory" style="display:none; color:#ff66cc;" onclick="changeTab('panel-inventory', this)">📊 CALCUL MANAGER</button>
             <button class="menu-btn" id="nav-attendance" style="display:none; color:cyan;" onclick="changeTab('panel-attendance', this)">📋 ATTENDANCE</button>
             <button class="menu-btn" id="nav-don" style="display:none; color:cyan;" onclick="changeTab('panel-don-control', this)">👑 BOSS</button>
-            <button class="menu-btn" style="color:var(--danger); margin-top:auto;" onclick="logout()">🚪 LOG OUT</button>
+            <button class="menu-btn sb-logout" style="color:var(--danger); margin-top:auto;" onclick="logout()">🚪 LOG OUT</button>
         </div>
 
         <div class="main-content">
             <div id="panel-dashboard" class="view-panel active">
                 <h2>بوابة تتبع ساعات النشاط الأسبوعي لعائلة CORTEZ</h2>
+
+                <div class="stat-cards">
+                    <div class="stat-card"><div class="stat-v" id="stat-duty">—</div><div class="stat-t">حالة الدوام</div></div>
+                    <div class="stat-card"><div class="stat-v" id="stat-online">0</div><div class="stat-t">على الدوام الآن</div></div>
+                    <div class="stat-card"><div class="stat-v" id="stat-hours">0</div><div class="stat-t">ساعاتي هذا الأسبوع</div></div>
+                    <div class="stat-card"><div class="stat-v" id="stat-rank">—</div><div class="stat-t">ترتيبي الأسبوعي</div></div>
+                </div>
 
                 <div id="my-fine-alert" class="card" style="display:none; border-color:var(--danger); background:rgba(255,51,51,0.08); text-align:right;">
                     <h3 style="color:var(--danger); margin-top:0;">⚠️ لديك غرامة مالية مستحقة</h3>
@@ -399,12 +481,18 @@
                     <div id="my-notes-list"></div>
                 </div>
 
-                <button id="punchButton" class="punch-btn" onclick="triggerPunch()"><span class="punch-ic">●</span><span class="punch-txt">OFF DUTY — خارج الدوام</span><span class="punch-sub">اضغط لتفعيل الدوام (22:00–04:00)</span></button>
+                <div class="punch-stage">
+                    <button id="punchButton" class="punch-btn" onclick="triggerPunch()"><span class="punch-ic">●</span><span class="punch-txt">OFF DUTY — خارج الدوام</span><span class="punch-sub">اضغط لتفعيل الدوام (22:00–04:00)</span></button>
+                </div>
             </div>
 
             <div id="panel-attendance" class="view-panel">
                 <h2 style="color:cyan;">📋 سجل الحضور الأسبوعي</h2>
-                <p style="color:#888; font-size:0.85rem;">آخر 7 أيام — ✅ حضر | ❌ غاب</p>
+                <div class="panel-legend">
+                    <span class="lg lg-ok">✅ حضر</span>
+                    <span class="lg lg-miss">❌ غاب</span>
+                    <span class="lg">آخر 7 أيام</span>
+                </div>
                 <div class="table-scroll-wrap"><table id="tbl-attendance">
                     <thead><tr id="attendance-header-row"><th>العضو</th><th>الرتبة</th><th></th><th>إجمالي</th></tr></thead>
                     <tbody></tbody>
@@ -457,9 +545,9 @@
             </div>
 
             <div id="panel-shop" class="view-panel">
-                <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #333; padding-bottom:10px;">
+                <div class="shop-head">
                     <h2>🛒 شوب التجهيزات والأسلحة الرسمي للشبكة</h2>
-                    <div id="treasury-box" style="display:none; background:#111; padding:10px 20px; border:1px solid gold; color:gold; font-weight:bold;">
+                    <div id="treasury-box" class="treasury-badge" style="display:none;">
                         💰 خزينة العصابة العليا: <span id="treasury-balance">0</span>$
                     </div>
                 </div>
@@ -535,8 +623,16 @@
                     </table></div>
                 </div>
 
-                <h3>طلبات الإجازات:</h3><div id="hr-leaves-list"></div>
-                <h3>تبريرات الغياب:</h3><div id="hr-justs-list"></div>
+                <div class="hr-section-card">
+                    <div>
+                        <h3>📥 طلبات الإجازات</h3>
+                        <div id="hr-leaves-list"></div>
+                    </div>
+                    <div>
+                        <h3>📋 تبريرات الغياب</h3>
+                        <div id="hr-justs-list"></div>
+                    </div>
+                </div>
 
                 <div class="card" style="margin-top:20px;">
                     <h3 style="color:#999;">📜 سجل التدقيق (آخر 200 إجراء)</h3>
@@ -597,9 +693,9 @@
             </div>
 
             <div id="panel-don-control" class="view-panel">
-                <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 2px solid var(--primary); padding-bottom:10px;">
+                <div class="shop-head" style="border-bottom-color:rgba(46,204,113,0.3);">
                     <h2>👑 لوحة التحكم الشاملة</h2>
-                    <div style="display:flex; gap:10px;">
+                    <div class="don-actions">
                         <button class="btn-danger" style="width:auto; padding:10px 20px;" onclick="triggerEmergency()">🚨 [ تفعيل استنفار عام ]</button>
                         <button class="btn-warning" id="btn-treasury-reset" style="width:auto; padding:10px 20px; display:none;" onclick="resetTreasury()">💰 [ تصفير الخزينة ]</button>
                         <button class="btn-danger" id="btn-global-reset" style="width:auto; padding:10px 20px; display:none;" onclick="resetWeeklyHoursAll()">⚠️ [ أرشفة الأسبوع وتصفير الساعات ]</button>
@@ -1428,6 +1524,10 @@
                 document.getElementById('btn-global-reset').style.display = 'inline-block';
                 document.getElementById('btn-gang-treasury-reset').style.display = 'inline-block';
             }
+            // إظهار قسم "الإدارة العليا" في السايدبار فقط عند وجود أي زر إدارة ظاهر
+            const adminNavs = ['nav-hr','nav-gang-shop-admin','nav-archive','nav-inventory','nav-attendance','nav-don'];
+            const anyAdmin = adminNavs.some(id => document.getElementById(id).style.display !== 'none');
+            document.getElementById('sb-sec-admin').style.display = anyAdmin ? 'block' : 'none';
         }
 
         // --- Duty / Punch Operations ---
@@ -1443,6 +1543,11 @@
 
         function updatePunchButtonUI(status) {
             const btn = document.getElementById('punchButton');
+            const dutyStat = document.getElementById('stat-duty');
+            if (dutyStat) {
+                dutyStat.textContent = status === 'ON-DUTY' ? 'ON DUTY' : 'OFF DUTY';
+                dutyStat.style.color = status === 'ON-DUTY' ? 'var(--green-bright)' : 'var(--danger)';
+            }
             if(status === 'ON-DUTY') {
                 btn.className = "punch-btn on";
                 btn.innerHTML = '<span class="punch-ic">●</span><span class="punch-txt">ON DUTY — دوام نشط</span><span class="punch-sub">اضغط لإيقاف الدوام</span>';
@@ -1487,6 +1592,19 @@
                         <td><span style="color:${u.duty_status === 'ON-DUTY' ? 'var(--primary)' : 'var(--danger)'}">${u.duty_status}</span></td>
                     </tr>`;
                 });
+
+                // تحديث بطاقات الإحصائيات في الرئيسية من بيانات المتصدرين
+                let onDutyCount = 0, meHours = null, meRank = null;
+                data.leaderboard.forEach((u, i) => {
+                    if (u.duty_status === 'ON-DUTY') onDutyCount++;
+                    if (userData && u.username === userData.username) { meHours = u.hours; meRank = i + 1; }
+                });
+                const stOnline = document.getElementById('stat-online');
+                const stHours = document.getElementById('stat-hours');
+                const stRank = document.getElementById('stat-rank');
+                if (stOnline) stOnline.textContent = onDutyCount;
+                if (stHours) stHours.textContent = meHours != null ? formatHoursMinutes(meHours) : '0';
+                if (stRank) stRank.textContent = meRank != null ? '#' + meRank : '—';
 
                 const slackBody = document.querySelector('#tbl-slacking tbody');
                 slackBody.innerHTML = '';
