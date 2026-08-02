@@ -858,6 +858,7 @@
 
     /* ---------- Tiny helpers ---------- */
     const $ = id => document.getElementById(id);
+    const qs = sel => document.querySelector(sel);
     function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
     function fmtMin(m){
         m = Math.max(0, Math.floor(Number(m)||0));
@@ -1160,8 +1161,7 @@
         if(name==='inventory') loadInventory();
         if(name==='ops') loadOps();
         gsapFrom('#sec-'+name+' > *', { duration:0.5, y:20, opacity:0, stagger:0.06, ease:'power2.out' });
-        // re-tilt any new tilt elements
-        if(typeof VanillaTilt !== 'undefined'){ VanillaTilt.refresh(); }
+        // re-tilt any new tilt elements (renderers call VanillaTilt.init themselves)
     }
 
     /* ============================================================
@@ -1191,10 +1191,10 @@
     /* ---------- Leaderboard / tracking ---------- */
     async function loadLeaderboard(showLoading){
         if(!userToken) return;
-        if(showLoading) $('tbl-leaderboard tbody').innerHTML = '<tr><td colspan="5" class="loading">LOADING...</td></tr>';
+        if(showLoading) qs('#tbl-leaderboard tbody').innerHTML = '<tr><td colspan="5" class="loading">LOADING...</td></tr>';
         try {
             const data = await api('/api/stats/leaderboard');
-            const tbody = $('tbl-leaderboard tbody');
+            const tbody = qs('#tbl-leaderboard tbody');
             let html = '', onCount = 0, myRank = null;
             data.leaderboard.forEach((u,i) => {
                 if(u.duty_status === 'ON-DUTY') onCount++;
@@ -1213,7 +1213,7 @@
             $('stat-hours').textContent = fmtMin(myWeeklyHours);
             $('stat-rank').textContent = myRank ? '#'+myRank : '—';
             renderMap(data.leaderboard);
-        } catch(e){ if(showLoading) $('tbl-leaderboard tbody').innerHTML = '<tr><td colspan="5" class="empty">لا يمكن تحميل البيانات</td></tr>'; }
+        } catch(e){ if(showLoading) qs('#tbl-leaderboard tbody').innerHTML = '<tr><td colspan="5" class="empty">لا يمكن تحميل البيانات</td></tr>'; }
     }
     function hashPos(str){
         let h = 0; for(let i=0;i<str.length;i++) h = (h*31 + str.charCodeAt(i)) % 100000;
@@ -1249,7 +1249,7 @@
                 u.days.forEach(day => { cells += `<td style="text-align:center;">${day.present ? '<span class="present">✓</span>' : '<span class="absent">✗</span>'}</td>`; });
                 rows += `<tr><td>${esc(u.username)}</td><td style="color:var(--muted);">${esc(u.role)}</td>${cells}<td style="font-family:var(--mono); color:var(--green); font-weight:700;">${u.total}/7</td></tr>`;
             });
-            $('tbl-attendance tbody').innerHTML = rows || '<tr><td colspan="9" class="empty">لا توجد بيانات</td></tr>';
+            qs('#tbl-attendance tbody').innerHTML = rows || '<tr><td colspan="9" class="empty">لا توجد بيانات</td></tr>';
         } catch(e){ /* بلا صلاحية أو خطأ */ }
     }
 
@@ -1426,7 +1426,7 @@
     async function loadPending(){
         try {
             const users = await api('/api/admin/pending-accounts');
-            const tbody = $('tbl-pending tbody');
+            const tbody = qs('#tbl-pending tbody');
             tbody.innerHTML = users.length ? '' : '<tr><td colspan="5" class="empty">لا توجد حسابات معلقة</td></tr>';
             users.forEach(u => {
                 tbody.innerHTML += `<tr>
@@ -1449,7 +1449,7 @@
     async function loadFines(){
         try {
             const users = await api('/api/admin/fines/active');
-            const tbody = $('tbl-fines tbody');
+            const tbody = qs('#tbl-fines tbody');
             tbody.innerHTML = users.length ? '' : '<tr><td colspan="5" class="empty">لا توجد غرامات معلقة</td></tr>';
             users.forEach(u => {
                 tbody.innerHTML += `<tr>
@@ -1469,7 +1469,7 @@
     async function loadWarnings(){
         try {
             const users = await api('/api/admin/warnings/list');
-            const tbody = $('tbl-warnings tbody');
+            const tbody = qs('#tbl-warnings tbody');
             tbody.innerHTML = users.length ? '' : '<tr><td colspan="4" class="empty">لا يوجد إنذارات</td></tr>';
             users.forEach(u => {
                 tbody.innerHTML += `<tr>
@@ -1488,7 +1488,7 @@
     async function loadAudit(){
         try {
             const logs = await api('/api/admin/audit-log');
-            const tbody = $('tbl-audit tbody');
+            const tbody = qs('#tbl-audit tbody');
             tbody.innerHTML = logs.length ? '' : '<tr><td colspan="4" class="empty">لا يوجد سجل</td></tr>';
             logs.slice(0,60).forEach(l => {
                 tbody.innerHTML += `<tr>
@@ -1640,7 +1640,7 @@
         try {
             const orders = await api('/api/gang-shop/my-orders');
             myGangOrdersData = orders;
-            const tbody = $('tbl-my-gang-orders tbody'); if(!tbody) return;
+            const tbody = qs('#tbl-my-gang-orders tbody'); if(!tbody) return;
             tbody.innerHTML = orders.length ? '' : '<tr><td colspan="6" class="empty">لا توجد أي عمليات سابقة</td></tr>';
             orders.forEach(o => {
                 const boughtStr = (o.items_bought || []).map(i => `${i.quantity}x ${esc(i.name)}`).join('، ') || '-';
@@ -1822,7 +1822,7 @@
     async function loadGangOrders(){
         try {
             const orders = await api('/api/gang-shop/orders');
-            const tbody = $('tbl-gang-orders tbody'); if(!tbody) return;
+            const tbody = qs('#tbl-gang-orders tbody'); if(!tbody) return;
             tbody.innerHTML = orders.length ? '' : '<tr><td colspan="8" class="empty">لا توجد أي عمليات مسجلة</td></tr>';
             orders.forEach(o => {
                 const boughtStr = (o.items_bought || []).map(i => `${i.quantity}x ${esc(i.name)}`).join('، ') || '-';
@@ -1949,7 +1949,7 @@
         el.style.color = profit >= 0 ? 'var(--green)' : 'var(--red)';
     }
     function renderInventoryTable(){
-        const tbody = $('tbl-inventory tbody'); if(!tbody) return;
+        const tbody = qs('#tbl-inventory tbody'); if(!tbody) return;
         tbody.innerHTML = inventoryData.length ? '' : '<tr><td colspan="5" class="empty">لا توجد منتجات</td></tr>';
         const canDelete = userData && ['Don','Underboss','Business_Manager'].includes(userData.role);
         inventoryData.forEach(itm => {
@@ -2001,7 +2001,7 @@
     async function loadAllNotes(){
         try {
             const notes = await api('/api/notes/all');
-            const tbody = $('tbl-all-notes tbody'); if(!tbody) return;
+            const tbody = qs('#tbl-all-notes tbody'); if(!tbody) return;
             tbody.innerHTML = notes.length ? '' : '<tr><td colspan="7" class="empty">لا توجد ملاحظات</td></tr>';
             notes.forEach(n => {
                 tbody.innerHTML += `<tr>
