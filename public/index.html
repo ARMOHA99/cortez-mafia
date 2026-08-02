@@ -209,6 +209,68 @@
         body.theme-3d .punch-btn { font-family: var(--font-mono); letter-spacing: 2px; }
         .input-group label, .card label { font-family: var(--font-mono); letter-spacing: 1px; }
 
+        /* ================== إعادة التصميم الشاملة: زر الدوام الدائري + سايدبار عائم + جداول + أزرار ================== */
+        .punch-btn {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            gap: 6px; width: 230px; height: 230px; margin: 30px auto 12px; border-radius: 50%;
+            border: 3px solid rgba(255,91,91,0.55); position: relative; flex: none;
+            background: radial-gradient(circle at 50% 35%, rgba(255,91,91,0.16), rgba(28,12,12,0.65));
+            color: var(--danger); font-size: 1rem;
+            box-shadow: 0 0 0 10px rgba(255,91,91,0.05), 0 0 30px rgba(255,91,91,0.18), inset 0 0 40px rgba(255,91,91,0.05);
+        }
+        .punch-btn .punch-ic { font-size: 2.4rem; line-height: 1; filter: drop-shadow(0 0 10px currentColor); animation: punchDot 2.2s infinite; }
+        .punch-btn .punch-txt { font-family: var(--font-mono); letter-spacing: 2px; font-size: 0.95rem; }
+        .punch-btn .punch-sub { font-size: 0.72rem; color: var(--muted); }
+        @keyframes punchDot { 0%,100% { opacity: 1; } 50% { opacity: 0.45; } }
+        .punch-btn.on {
+            border-color: rgba(46,204,113,0.7);
+            background: radial-gradient(circle at 50% 35%, rgba(46,204,113,0.2), rgba(10,24,16,0.7));
+            color: var(--green-bright);
+            box-shadow: 0 0 0 12px rgba(46,204,113,0.06), 0 0 40px rgba(46,204,113,0.28), inset 0 0 45px rgba(46,204,113,0.08);
+        }
+        .punch-btn.on::before { content: ''; position: absolute; inset: -12px; border-radius: 50%; border: 2px solid rgba(46,204,113,0.4); animation: punchRing 2.4s ease-out infinite; }
+        @keyframes punchRing { 0% { transform: scale(0.95); opacity: 1; } 100% { transform: scale(1.25); opacity: 0; } }
+        body.theme-3d .punch-btn { border-radius: 50%; background: radial-gradient(circle at 50% 35%, rgba(255,91,91,0.16), rgba(28,12,12,0.65)); border: 3px solid rgba(255,91,91,0.55); box-shadow: 0 0 0 10px rgba(255,91,91,0.05), 0 0 30px rgba(255,91,91,0.18), inset 0 0 40px rgba(255,91,91,0.05); }
+        body.theme-3d .punch-btn.on { border-color: rgba(46,204,113,0.7); background: radial-gradient(circle at 50% 35%, rgba(46,204,113,0.2), rgba(10,24,16,0.7)); color: var(--green-bright); animation: punchGlow 2.5s ease-in-out infinite; }
+        @keyframes punchGlow { 0%,100% { box-shadow: 0 0 0 12px rgba(46,204,113,0.06), 0 0 30px rgba(46,204,113,0.22), inset 0 0 45px rgba(46,204,113,0.06); } 50% { box-shadow: 0 0 0 18px rgba(46,204,113,0.1), 0 0 60px rgba(46,204,113,0.4), inset 0 0 60px rgba(46,204,113,0.14); } }
+
+        .sidebar { margin: 14px 14px 14px 0; width: 260px; min-width: 260px; border-radius: 12px; height: calc(100vh - 28px); background: linear-gradient(180deg, rgba(17,25,19,0.92), rgba(11,16,12,0.94)); border: 1px solid rgba(46,204,113,0.16); box-shadow: 0 12px 34px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04); }
+        .main-content { width: calc(100% - 274px); margin: 14px 0 14px 14px; border-radius: 12px; background: rgba(10,15,12,0.35); border: 1px solid rgba(46,204,113,0.1); }
+        .menu-btn { border-radius: 8px; margin: 3px 0; border: none; border-bottom: none; }
+        body.theme-3d .sidebar h3 { font-family: var(--font-mono); font-size: 1.15rem; letter-spacing: 5px; color: var(--green-bright); text-align: center; text-shadow: 0 0 8px rgba(46,204,113,0.45); padding: 6px 0 14px; }
+        body.theme-3d .sidebar > div { background: rgba(46,204,113,0.05); border: 1px solid rgba(46,204,113,0.14); border-radius: 8px; padding: 8px; }
+        body.theme-3d .menu-btn { padding: 12px 14px; }
+
+        body.theme-3d button { border-radius: 8px; }
+        body.theme-3d .btn-success { background: linear-gradient(135deg, var(--green-bright), var(--green)); color: #06240f; border-color: transparent; box-shadow: 0 4px 16px rgba(46,204,113,0.25); }
+        body.theme-3d .btn-success:hover { filter: brightness(1.08); background: linear-gradient(135deg, var(--green-bright), var(--green)); color: #06240f; }
+        body.theme-3d .btn-danger { box-shadow: 0 4px 14px rgba(255,91,91,0.15); }
+        body.theme-3d .btn-warning { box-shadow: 0 4px 14px rgba(242,201,76,0.12); }
+
+        body.theme-3d .table-scroll-wrap { border-radius: 10px; border: 1px solid rgba(46,204,113,0.12); background: rgba(13,20,15,0.45); }
+        body.theme-3d table { border-collapse: separate; border-spacing: 0; overflow: hidden; border-radius: 8px; }
+        body.theme-3d th { position: sticky; top: 0; }
+        body.theme-3d td { border-color: rgba(46,204,113,0.08); }
+        body.theme-3d tbody tr:nth-child(even) { background: rgba(46,204,113,0.035); }
+        body.theme-3d tbody tr:hover { background: rgba(46,204,113,0.08); }
+
+        body.theme-3d .card { border-radius: 10px; }
+        body.theme-3d .item-card { border-radius: 10px; }
+        body.theme-3d .item-card img { border-radius: 6px; }
+        body.theme-3d .custom-modal { border-radius: 10px; }
+        body.theme-3d .modal-btns button { border-radius: 8px; }
+        body.theme-3d .auth-box { border-radius: 10px; }
+        body.theme-3d .auth-box h2 { font-size: 1.9rem; font-weight: 700; letter-spacing: 6px; }
+        body.theme-3d .auth-box h2::after { content: '▊'; margin-left: 6px; color: var(--green-dim); animation: blinkStep 1s steps(1) infinite; }
+        @keyframes blinkStep { 50% { opacity: 0; } }
+
+        .cortez-topbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; padding: 14px 18px; border-radius: 10px; background: linear-gradient(135deg, rgba(18,27,21,0.7), rgba(11,17,13,0.7)); border: 1px solid rgba(46,204,113,0.18); }
+        .cortez-topbar .ct-title { font-family: var(--font-mono); font-size: 1.05rem; letter-spacing: 2px; color: var(--green-bright); text-shadow: 0 0 10px rgba(46,204,113,0.4); }
+        .cortez-topbar .ct-title small { display: block; font-family: var(--font-arabic); font-size: 0.7rem; color: var(--muted); letter-spacing: 1px; text-shadow: none; }
+        .cortez-topbar .ct-live { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--green-bright); margin-left: 8px; animation: punchDot 2.5s infinite; }
+        .cortez-topbar .ct-hud { display: flex; gap: 8px; flex-wrap: wrap; font-family: var(--font-mono); font-size: 0.75rem; letter-spacing: 1px; }
+        .cortez-topbar .ct-chip { padding: 6px 12px; border-radius: 6px; border: 1px solid rgba(46,204,113,0.25); color: var(--green); background: rgba(46,204,113,0.05); }
+
         @media (prefers-reduced-motion: reduce) {
             body.theme-3d, body.theme-3d *, body.theme-3d *::before, body.theme-3d *::after { animation: none !important; transition: none !important; }
         }
@@ -337,7 +399,7 @@
                     <div id="my-notes-list"></div>
                 </div>
 
-                <button id="punchButton" class="punch-btn" onclick="triggerPunch()">[ STATUS: OFF-DUTY 🔴 ]</button>
+                <button id="punchButton" class="punch-btn" onclick="triggerPunch()"><span class="punch-ic">●</span><span class="punch-txt">OFF DUTY — خارج الدوام</span><span class="punch-sub">اضغط لتفعيل الدوام (22:00–04:00)</span></button>
             </div>
 
             <div id="panel-attendance" class="view-panel">
@@ -1306,6 +1368,8 @@
             document.getElementById('user-display').innerText = userData.username;
             document.getElementById('role-display').innerText = userData.role;
 
+            initDesignTopbar();
+
             updatePunchButtonUI(userData.duty_status);
             configureRolePermissions(userData.role);
             renderFineAlert();
@@ -1381,10 +1445,10 @@
             const btn = document.getElementById('punchButton');
             if(status === 'ON-DUTY') {
                 btn.className = "punch-btn on";
-                btn.innerText = "[ STATUS: ON-DUTY 🟢 ]";
+                btn.innerHTML = '<span class="punch-ic">●</span><span class="punch-txt">ON DUTY — دوام نشط</span><span class="punch-sub">اضغط لإيقاف الدوام</span>';
             } else {
                 btn.className = "punch-btn";
-                btn.innerText = "[ STATUS: OFF-DUTY 🔴 ]";
+                btn.innerHTML = '<span class="punch-ic">●</span><span class="punch-txt">OFF DUTY — خارج الدوام</span><span class="punch-sub">اضغط لتفعيل الدوام (22:00–04:00)</span>';
             }
         }
 
@@ -2693,6 +2757,30 @@
         if(userToken && userData) {
             socket.emit('register', { username: userData.username });
             initAppSession();
+        }
+
+        // ================== شريط علوي HUD: عنوان النظام + ساعة حية + حالة الدوام ==================
+        function initDesignTopbar() {
+            const main = document.querySelector('.main-content');
+            if (!main || document.getElementById('cortez-topbar')) return;
+            const bar = document.createElement('div');
+            bar.id = 'cortez-topbar';
+            bar.className = 'cortez-topbar';
+            bar.innerHTML = '<div class="ct-title"><span class="ct-live"></span>&gt; SYSTEM_ONLINE_ <small>لوحة قيادة CORTEZ</small></div>' +
+                '<div class="ct-hud"><span class="ct-chip" id="ct-chip-duty">الحالة: -</span><span class="ct-chip">نافذة الدوام 22:00–04:00</span><span class="ct-chip" id="ct-chip-clock">--:--:--</span></div>';
+            main.insertBefore(bar, main.firstChild);
+            function tick() {
+                const d = new Date();
+                const p = function (n) { return String(n).padStart(2, '0'); };
+                const clk = document.getElementById('ct-chip-clock');
+                if (clk) clk.textContent = p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds()) + ' — ' + p(d.getDate()) + '/' + p(d.getMonth() + 1) + '/' + d.getFullYear();
+                const duty = document.getElementById('ct-chip-duty');
+                if (duty && userData) {
+                    const st = userData.duty_status === 'ON-DUTY';
+                    duty.innerHTML = 'الحالة: <b style="color:' + (st ? 'var(--green-bright)' : 'var(--danger)') + '">' + (st ? 'ON DUTY' : 'OFF DUTY') + '</b>';
+                }
+            }
+            tick(); setInterval(tick, 1000);
         }
 
         // ================== ثيم 3D (طبقة تجريبية قابلة للتعطيل) ==================
