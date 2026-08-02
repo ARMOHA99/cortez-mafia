@@ -80,7 +80,6 @@
         #login-screen{ position:fixed; inset:0; z-index:50; display:flex; align-items:center; justify-content:center; padding:20px; }
         #login-card{ width:430px; max-width:100%; padding:38px 34px; text-align:center; position:relative; overflow:hidden; }
         #login-card::before{ content:''; position:absolute; inset:-60%; background:radial-gradient(circle at 50% 0%, rgba(0,255,102,0.09), transparent 55%); pointer-events:none; }
-        .login-skull{ width:86px; height:86px; margin:0 auto 14px; border-radius:22px; display:flex; align-items:center; justify-content:center; font-size:2.4rem; color:var(--green); background:rgba(0,255,102,0.08); border:1px solid var(--green-line); box-shadow:0 0 34px rgba(0,255,102,0.3); }
         .login-title{ font-family:var(--display); font-size:1.9rem; letter-spacing:2px; color:var(--green); }
         .login-sub{ font-family:var(--mono); font-size:.72rem; color:var(--muted); letter-spacing:4px; margin-top:4px; }
         .auth-tabs{ display:flex; gap:6px; margin:24px 0 18px; background:rgba(0,0,0,0.4); border-radius:10px; padding:5px; }
@@ -298,7 +297,6 @@
     <!-- ==================== LOGIN ==================== -->
     <div id="login-screen">
         <div id="login-card" class="glass hud-corner" data-tilt>
-            <div class="login-skull"><i class="fa-solid fa-skull"></i></div>
             <div class="login-title">CORTEZ</div>
             <div class="login-sub">// SYNDICATE NETWORK v7.7</div>
 
@@ -341,7 +339,6 @@
 
         <div id="topbar" class="glass">
             <div class="brand-logo">
-                <div class="brand-icon"><i class="fa-solid fa-skull"></i></div>
                 <div>
                     <div class="brand-name">CORTEZ</div>
                     <div class="brand-ver">SYNDICATE NETWORK v7.7</div>
@@ -986,7 +983,7 @@
     }
     (function entry(){
         gsapFrom('#login-card', { duration:1.0, y:50, opacity:0, ease:'power3.out' });
-        gsapFrom('#login-card .login-skull, #login-card .login-title, #login-card .login-sub, #login-card .auth-tabs, #login-card .cyber-input, #login-card #loginBtn, #login-card #authError, #login-card .auth-link', { duration:0.7, y:24, opacity:0, stagger:0.1, ease:'power2.out', delay:0.15 });
+        gsapFrom('#login-card .login-title, #login-card .login-sub, #login-card .auth-tabs, #login-card .cyber-input, #login-card #loginBtn, #login-card #authError, #login-card .auth-link', { duration:0.7, y:24, opacity:0, stagger:0.1, ease:'power2.out', delay:0.15 });
     })();
 
     /* ---------- Tilt ---------- */
