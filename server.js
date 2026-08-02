@@ -510,7 +510,7 @@ app.post('/api/shop/checkout', verifyAuth(['Underboss', 'Soldat', 'Capo', 'GRH',
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/api/shop/orders', verifyAuth(['Underboss', 'Business_Manager', 'Chef_Braquage', 'GRH']), async (req, res) => {
+app.get('/api/shop/orders', verifyAuth(['Don', 'Underboss', 'Business_Manager', 'Chef_Braquage', 'GRH']), async (req, res) => {
     try { const orders = await Order.find().sort({ timestamp: -1 }); res.json(orders); } 
     catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -534,11 +534,11 @@ const confirmPaymentLogic = async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 };
 
-app.post('/api/shop/order/:id/pay', verifyAuth(['Underboss', 'Business_Manager']), confirmPaymentLogic);
-app.put('/api/shop/order/:id/pay', verifyAuth(['Underboss', 'Business_Manager']), confirmPaymentLogic);
+app.post('/api/shop/order/:id/pay', verifyAuth(['Don', 'Underboss', 'Business_Manager', 'GRH', 'Chef_Braquage']), confirmPaymentLogic);
+app.put('/api/shop/order/:id/pay', verifyAuth(['Don', 'Underboss', 'Business_Manager', 'GRH', 'Chef_Braquage']), confirmPaymentLogic);
 
 // رفض طلب شراء من شوب الأعضاء (لا يُضاف أي مبلغ إلى الخزينة)
-app.post('/api/shop/order/:id/reject', verifyAuth(['Underboss', 'Business_Manager']), async (req, res) => {
+app.post('/api/shop/order/:id/reject', verifyAuth(['Don', 'Underboss', 'Business_Manager', 'GRH', 'Chef_Braquage']), async (req, res) => {
     try {
         const order = await Order.findById(req.params.id);
         if (!order || order.status === 'Paid') return res.status(400).json({ error: "الطلب غير موجود أو تم قبضه مسبقاً." });
@@ -1243,12 +1243,12 @@ app.post('/api/gang-shop/order/:id/cancel', verifyAuth(['Gang_Member']), async (
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/api/gang-shop/orders', verifyAuth(['Underboss', 'Business_Manager']), async (req, res) => {
+app.get('/api/gang-shop/orders', verifyAuth(['Don', 'Underboss', 'Business_Manager', 'GRH', 'Chef_Braquage']), async (req, res) => {
     try { const orders = await GangOrder.find().sort({ timestamp: -1 }); res.json(orders); }
     catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/gang-shop/order/:id/confirm', verifyAuth(['Underboss', 'Business_Manager']), async (req, res) => {
+app.post('/api/gang-shop/order/:id/confirm', verifyAuth(['Don', 'Underboss', 'Business_Manager', 'GRH', 'Chef_Braquage']), async (req, res) => {
     try {
         const order = await GangOrder.findById(req.params.id);
         if (!order || order.status !== 'Pending') return res.status(400).json({ error: "الطلب غير موجود أو لم يعد معلقاً." });
@@ -1262,7 +1262,7 @@ app.post('/api/gang-shop/order/:id/confirm', verifyAuth(['Underboss', 'Business_
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/gang-shop/order/:id/reject', verifyAuth(['Underboss', 'Business_Manager']), async (req, res) => {
+app.post('/api/gang-shop/order/:id/reject', verifyAuth(['Don', 'Underboss', 'Business_Manager', 'GRH', 'Chef_Braquage']), async (req, res) => {
     try {
         const { reason } = req.body;
         const order = await GangOrder.findById(req.params.id);
@@ -1276,7 +1276,7 @@ app.post('/api/gang-shop/order/:id/reject', verifyAuth(['Underboss', 'Business_M
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/api/gang-shop/treasury', verifyAuth(['Underboss', 'Business_Manager']), async (req, res) => {
+app.get('/api/gang-shop/treasury', verifyAuth(['Don', 'Underboss', 'Business_Manager', 'GRH', 'Chef_Braquage']), async (req, res) => {
     try {
         const treasury = await GangTreasury.findOne({});
         const balance = treasury ? treasury.total_balance : 0;
