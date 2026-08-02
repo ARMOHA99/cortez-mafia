@@ -79,6 +79,20 @@ function isInDutyTimeWindow() {
     return totalMinutes >= 1320 || totalMinutes <= 240;
 }
 
+// ================== v8.0: نافذة يوم دوام واحد (من 22:00 حتى 04:00 بتوقيت الجزائر) ==================
+// تُحسب عبر Date.UTC فقط لتبقى صحيحة مهما كان توقيت جهاز السيرفر (22:00 الجزائر = 21:00 UTC)
+function getDutyDayWindow(offsetDays) {
+    const dzNow = new Date(Date.now() + 60 * 60 * 1000);
+    const start = new Date(Date.UTC(
+        dzNow.getUTCFullYear(),
+        dzNow.getUTCMonth(),
+        dzNow.getUTCDate() + offsetDays,
+        21, 0, 0, 0
+    ));
+    const end = new Date(start.getTime() + 6 * 60 * 60 * 1000); // 04:00 بتوقيت الجزائر
+    return { start, end };
+}
+
 // ================== v8.0: نص ملاحظة الغياب التلقائي لعدم تفعيل ON-DUTY ==================
 const MISSED_DUTY_NOTE_TEXT = "غاب عن الدوام - لم يسجل ON-DUTY خلال الفترة المسموحة (22:00 - 04:00 بتوقيت الجزائر)";
 
@@ -934,20 +948,10 @@ app.delete('/api/notes/:id', verifyAuth(['Don', 'Underboss', 'GRH']), async (req
 // يوم الدوام الواحد يمتد من 22:00 إلى 04:00 بتوقيت الجزائر (ليلة الدوام تُحسب لليوم الذي تبدأ فيه)
 app.get('/api/attendance/week', verifyAuth(['Don', 'Underboss', 'GRH', 'Business_Manager']), async (req, res) => {
     try {
-        const DZ_OFFSET_MS = 60 * 60 * 1000;
-        const now = new Date();
-        const dzNow = new Date(now.getTime() + DZ_OFFSET_MS);
-
-        // تحديد آخر 7 أيام دوام (كل يوم يبدأ 22:00 بتوقيت الجزائر = 21:00 UTC)
+        // تحديد آخر 7 أيام دوام (كل يوم دوام يمتد من 22:00 حتى 04:00 بتوقيت الجزائر)
         const days = [];
         for (let i = 6; i >= 0; i--) {
-            const startAbs = new Date(Date.UTC(
-                dzNow.getUTCFullYear(),
-                dzNow.getUTCMonth(),
-                dzNow.getUTCDate() - i,
-                21, 0, 0, 0
-            ));
-            const endAbs = new Date(startAbs.getTime() + 6 * 60 * 60 * 1000); // +6 ساعات = 04:00 بتوقيت الجزائر
+            const { start: startAbs, end: endAbs } = getDutyDayWindow(-i);
             const label = startAbs.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
             days.push({ start: startAbs, end: endAbs, label });
         }
@@ -1511,12 +1515,8 @@ setInterval(async () => {
         if (lastAutoNoteDate === todayStr) return;
         lastAutoNoteDate = todayStr;
 
-        // نافذة الدوام الماضية: من 22:00 ليلة أمس حتى 04:00 اليوم
-        const yesterdayStart = new Date(dzNow);
-        yesterdayStart.setDate(yesterdayStart.getDate() - 1);
-        yesterdayStart.setUTCHours(22, 0, 0, 0);
-        const yesterdayEnd = new Date(dzNow);
-        yesterdayEnd.setUTCHours(4, 0, 0, 0);
+        // نافذة الدوام الماضية (ليلة أمس): من 22:00 حتى 04:00 بتوقيت الجزائر
+        const { start: yesterdayStart, end: yesterdayEnd } = getDutyDayWindow(-1);
 
         // استثناء الدون وأعضاء العصابات من الملاحظات التلقائية
         const users = await User.find({
