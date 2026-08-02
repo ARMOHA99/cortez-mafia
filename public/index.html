@@ -967,7 +967,23 @@
     })();
 
     /* ---------- Entry animations (GSAP) ---------- */
-    function gsapFrom(sel, opts){ if(typeof gsap!=='undefined') gsap.from(sel, opts||{}); }
+    function gsapFrom(sel, opts){
+        if(typeof gsap==='undefined') return;
+        gsap.from(sel, opts||{});
+        // ضمانة إضافية: بعد انتهاء نافذة الحركة، أعد العناصر لحالتها الطبيعية عبر مؤقّت JS عادي
+        // (يحمي من حركات GSAP التي قد تُقتل في المنتصف وتترك opacity < 1 على العناصر)
+        const els = document.querySelectorAll(sel);
+        if(!els.length) return;
+        const o = opts || {};
+        const st = (typeof o.stagger === 'number') ? o.stagger : 0;
+        const waitMs = Math.round(((o.delay||0) + (o.duration||0.5) + st*(els.length-1) + 0.2) * 1000);
+        setTimeout(() => {
+            for(let i=0;i<els.length;i++){
+                els[i].style.opacity = '';
+                els[i].style.transform = '';
+            }
+        }, waitMs);
+    }
     (function entry(){
         gsapFrom('#login-card', { duration:1.0, y:50, opacity:0, ease:'power3.out' });
         gsapFrom('#login-card .login-skull, #login-card .login-title, #login-card .login-sub, #login-card .auth-tabs, #login-card .cyber-input, #login-card #loginBtn, #login-card #authError, #login-card .auth-link', { duration:0.7, y:24, opacity:0, stagger:0.1, ease:'power2.out', delay:0.15 });
