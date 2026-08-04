@@ -891,6 +891,7 @@
         const res = await fetch(path, { method: opts.method||'GET', headers, body: opts.body ? JSON.stringify(opts.body) : undefined });
         let data = null;
         try { data = await res.json(); } catch(e){}
+        if(data && data.forceLogout){ toast(data.error || 'تم تسجيل خروجك.', 'err'); setTimeout(()=>logout(), 600); }
         if(!res.ok){ const msg = (data && data.error) ? data.error : 'خطأ غير متوقع'; throw new Error(msg); }
         return data;
     }
@@ -928,7 +929,7 @@
     let promptCb = null;
     function openPrompt(title, placeholder, cb){ $('promptTitle').textContent = title; $('promptInput').placeholder = placeholder || ''; $('promptInput').value = ''; promptCb = cb; $('promptBackdrop').classList.add('open'); setTimeout(()=>{ $('promptInput').focus(); }, 60); }
     function closePrompt(){ $('promptBackdrop').classList.remove('open'); promptCb = null; }
-    $('promptOk').addEventListener('click', () => { const v = $('promptInput').value.trim(); closePrompt(); if(promptCb) promptCb(v); });
+    $('promptOk').addEventListener('click', () => { const v = $('promptInput').value.trim(); const cb = promptCb; closePrompt(); if(cb) cb(v); });
 
     /* ---------- Particles background ---------- */
     (function particles(){
@@ -1938,7 +1939,10 @@
                     <td style="font-size:.75rem;">${fmtDate(o.timestamp)}</td>
                 </tr>`;
             });
-        } catch(e){}
+        } catch(e){
+            const tbody = qs('#tbl-gang-orders tbody');
+            if(tbody) tbody.innerHTML = `<tr><td colspan="8" class="empty">⚠️ تعذر تحميل الطلبات: ${esc(e.message)}</td></tr>`;
+        }
     }
     function confirmGangOrder(id){
         openModal('تأكيد الطلب', 'هل تأكدت من إتمام تسليم الأشياء/الفلوس مع العضو فعلياً بالمدينة؟', async () => {
@@ -2139,6 +2143,14 @@
             enterApp();
         }
     })();
+    async function heartbeatCheck(){
+        if(!userToken) return;
+        try {
+            const data = await api('/api/auth/me');
+            if(data && !data.username){ toast('انتهت جلستك.', 'err'); logout(); }
+        } catch(e){}
+    }
+    setInterval(heartbeatCheck, 30000);
     </script>
 </body>
 </html>
