@@ -228,6 +228,9 @@
         .ops-tab{ padding:9px 15px; border-radius:10px; font-family:var(--mono); font-size:.7rem; letter-spacing:1px; color:var(--muted); cursor:pointer; border:1px solid rgba(255,255,255,0.07); background:rgba(0,0,0,0.35); transition:.2s; }
         .ops-tab:hover{ color:var(--green); }
         .ops-tab.active{ color:var(--green); background:rgba(0,255,102,0.12); border-color:var(--green-line); }
+        #gmTabs .ops-tab{ flex:1; padding:14px 20px; border-radius:12px; font-family:var(--display); font-size:.95rem; letter-spacing:1px; text-align:center; border:1px solid rgba(255,255,255,0.1); background:rgba(0,0,0,0.45); }
+        #gmTabs .ops-tab:hover{ color:var(--green); border-color:var(--green-line); }
+        #gmTabs .ops-tab.active{ color:#03130a; font-weight:700; background:linear-gradient(135deg,#00ff66,#00cc55); border-color:#00ff66; box-shadow:0 0 22px rgba(0,255,102,0.35); transform:translateY(-1px); }
         .ops-panel{ display:none; }
         .ops-panel.active{ display:block; }
         .form-grid{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
@@ -261,6 +264,19 @@
         .stat-mini{ padding:16px 12px; text-align:center; }
         .stat-mini .sv{ font-family:var(--display); font-size:1.6rem; color:var(--green); text-shadow:0 0 14px rgba(0,255,102,0.5); }
         .stat-mini .st{ font-family:var(--mono); font-size:.6rem; letter-spacing:1px; color:var(--muted); margin-top:4px; }
+
+        .duty-orbit{ display:grid; grid-template-columns:1fr auto 1fr; grid-template-rows:auto auto auto; gap:16px 26px; align-items:center; justify-items:center; margin-bottom:18px; }
+        .duty-orbit .o-online{ grid-column:1; grid-row:1; }
+        .duty-orbit .o-hours{ grid-column:3; grid-row:1; }
+        .duty-orbit .o-rank{ grid-column:2; grid-row:3; }
+        .duty-core{ grid-column:2; grid-row:1/3; position:relative; width:172px; height:172px; border-radius:50%; display:flex; flex-direction:column; align-items:center; justify-content:center; border:2px solid rgba(255,45,85,0.45); background:radial-gradient(circle at 50% 28%, rgba(255,45,85,0.16), rgba(0,0,0,0.55) 72%); transition:border-color .4s, background .4s; animation:dutyBreathOff 3.2s ease-in-out infinite; }
+        .duty-core .duty-status{ font-family:var(--display); font-size:2.3rem; letter-spacing:4px; color:var(--red); text-shadow:0 0 16px rgba(255,45,85,0.6); transition:color .3s, text-shadow .3s; }
+        .duty-core .duty-sub{ font-family:var(--mono); font-size:.78rem; letter-spacing:2px; color:var(--muted); margin-top:8px; }
+        .duty-core.on{ border-color:rgba(0,255,102,0.65); background:radial-gradient(circle at 50% 28%, rgba(0,255,102,0.2), rgba(0,0,0,0.55) 72%); animation:dutyBreathOn 2.4s ease-in-out infinite; }
+        .duty-core.on .duty-status{ color:var(--green); text-shadow:0 0 22px rgba(0,255,102,0.9); }
+        .duty-core.on .duty-sub{ color:var(--green); }
+        @keyframes dutyBreathOn{ 0%,100%{ box-shadow:0 0 22px rgba(0,255,102,0.35), inset 0 0 26px rgba(0,255,102,0.12); transform:scale(1); } 50%{ box-shadow:0 0 58px rgba(0,255,102,0.8), inset 0 0 44px rgba(0,255,102,0.26); transform:scale(1.045); } }
+        @keyframes dutyBreathOff{ 0%,100%{ box-shadow:0 0 12px rgba(255,45,85,0.14), inset 0 0 18px rgba(255,45,85,0.06); transform:scale(1); } 50%{ box-shadow:0 0 26px rgba(255,45,85,0.3), inset 0 0 26px rgba(255,45,85,0.12); transform:scale(1.02); } }
 
         .empty{ text-align:center; color:var(--muted); font-size:.8rem; padding:26px 10px; font-family:var(--mono); letter-spacing:1px; }
         .loading{ text-align:center; color:var(--green); padding:26px; font-family:var(--mono); letter-spacing:2px; animation:dotPulse 1s infinite; }
@@ -374,11 +390,14 @@
 
         <!-- DASHBOARD -->
         <section id="sec-dashboard" class="section active">
-            <div class="stat-row">
-                <div class="stat-mini glass"><div class="sv" id="stat-duty">OFF</div><div class="st">DUTY STATUS</div></div>
-                <div class="stat-mini glass"><div class="sv" id="stat-online">0</div><div class="st">ON DUTY NOW</div></div>
-                <div class="stat-mini glass"><div class="sv" id="stat-hours">0h</div><div class="st">WEEKLY HOURS</div></div>
-                <div class="stat-mini glass"><div class="sv" id="stat-rank">—</div><div class="st">RANKING</div></div>
+            <div class="duty-orbit">
+                <div class="stat-mini glass o-online"><div class="sv" id="stat-online">0</div><div class="st">ON DUTY NOW</div></div>
+                <div class="stat-mini glass o-hours"><div class="sv" id="stat-hours">0h</div><div class="st">WEEKLY HOURS</div></div>
+                <div class="duty-core" id="dutyCore">
+                    <div class="duty-status" id="stat-duty">OFF</div>
+                    <div class="duty-sub" id="stat-duty-sub">0h</div>
+                </div>
+                <div class="stat-mini glass o-rank"><div class="sv" id="stat-rank">—</div><div class="st">RANKING</div></div>
             </div>
 
             <div class="dash-grid">
@@ -658,8 +677,8 @@
                 <div class="glass" style="padding:20px;">
                     <h2 class="glass-title" style="margin-top:0;"><i class="fa-solid fa-people-group" style="margin-left:10px;"></i>GANG SHOP — سوق المقايضة</h2>
                     <div class="ops-tabs" id="gmTabs" style="margin-top:14px;">
-                        <div class="ops-tab active" id="gm-tab-buy" onclick="switchGmMode('buy')">🛒 أشتري من المافيا</div>
-                        <div class="ops-tab" id="gm-tab-sell" onclick="switchGmMode('sell')">💰 أبيع للمافيا</div>
+                        <div class="ops-tab active" id="gm-tab-buy" onclick="switchGmMode('buy')">🛒 شراء</div>
+                        <div class="ops-tab" id="gm-tab-sell" onclick="switchGmMode('sell')">💰 بيع</div>
                     </div>
                     <div class="item-grid" id="gm-catalog-container" style="margin-top:14px;"><div class="loading">جاري التحميل...</div></div>
                 </div>
@@ -1129,6 +1148,8 @@
         $('avatar').classList.toggle('off', !on);
         $('stat-duty').textContent = on ? 'ON' : 'OFF';
         $('stat-duty').style.color = on ? 'var(--green)' : 'var(--red)';
+        const core = $('dutyCore');
+        if(core){ core.classList.toggle('on', !!on); core.classList.toggle('off', !on); }
     }
 
     /* ============================================================
@@ -1214,6 +1235,8 @@
         const on = userData && userData.duty_status === 'ON-DUTY';
         $('stat-duty').textContent = on ? 'ON' : 'OFF';
         $('stat-duty').style.color = on ? 'var(--green)' : 'var(--red)';
+        const core = $('dutyCore');
+        if(core){ core.classList.toggle('on', !!on); core.classList.toggle('off', !on); }
         const fine = Number(userData.fine_amount)||0;
         if(fine > 0){
             $('fineBody').innerHTML = `<div class="fine-amount">${money(fine)}</div><div class="fine-reason">السبب: ${esc(userData.fine_reason||'-')}</div>`;
@@ -1255,6 +1278,7 @@
             $('stat-online').textContent = onCount;
             $('stat-hours').textContent = fmtMin(myWeeklyHours);
             $('stat-rank').textContent = myRank ? '#'+myRank : '—';
+            const ds = $('stat-duty-sub'); if(ds) ds.textContent = fmtMin(myWeeklyHours);
             renderMap(data.leaderboard);
         } catch(e){ if(showLoading) qs('#tbl-leaderboard tbody').innerHTML = '<tr><td colspan="5" class="empty">لا يمكن تحميل البيانات</td></tr>'; }
     }
