@@ -265,16 +265,15 @@
         .stat-mini .sv{ font-family:var(--display); font-size:1.6rem; color:var(--green); text-shadow:0 0 14px rgba(0,255,102,0.5); }
         .stat-mini .st{ font-family:var(--mono); font-size:.6rem; letter-spacing:1px; color:var(--muted); margin-top:4px; }
 
-        .duty-orbit{ display:grid; grid-template-columns:1fr auto 1fr; grid-template-rows:auto auto auto; gap:16px 26px; align-items:center; justify-items:center; margin-bottom:18px; }
-        .duty-orbit .o-online{ grid-column:1; grid-row:1; }
-        .duty-orbit .o-hours{ grid-column:3; grid-row:1; }
-        .duty-orbit .o-rank{ grid-column:2; grid-row:3; }
-        .duty-core{ grid-column:2; grid-row:1/3; position:relative; width:172px; height:172px; border-radius:50%; display:flex; flex-direction:column; align-items:center; justify-content:center; border:2px solid rgba(255,45,85,0.45); background:radial-gradient(circle at 50% 28%, rgba(255,45,85,0.16), rgba(0,0,0,0.55) 72%); transition:border-color .4s, background .4s; animation:dutyBreathOff 3.2s ease-in-out infinite; }
-        .duty-core .duty-status{ font-family:var(--display); font-size:2.3rem; letter-spacing:4px; color:var(--red); text-shadow:0 0 16px rgba(255,45,85,0.6); transition:color .3s, text-shadow .3s; }
-        .duty-core .duty-sub{ font-family:var(--mono); font-size:.78rem; letter-spacing:2px; color:var(--muted); margin-top:8px; }
+        .dash-orbit{ display:grid; grid-template-columns:1fr auto 1fr; grid-template-rows:auto auto auto; gap:16px 26px; align-items:center; justify-items:center; margin-bottom:18px; }
+        .dash-orbit .duty-core{ grid-column:2; grid-row:2; }
+        .dash-orbit .fine-card{ grid-column:3; grid-row:2; }
+        .dash-orbit .dash-notes{ grid-column:1/4; grid-row:3; width:100%; padding:22px; }
+        .duty-core{ position:relative; width:172px; height:172px; border-radius:50%; display:flex; flex-direction:column; align-items:center; justify-content:center; border:2px solid rgba(255,45,85,0.45); background:radial-gradient(circle at 50% 28%, rgba(255,45,85,0.16), rgba(0,0,0,0.55) 72%); transition:border-color .4s, background .4s, box-shadow .3s; animation:dutyBreathOff 3.2s ease-in-out infinite; cursor:pointer; user-select:none; }
+        .duty-core:hover{ filter:brightness(1.18); }
+        .duty-core .duty-status{ font-family:var(--display); font-size:2.3rem; letter-spacing:4px; color:var(--red); text-shadow:0 0 16px rgba(255,45,85,0.6); transition:color .3s, text-shadow .3s; pointer-events:none; }
         .duty-core.on{ border-color:rgba(0,255,102,0.65); background:radial-gradient(circle at 50% 28%, rgba(0,255,102,0.2), rgba(0,0,0,0.55) 72%); animation:dutyBreathOn 2.4s ease-in-out infinite; }
         .duty-core.on .duty-status{ color:var(--green); text-shadow:0 0 22px rgba(0,255,102,0.9); }
-        .duty-core.on .duty-sub{ color:var(--green); }
         @keyframes dutyBreathOn{ 0%,100%{ box-shadow:0 0 22px rgba(0,255,102,0.35), inset 0 0 26px rgba(0,255,102,0.12); transform:scale(1); } 50%{ box-shadow:0 0 58px rgba(0,255,102,0.8), inset 0 0 44px rgba(0,255,102,0.26); transform:scale(1.045); } }
         @keyframes dutyBreathOff{ 0%,100%{ box-shadow:0 0 12px rgba(255,45,85,0.14), inset 0 0 18px rgba(255,45,85,0.06); transform:scale(1); } 50%{ box-shadow:0 0 26px rgba(255,45,85,0.3), inset 0 0 26px rgba(255,45,85,0.12); transform:scale(1.02); } }
 
@@ -299,6 +298,10 @@
 
         @media (max-width:900px){
             .dash-grid,.req-grid,.shop-layout,.stat-row,.form-grid,.three-col{ grid-template-columns:1fr; }
+            .dash-orbit{ grid-template-columns:1fr; }
+            .dash-orbit .duty-core{ grid-column:1; grid-row:auto; }
+            .dash-orbit .fine-card{ grid-column:1; grid-row:auto; }
+            .dash-orbit .dash-notes{ grid-column:1; grid-row:auto; }
             .quick-grid{ grid-template-columns:1fr; }
             #gang-map{ height:260px; }
         }
@@ -369,7 +372,7 @@
                     <div class="u-role" id="headerRole">-</div>
                 </div>
             </div>
-            <button id="dutySwitch" class="duty-switch off" onclick="toggleDuty()">
+            <button id="dutySwitch" class="duty-switch off" onclick="toggleDuty()" style="display:none;">
                 <span class="ds-knob"></span>
                 <span class="ds-t ds-off">OFF</span>
                 <span class="ds-t ds-on">ON</span>
@@ -390,17 +393,11 @@
 
         <!-- DASHBOARD -->
         <section id="sec-dashboard" class="section active">
-            <div class="duty-orbit">
-                <div class="stat-mini glass o-online"><div class="sv" id="stat-online">0</div><div class="st">ON DUTY NOW</div></div>
-                <div class="stat-mini glass o-hours"><div class="sv" id="stat-hours">0h</div><div class="st">WEEKLY HOURS</div></div>
-                <div class="duty-core" id="dutyCore">
-                    <div class="duty-status" id="stat-duty">OFF</div>
-                    <div class="duty-sub" id="stat-duty-sub">0h</div>
-                </div>
-                <div class="stat-mini glass o-rank"><div class="sv" id="stat-rank">—</div><div class="st">RANKING</div></div>
-            </div>
+            <div class="dash-orbit">
+                <div class="stat-mini glass"><div class="sv" id="stat-online">0</div><div class="st">ON DUTY NOW</div></div>
+                <div class="stat-mini glass"><div class="sv" id="stat-hours">0h</div><div class="st">WEEKLY HOURS</div></div>
+                <div class="stat-mini glass"><div class="sv" id="stat-rank">—</div><div class="st">RANKING</div></div>
 
-            <div class="dash-grid">
                 <div class="dash-card glass hud-corner" data-tilt>
                     <h3><i class="fa-solid fa-money-bill-trend-up" style="margin-left:8px;"></i>WEEKLY HEIST GOAL</h3>
                     <div class="big" id="heistCurrent">0h 0m</div>
@@ -411,6 +408,10 @@
                     </div>
                 </div>
 
+                <div class="duty-core" id="dutyCore" onclick="toggleDuty()" title="اضغط لتبديل الدوام">
+                    <div class="duty-status" id="stat-duty">OFF</div>
+                </div>
+
                 <div class="dash-card glass hud-corner fine-card" data-tilt>
                     <h3><i class="fa-solid fa-file-invoice-dollar" style="margin-left:8px;"></i>CRIMINAL RECORD</h3>
                     <div id="fineBody">
@@ -418,29 +419,11 @@
                         <div class="fine-reason">لا توجد غرامات مستحقة</div>
                     </div>
                 </div>
-            </div>
 
-            <div class="quick-grid">
-                <div class="quick-btn glass" data-tilt onclick="goSection('shop')">
-                    <i class="fa-solid fa-gun" style="color:var(--green);"></i>
-                    <div class="qb-t">BLACK MARKET WEAPONRY</div>
-                    <div class="qb-s">تجهيزات وأسلحة الشبكة</div>
+                <div class="glass hud-corner dash-notes" data-tilt>
+                    <h3 class="glass-title" style="margin-top:0;"><i class="fa-solid fa-book" style="margin-left:8px;"></i>MY NOTES / ملاحظاتي</h3>
+                    <div id="myNotesList" style="margin-top:6px;"><div class="empty">لا توجد ملاحظات إدارية</div></div>
                 </div>
-                <div class="quick-btn glass" data-tilt onclick="goSection('tracking')">
-                    <i class="fa-solid fa-map-location-dot" style="color:var(--green);"></i>
-                    <div class="qb-t">GANG TRACKING MAP</div>
-                    <div class="qb-s">خريطة تواجد الأعضاء</div>
-                </div>
-                <div class="quick-btn glass quick-emergency" data-tilt onclick="triggerEmergency()">
-                    <i class="fa-solid fa-siren"></i>
-                    <div class="qb-t">TRIGGER EMERGENCY</div>
-                    <div class="qb-s">استنفار عام فوري</div>
-                </div>
-            </div>
-
-            <div class="glass hud-corner" style="padding:22px; margin-top:16px;" data-tilt>
-                <h3 class="glass-title" style="margin-top:0;"><i class="fa-solid fa-book" style="margin-left:8px;"></i>MY NOTES / ملاحظاتي</h3>
-                <div id="myNotesList" style="margin-top:6px;"><div class="empty">لا توجد ملاحظات إدارية</div></div>
             </div>
         </section>
 
@@ -1177,7 +1160,7 @@
 
         // صلاحيات الأقسام (المافيا)
         const role = userData.role;
-        $('dutySwitch').style.display = 'flex';
+        $('dutySwitch').style.display = 'none';
         $('nav-dashboard').style.display = 'flex';
         $('nav-shop').style.display = 'flex';
         $('nav-tracking').style.display = 'flex';
