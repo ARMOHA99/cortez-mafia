@@ -404,6 +404,7 @@ app.get('/api/auth/me', async (req, res) => {
         if (!token) return res.status(401).json({ error: "غير مصرح" });
         const decoded = jwt.verify(token, JWT_SECRET);
         const user = await User.findById(decoded.id, 'username role duty_status fine_amount fine_reason');
+        if (!user) return res.status(401).json({ error: "حسابك لم يعد موجوداً", forceLogout: true });
         res.json(user);
     } catch { res.status(401).json({ error: "انتهت الجلسة" }); }
 });
@@ -1383,8 +1384,15 @@ const forceUserLogout = (username) => {
 // ---------------- Sockets ----------------
 io.on('connection', (socket) => {
     // ربط السوكيت باسم المستخدم المسجل
-    socket.on('register', (data) => {
+    socket.on('register', async (data) => {
         if (data && data.username) {
+            try {
+                const user = await User.findOne({ username: data.username }).select('account_status is_blacklisted');
+                if (!user || user.account_status !== 'approved' || user.is_blacklisted) {
+                    socket.emit('forceLogout', { reason: 'حسابك غير موجود أو تم حظره من النظام.' });
+                    return;
+                }
+            } catch(e){}
             socketUsers[socket.id] = data.username;
             if (!userSockets[data.username]) userSockets[data.username] = [];
             if (!userSockets[data.username].includes(socket.id)) {
