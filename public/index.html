@@ -211,11 +211,6 @@
         .present{ color:var(--green); font-weight:700; } .absent{ color:var(--red); font-weight:700; }
         .rank-1{ color:#ffd700; } .rank-2{ color:#c0c0c0; } .rank-3{ color:#cd7f32; }
 
-        /* ============ REQUESTS ============ */
-        .req-grid{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
-        .req-box{ padding:22px; }
-        .req-box h3{ font-family:var(--mono); letter-spacing:3px; color:var(--green); margin:0 0 6px; }
-        .req-box .desc{ font-size:.75rem; color:var(--muted); margin-bottom:6px; }
         .log-item{ padding:11px 0; border-bottom:1px dashed rgba(0,255,102,0.14); font-size:.8rem; }
         .log-item:last-child{ border-bottom:none; }
         .badge{ display:inline-block; padding:2px 10px; border-radius:20px; font-family:var(--mono); font-size:.6rem; letter-spacing:1px; }
@@ -382,10 +377,9 @@
 
         <div id="nav">
             <button class="nav-btn active" id="nav-dashboard" data-nav="dashboard" onclick="goSection('dashboard')"><i class="fa-solid fa-gauge-high"></i> DASHBOARD</button>
-            <button class="nav-btn" id="nav-shop" data-nav="shop" onclick="goSection('shop')"><i class="fa-solid fa-gun"></i> BLACK MARKET</button>
+            <button class="nav-btn" id="nav-shop" data-nav="shop" onclick="goSection('shop')"><i class="fa-solid fa-gun"></i> GANG SHOP</button>
             <button class="nav-btn" id="nav-tracking" data-nav="tracking" onclick="goSection('tracking')"><i class="fa-solid fa-map-location-dot"></i> TRACKING</button>
             <button class="nav-btn" data-nav="attendance" id="nav-attendance" style="display:none;" onclick="goSection('attendance')"><i class="fa-solid fa-clipboard-check"></i> ATTENDANCE</button>
-            <button class="nav-btn" id="nav-requests" data-nav="requests" onclick="goSection('requests')"><i class="fa-solid fa-envelope-open-text"></i> REQUESTS</button>
             <button class="nav-btn" data-nav="gangshop" id="nav-gangshop" style="display:none;" onclick="goSection('gangshop')"><i class="fa-solid fa-people-group"></i> GANG SHOP</button>
             <button class="nav-btn" data-nav="inventory" id="nav-inventory" style="display:none;" onclick="goSection('inventory')"><i class="fa-solid fa-calculator"></i> INVENTORY</button>
             <button class="nav-btn" data-nav="ops" id="nav-ops" style="display:none;" onclick="goSection('ops')"><i class="fa-solid fa-user-shield"></i> OPS CENTER</button>
@@ -432,8 +426,17 @@
             <div class="shop-layout">
                 <div class="glass" style="padding:20px;">
                     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:16px;">
-                        <h2 class="glass-title" style="margin:0;"><i class="fa-solid fa-gun" style="margin-left:10px;"></i>BLACK MARKET WEAPONRY</h2>
+                        <h2 class="glass-title" style="margin:0;"><i class="fa-solid fa-gun" style="margin-left:10px;"></i>GANG SHOP WEAPONRY</h2>
                         <button class="btn-cyber btn-ghost" onclick="openCart()"><i class="fa-solid fa-cart-shopping" style="margin-left:8px;"></i>CART <span id="cartCount" style="color:var(--amber);">0</span></button>
+                    </div>
+                    <div id="mkt-admin-box" style="display:none; padding:18px; margin-bottom:16px; background:rgba(0,0,0,0.25);">
+                        <div class="form-label">إضافة منتج جديد للمتجر</div>
+                        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                            <input class="cyber-input" id="mkt-name" placeholder="اسم المنتج" style="flex:2; min-width:140px;">
+                            <input class="cyber-input" id="mkt-price" type="number" placeholder="السعر $" style="flex:1; min-width:100px;">
+                            <input class="cyber-input" id="mkt-img" placeholder="رابط الصورة" style="flex:2; min-width:140px;">
+                            <button class="btn-cyber btn-green" onclick="addMarketItem()">نشر المنتج</button>
+                        </div>
                     </div>
                     <div class="item-grid" id="shopGrid"><div class="loading">جاري التحميل...</div></div>
                 </div>
@@ -481,45 +484,18 @@
             </div>
         </section>
 
-        <!-- REQUESTS -->
-        <section id="sec-requests" class="section">
-            <div class="req-grid">
-                <div class="req-box glass">
-                    <h3><i class="fa-solid fa-umbrella-beach" style="margin-left:8px;"></i>CONGE / إجازة</h3>
-                    <div class="desc">طلب إجازة رسمية — يقرها GRH أو القيادة</div>
-                    <div class="form-label" style="margin-top:16px;">السبب</div>
-                    <input class="cyber-input" id="leave-reason" placeholder="سبب الإجازة">
-                    <div class="form-label">المدة (أيام)</div>
-                    <input class="cyber-input" id="leave-days" type="number" min="1" placeholder="عدد الأيام">
-                    <button class="btn-cyber btn-green" style="width:100%; margin-top:16px; padding:13px;" onclick="submitLeave()">إرسال الطلب</button>
-                </div>
-                <div class="req-box glass">
-                    <h3><i class="fa-solid fa-file-shield" style="margin-left:8px;"></i>ABSENCE / تبرير</h3>
-                    <div class="desc">تبرير غياب قانوني — يفحصه GRH أو القيادة</div>
-                    <div class="form-label" style="margin-top:16px;">العذر القانوني</div>
-                    <input class="cyber-input" id="just-reason" placeholder="العذر والسبب">
-                    <button class="btn-cyber btn-green" style="width:100%; margin-top:16px; padding:13px;" onclick="submitJustify()">إرسال التبرير</button>
-                </div>
-            </div>
-            <div class="glass" style="padding:20px; margin-top:16px;">
-                <h3 class="glass-title" style="margin-top:0;"><i class="fa-solid fa-scroll" style="margin-left:8px;"></i>REQUEST LOG</h3>
-                <div id="reqLog"><div class="loading">جاري التحميل...</div></div>
-            </div>
-        </section>
-
         <!-- OPS CENTER -->
         <section id="sec-ops" class="section">
             <div class="glass" style="padding:20px;">
                 <h2 class="glass-title" style="margin-top:0;"><i class="fa-solid fa-user-shield" style="margin-left:10px;"></i>OPS CENTER — إدارة الشبكة</h2>
+                <button class="btn-cyber btn-red" id="btn-weekly-reset" style="display:none; margin-bottom:14px;" onclick="confirmWeeklyReset()"><i class="fa-solid fa-calendar-week" style="margin-left:8px;"></i>أرشفة الأسبوع وتصفير الساعات</button>
                 <div class="ops-tabs" id="opsTabs">
                     <div class="ops-tab active" data-ops="penalty" onclick="opsTab('penalty')">العقوبات</div>
                     <div class="ops-tab" data-ops="pending" onclick="opsTab('pending')">حسابات معلقة</div>
                     <div class="ops-tab" data-ops="fines" onclick="opsTab('fines')">الغرامات</div>
                         <div class="ops-tab" data-ops="warnings" onclick="opsTab('warnings')">الإنذارات</div>
                         <div class="ops-tab" data-ops="notes" onclick="opsTab('notes')">الملاحظات</div>
-                        <div class="ops-tab" data-ops="treasury" onclick="opsTab('treasury')">الخزينة</div>
                     <div class="ops-tab" data-ops="audit" onclick="opsTab('audit')">سجل التدقيق</div>
-                    <div class="ops-tab" data-ops="market" onclick="opsTab('market')">إدارة السوق</div>
                 </div>
 
                 <div id="ops-panel-penalty" class="ops-panel active">
@@ -618,17 +594,6 @@
                     </div></div>
                 </div>
 
-                <div id="ops-panel-treasury" class="ops-panel">
-                    <div class="stat-row">
-                        <div class="stat-mini glass"><div class="sv" id="treasuryVal" style="color:var(--amber);">0$</div><div class="st">MAFIA TREASURY</div></div>
-                    </div>
-                    <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                        <button class="btn-cyber btn-red" id="btn-treasury-reset" style="display:none;" onclick="confirmResetTreasury()">تصفير الخزينة</button>
-                        <button class="btn-cyber btn-red" id="btn-weekly-reset" style="display:none;" onclick="confirmWeeklyReset()">أرشفة الأسبوع وتصفير الساعات</button>
-                    </div>
-                    <div id="archiveBox" style="margin-top:16px;"></div>
-                </div>
-
                 <div id="ops-panel-audit" class="ops-panel">
                     <div class="table-wrap"><div class="scroll">
                         <table class="data-table" id="tbl-audit">
@@ -636,20 +601,6 @@
                             <tbody></tbody>
                         </table>
                     </div></div>
-                </div>
-
-                <div id="ops-panel-market" class="ops-panel">
-                    <div class="form-grid">
-                        <div class="full">
-                            <div class="form-label">إضافة منتج للسوق الأسود (BLACK MARKET)</div>
-                            <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                                <input class="cyber-input" id="mkt-name" placeholder="اسم المنتج" style="flex:2; min-width:140px;">
-                                <input class="cyber-input" id="mkt-price" type="number" placeholder="السعر $" style="flex:1; min-width:100px;">
-                                <input class="cyber-input" id="mkt-img" placeholder="رابط الصورة" style="flex:2; min-width:140px;">
-                                <button class="btn-cyber btn-green" onclick="addMarketItem()">نشر المنتج</button>
-                            </div>
-                        </div>
-                    </div>
                 </div>
             </div>
         </section>
@@ -687,13 +638,8 @@
             <div id="gm-admin-zone" style="display:none;">
                 <div class="glass" style="padding:20px;">
                     <h2 class="glass-title" style="margin-top:0;"><i class="fa-solid fa-user-shield" style="margin-left:10px;"></i>GANG SHOP ADMIN — إدارة السوق</h2>
-                    <div class="ops-tabs" id="gangAdminTabs" style="margin-top:14px;">
-                        <div class="ops-tab active" data-gtab="manage" onclick="gangTab('manage')">إدارة الكتالوج</div>
-                        <div class="ops-tab" data-gtab="orders" onclick="gangTab('orders')">الطلبات</div>
-                        <div class="ops-tab" data-gtab="treasury" onclick="gangTab('treasury')">الخزينة</div>
-                    </div>
-
-                    <div id="gang-panel-manage" class="ops-panel active">
+                    <h3 class="glass-title" style="margin-top:14px;"><i class="fa-solid fa-boxes-stacked" style="margin-left:8px;"></i>إدارة الكتالوج</h3>
+                    <div id="gang-panel-manage">
                         <div class="glass" style="padding:18px; margin-bottom:16px; background:rgba(0,0,0,0.25);">
                             <div class="form-label">إضافة منتج جديد</div>
                             <div class="form-grid">
@@ -718,22 +664,14 @@
                             </div>
                         </div>
                         <div class="item-grid" id="gang-shop-catalog-container"><div class="loading">جاري تحميل الكتالوج...</div></div>
-                    </div>
 
-                    <div id="gang-panel-orders" class="ops-panel">
+                        <h3 class="glass-title" style="margin-top:22px;"><i class="fa-solid fa-clipboard-list" style="margin-left:8px;"></i>الطلبات</h3>
                         <div class="table-wrap"><div class="scroll">
                             <table class="data-table" id="tbl-gang-orders">
                                 <thead><tr><th>MEMBER</th><th>GANG</th><th>BOUGHT</th><th>SOLD</th><th>NET</th><th>STATUS</th><th>ACTION</th><th>DATE</th></tr></thead>
                                 <tbody></tbody>
                             </table>
                         </div></div>
-                    </div>
-
-                    <div id="gang-panel-treasury" class="ops-panel">
-                        <div class="stat-row">
-                            <div class="stat-mini glass"><div class="sv" id="gang-treasury-balance" style="color:var(--amber);">0$</div><div class="st">GANG SHOP TREASURY</div></div>
-                        </div>
-                        <button class="btn-cyber btn-red" id="btn-gang-treasury-reset" style="display:none;" onclick="resetGangTreasury()">تصفير خزينة شوب العصابات</button>
                     </div>
                 </div>
             </div>
@@ -1116,13 +1054,10 @@
         socket.on('notesUpdated', () => { loadMyNotes(); if(isVisible('ops')) loadAllNotes(); });
         socket.on('shopUpdated', () => { if(isVisible('shop')) loadShopItems(false); });
         socket.on('ordersUpdated', () => { if(isVisible('shop')) loadMyOrders(); });
-        socket.on('requestUpdated', () => { if(isVisible('requests')) loadReqLog(); });
         socket.on('auditLogUpdated', () => { if(isVisible('ops')) loadAudit(); });
-        socket.on('treasuryUpdated', () => { if(isVisible('ops')) loadTreasury(); });
         socket.on('inventoryUpdated', () => { if(isVisible('inventory')) loadInventory(); });
         socket.on('gangShopUpdated', () => { if(isVisible('gangshop')){ loadGangCatalog(); if(isGangAdmin()) loadGangShopCatalog(); } });
         socket.on('gangOrdersUpdated', () => { if(isVisible('gangshop')){ if(userData && userData.role === 'Gang_Member') loadMyGangOrders(); if(isGangAdmin()) loadGangOrders(); } });
-        socket.on('gangTreasuryUpdated', () => { if(isVisible('gangshop') && isGangAdmin()) loadGangTreasury(); });
     }
     function isVisible(sec){ return $('sec-'+sec) && $('sec-'+sec).classList.contains('active'); }
     function applyDutyUI(){
@@ -1149,7 +1084,7 @@
 
         // عضو العصابة: مسار منفصل — يرى شوب العصابة فقط ولا يلمس أي بيانات/أقسام خاصة بالمافيا
         if(userData.role === 'Gang_Member'){
-            ['nav-dashboard','nav-shop','nav-tracking','nav-attendance','nav-requests','nav-inventory','nav-ops'].forEach(id => { const el = $(id); if(el) el.style.display = 'none'; });
+            ['nav-dashboard','nav-shop','nav-tracking','nav-attendance','nav-inventory','nav-ops'].forEach(id => { const el = $(id); if(el) el.style.display = 'none'; });
             $('nav-gangshop').style.display = 'flex';
             $('dutySwitch').style.display = 'none';
             $('gm-member-zone').style.display = 'block';
@@ -1165,17 +1100,15 @@
         $('nav-dashboard').style.display = 'flex';
         $('nav-shop').style.display = 'flex';
         $('nav-tracking').style.display = 'flex';
-        $('nav-requests').style.display = 'flex';
         $('nav-attendance').style.display = ['Don','Underboss','GRH','Business_Manager'].includes(role) ? 'flex' : 'none';
         $('nav-ops').style.display = ['Don','Underboss','GRH','Business_Manager'].includes(role) ? 'flex' : 'none';
         $('nav-gangshop').style.display = isGangAdmin() ? 'flex' : 'none';
         $('nav-inventory').style.display = ['Don','Underboss','Business_Manager'].includes(role) ? 'flex' : 'none';
-        $('btn-treasury-reset').style.display = role==='Don' ? 'inline-block' : 'none';
         $('btn-weekly-reset').style.display = role==='Don' ? 'inline-block' : 'none';
-        $('btn-gang-treasury-reset').style.display = role==='Don' ? 'inline-block' : 'none';
         $('gm-member-zone').style.display = 'none';
         $('gm-admin-zone').style.display = isGangAdmin() ? 'block' : 'none';
         $('inv-admin-add').style.display = ['Don','Underboss','Business_Manager'].includes(role) ? 'block' : 'none';
+        $('mkt-admin-box').style.display = ['Don','Underboss','Business_Manager'].includes(role) ? 'block' : 'none';
 
         connectSocket();
         renderDashboard();
@@ -1200,11 +1133,10 @@
         if(name==='shop'){ loadShopItems(false); loadMyOrders(); }
         if(name==='tracking') loadLeaderboard(false);
         if(name==='attendance') loadAttendance();
-        if(name==='requests') loadReqLog();
         if(name==='gangshop'){
             loadGangCatalog();
             if(userData && userData.role === 'Gang_Member') loadMyGangOrders();
-            if(isGangAdmin()){ loadGangShopCatalog(); loadGangOrders(); loadGangTreasury(); }
+            if(isGangAdmin()){ loadGangShopCatalog(); loadGangOrders(); }
         }
         if(name==='inventory') loadInventory();
         if(name==='ops') loadOps();
@@ -1424,45 +1356,13 @@
         });
     }
 
-    /* ---------- Requests ---------- */
-    async function submitLeave(){
-        const reason = $('leave-reason').value.trim();
-        const days = $('leave-days').value;
-        if(!reason || !days){ toast('أدخل السبب والمدة', 'warn'); return; }
-        try { const d = await api('/api/hr/leave', { method:'POST', body:{ reason, duration: days } }); toast(d.msg); $('leave-reason').value=''; $('leave-days').value=''; loadReqLog(); }
-        catch(e){ toast(e.message, 'err'); }
-    }
-    async function submitJustify(){
-        const reason = $('just-reason').value.trim();
-        if(!reason){ toast('أدخل العذر', 'warn'); return; }
-        try { const d = await api('/api/hr/justify', { method:'POST', body:{ reason } }); toast(d.msg); $('just-reason').value=''; loadReqLog(); }
-        catch(e){ toast(e.message, 'err'); }
-    }
-    async function loadReqLog(){
-        const box = $('reqLog');
-        try {
-            const data = await api('/api/hr/log');
-            let html = '<div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">';
-            html += '<div><h3 class="glass-title" style="font-size:.8rem;">الإجازات</h3>';
-            (data.leaves||[]).slice(0,15).forEach(l => {
-                html += `<div class="log-item"><b>${esc(l.username)}</b> — ${esc(l.reason)} (${l.duration} أيام) <span class="badge ${l.status||'Pending'}">${l.status||'Pending'}</span></div>`;
-            });
-            html += '</div><div><h3 class="glass-title" style="font-size:.8rem;">التبريرات</h3>';
-            (data.justifications||[]).slice(0,15).forEach(j => {
-                html += `<div class="log-item"><b>${esc(j.username)}</b> — ${esc(j.reason)} <span class="badge ${j.status||'Pending'}">${j.status||'Pending'}</span></div>`;
-            });
-            html += '</div></div>';
-            box.innerHTML = html;
-        } catch(e){ box.innerHTML = '<div class="empty">لا يمكن تحميل السجل</div>'; }
-    }
-
     /* ---------- OPS ---------- */
     function opsTab(name){
         document.querySelectorAll('#opsTabs .ops-tab').forEach(t => t.classList.toggle('active', t.dataset.ops===name));
         document.querySelectorAll('#sec-ops .ops-panel').forEach(p => p.classList.remove('active'));
         $('ops-panel-'+name).classList.add('active');
     }
-    function loadOps(){ loadPending(); loadFines(); loadWarnings(); loadAllNotes(); loadAudit(); loadTreasury(); }
+    function loadOps(){ loadPending(); loadFines(); loadWarnings(); loadAllNotes(); loadAudit(); }
     async function loadUsersList(){
         try {
             const users = await api('/api/users/list');
@@ -1587,27 +1487,6 @@
                 </tr>`;
             });
         } catch(e){}
-    }
-    async function loadTreasury(){
-        try {
-            const data = await api('/api/treasury/balance');
-            $('treasuryVal').textContent = money(data.balance_raw);
-        } catch(e){}
-        try {
-            const archives = await api('/api/admin/archive');
-            const box = $('archiveBox');
-            box.innerHTML = '<h3 class="glass-title" style="font-size:.8rem;">الأرشيف</h3>' + (archives.length ? '' : '<div class="empty">لا يوجد أرشيف</div>');
-            archives.slice(0,8).forEach(a => {
-                const recs = (a.records||[]);
-                box.innerHTML += `<div class="log-item" style="font-family:var(--mono); font-size:.7rem;">WEEK: ${esc(new Date(a.week_date).toLocaleDateString('en-GB'))} — ${recs.length} أعضاء</div>`;
-            });
-        } catch(e){}
-    }
-    function confirmResetTreasury(){
-        openModal('تصفير الخزينة', 'هل أنت متأكد من تصفير خزينة العصابة بالكامل؟', async () => {
-            try { const d = await api('/api/treasury/reset', { method:'POST' }); toast(d.msg); loadTreasury(); }
-            catch(e){ toast(e.message, 'err'); }
-        });
     }
     function confirmWeeklyReset(){
         openModal('أرشفة الأسبوع', 'سيتم أرشفة ساعات الجميع وتصفيرها. متأكد؟', async () => {
@@ -1779,11 +1658,6 @@
        GANG SHOP — ADMIN (إدارة الكتالوج / الطلبات / الخزينة)
        ============================================================ */
     function isGangAdmin(){ return userData && ['Don','Underboss','Business_Manager','GRH','Chef_Braquage'].includes(userData.role); }
-    function gangTab(name){
-        document.querySelectorAll('#gangAdminTabs .ops-tab').forEach(t => t.classList.toggle('active', t.dataset.gtab === name));
-        document.querySelectorAll('#gm-admin-zone .ops-panel').forEach(p => p.classList.remove('active'));
-        $('gang-panel-' + name).classList.add('active');
-    }
     async function loadGangShopCatalog(){
         try {
             const items = await api('/api/gang-shop/items');
@@ -1946,23 +1820,13 @@
     }
     function confirmGangOrder(id){
         openModal('تأكيد الطلب', 'هل تأكدت من إتمام تسليم الأشياء/الفلوس مع العضو فعلياً بالمدينة؟', async () => {
-            try { const d = await api('/api/gang-shop/order/' + id + '/confirm', { method:'POST' }); toast(d.msg); loadGangOrders(); loadGangTreasury(); }
+            try { const d = await api('/api/gang-shop/order/' + id + '/confirm', { method:'POST' }); toast(d.msg); loadGangOrders(); }
             catch(e){ toast(e.message, 'err'); }
         });
     }
     function rejectGangOrder(id){
         openPrompt('رفض الطلب', 'سبب الرفض (اختياري):', async (reason) => {
             try { const d = await api('/api/gang-shop/order/' + id + '/reject', { method:'POST', body:{ reason: reason || '' } }); toast(d.msg); loadGangOrders(); }
-            catch(e){ toast(e.message, 'err'); }
-        });
-    }
-    async function loadGangTreasury(){
-        try { const d = await api('/api/gang-shop/treasury'); $('gang-treasury-balance').innerText = money(d.balance_raw); }
-        catch(e){}
-    }
-    function resetGangTreasury(){
-        openModal('تصفير الخزينة', 'تحذير: تصفير خزينة شوب العصابات بالكامل؟ هذا الإجراء لا يمكن التراجع عنه.', async () => {
-            try { const d = await api('/api/gang-shop/treasury/reset', { method:'POST' }); toast(d.msg); loadGangTreasury(); }
             catch(e){ toast(e.message, 'err'); }
         });
     }
