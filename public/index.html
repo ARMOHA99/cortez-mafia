@@ -377,7 +377,7 @@
 
         <div id="nav">
             <button class="nav-btn active" id="nav-dashboard" data-nav="dashboard" onclick="goSection('dashboard')"><i class="fa-solid fa-gauge-high"></i> DASHBOARD</button>
-            <button class="nav-btn" id="nav-shop" data-nav="shop" onclick="goSection('shop')"><i class="fa-solid fa-gun"></i> GANG SHOP</button>
+            <button class="nav-btn" id="nav-shop" data-nav="shop" onclick="goSection('shop')"><i class="fa-solid fa-gun"></i> MEMBER SHOP</button>
             <button class="nav-btn" id="nav-tracking" data-nav="tracking" onclick="goSection('tracking')"><i class="fa-solid fa-map-location-dot"></i> TRACKING</button>
             <button class="nav-btn" data-nav="attendance" id="nav-attendance" style="display:none;" onclick="goSection('attendance')"><i class="fa-solid fa-clipboard-check"></i> ATTENDANCE</button>
             <button class="nav-btn" data-nav="gangshop" id="nav-gangshop" style="display:none;" onclick="goSection('gangshop')"><i class="fa-solid fa-people-group"></i> GANG SHOP</button>
@@ -426,7 +426,7 @@
             <div class="shop-layout">
                 <div class="glass" style="padding:20px;">
                     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:16px;">
-                        <h2 class="glass-title" style="margin:0;"><i class="fa-solid fa-gun" style="margin-left:10px;"></i>GANG SHOP WEAPONRY</h2>
+                        <h2 class="glass-title" style="margin:0;"><i class="fa-solid fa-gun" style="margin-left:10px;"></i>MEMBER SHOP WEAPONRY</h2>
                         <button class="btn-cyber btn-ghost" onclick="openCart()"><i class="fa-solid fa-cart-shopping" style="margin-left:8px;"></i>CART <span id="cartCount" style="color:var(--amber);">0</span></button>
                     </div>
                     <div id="mkt-admin-box" style="display:none; padding:18px; margin-bottom:16px; background:rgba(0,0,0,0.25);">
@@ -638,8 +638,16 @@
             <div id="gm-admin-zone" style="display:none;">
                 <div class="glass" style="padding:20px;">
                     <h2 class="glass-title" style="margin-top:0;"><i class="fa-solid fa-user-shield" style="margin-left:10px;"></i>GANG SHOP ADMIN — إدارة السوق</h2>
-                    <h3 class="glass-title" style="margin-top:14px;"><i class="fa-solid fa-boxes-stacked" style="margin-left:8px;"></i>إدارة الكتالوج</h3>
+                    <h3 class="glass-title" style="margin-top:14px;"><i class="fa-solid fa-clipboard-list" style="margin-left:8px;"></i>الطلبات</h3>
                     <div id="gang-panel-manage">
+                        <div class="table-wrap"><div class="scroll">
+                            <table class="data-table" id="tbl-gang-orders">
+                                <thead><tr><th>MEMBER</th><th>GANG</th><th>BOUGHT</th><th>SOLD</th><th>NET</th><th>STATUS</th><th>ACTION</th><th>DATE</th></tr></thead>
+                                <tbody></tbody>
+                            </table>
+                        </div></div>
+
+                        <h3 class="glass-title" style="margin-top:22px;"><i class="fa-solid fa-boxes-stacked" style="margin-left:8px;"></i>إدارة الكتالوج</h3>
                         <div class="glass" style="padding:18px; margin-bottom:16px; background:rgba(0,0,0,0.25);">
                             <div class="form-label">إضافة منتج جديد</div>
                             <div class="form-grid">
@@ -664,14 +672,6 @@
                             </div>
                         </div>
                         <div class="item-grid" id="gang-shop-catalog-container"><div class="loading">جاري تحميل الكتالوج...</div></div>
-
-                        <h3 class="glass-title" style="margin-top:22px;"><i class="fa-solid fa-clipboard-list" style="margin-left:8px;"></i>الطلبات</h3>
-                        <div class="table-wrap"><div class="scroll">
-                            <table class="data-table" id="tbl-gang-orders">
-                                <thead><tr><th>MEMBER</th><th>GANG</th><th>BOUGHT</th><th>SOLD</th><th>NET</th><th>STATUS</th><th>ACTION</th><th>DATE</th></tr></thead>
-                                <tbody></tbody>
-                            </table>
-                        </div></div>
                     </div>
                 </div>
             </div>
