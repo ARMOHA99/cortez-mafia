@@ -292,17 +292,11 @@
         #gang-modal-body .input-group input, #gang-modal-body .input-group select{ width:100%; }
 
         /* ===== Champion Cup ===== */
-        .tt-groups{ display:grid; grid-template-columns:repeat(auto-fit, minmax(230px,1fr)); gap:14px; margin-bottom:18px; }
-        .tt-group-card{ border:1px solid rgba(255,255,255,0.08); border-radius:14px; padding:14px; background:rgba(0,0,0,0.3); }
-        .tt-group-head{ display:flex; justify-content:space-between; align-items:center; font-family:var(--mono); font-size:.68rem; letter-spacing:1px; color:var(--green); margin-bottom:10px; }
         .tt-team{ display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 10px; border-radius:10px; background:rgba(0,0,0,0.35); margin-bottom:8px; border:1px solid rgba(255,255,255,0.05); }
         .tt-team:last-child{ margin-bottom:0; }
         .tt-team .tt-name{ font-weight:700; font-size:.82rem; }
         .tt-score{ font-family:var(--mono); color:var(--amber); font-weight:700; }
-        .tt-bracket{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
-        .tt-bracket-col{ display:flex; flex-direction:column; gap:12px; }
-        .tt-bracket-final{ grid-column:1 / -1; }
-        .tt-match-card{ border:1px solid var(--green-line); border-radius:14px; padding:14px; background:rgba(0,255,102,0.05); }
+        .tt-match-card{ border:1px solid var(--green-line); border-radius:14px; padding:14px; background:rgba(0,0,0,0.4); }
         .tt-match-stage{ font-family:var(--mono); font-size:.65rem; letter-spacing:2px; color:var(--green); margin-bottom:8px; display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap; }
         .tt-vs{ text-align:center; color:var(--muted); font-family:var(--mono); font-size:.72rem; margin:6px 0; }
         .tt-weapons{ margin-top:8px; font-size:.72rem; color:var(--muted); }
@@ -316,6 +310,28 @@
         .tt-prize-body{ padding:12px; }
         .tt-prize-total{ text-align:center; margin-top:16px; font-family:var(--mono); color:var(--amber); font-size:1.1rem; }
         .tt-archive-item{ display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; padding:14px; border-radius:12px; border:1px solid rgba(255,255,255,0.07); background:rgba(0,0,0,0.3); margin-bottom:10px; }
+
+        /* شجرة knockout بخطوط ربط والنهائي في المنتصف */
+        .tt-bracket-wrap{ overflow-x:auto; padding:34px 8px 10px; }
+        .tt-bracket{ position:relative; margin:0 auto; }
+        .tt-bracket-col-head{ position:absolute; top:-30px; text-align:center; font-family:var(--mono); font-size:.62rem; letter-spacing:2px; color:var(--amber); white-space:nowrap; }
+        .tt-bracket-card{ position:absolute; padding:9px 10px; border-radius:12px; direction:ltr; }
+        .tt-bracket-card .tt-tbd{ padding:6px; }
+        .tt-conn{ position:absolute; background:rgba(0,255,102,.45); pointer-events:none; }
+        .tt-conn.h{ height:2px; }
+        .tt-conn.v{ width:2px; }
+
+        /* اختيار العصابات / عدد العصابات */
+        .tt-gang-chip{ cursor:pointer; display:flex; align-items:center; gap:8px; padding:10px 14px; border:1px solid rgba(255,255,255,.12); border-radius:12px; background:rgba(0,0,0,.3); font-size:.8rem; font-weight:600; transition:.15s; }
+        .tt-gang-chip:hover{ border-color:var(--green-line); }
+        .tt-gang-chip.on{ border-color:var(--green); background:rgba(0,255,102,.12); box-shadow:0 0 12px rgba(0,255,102,.2); }
+        .tt-seed-num{ min-width:22px; height:22px; line-height:22px; text-align:center; border-radius:50%; font-family:var(--mono); font-size:.65rem; color:#0a0a0a; background:var(--amber); }
+        .tt-size-chip{ cursor:pointer; flex:1; min-width:90px; text-align:center; padding:14px 10px; border:1px solid rgba(255,255,255,.12); border-radius:12px; background:rgba(0,0,0,.3); font-family:var(--display); font-size:1.1rem; font-weight:700; }
+        .tt-size-chip span{ display:block; font-size:.62rem; color:var(--muted); font-family:var(--mono); font-weight:400; }
+        .tt-size-chip.on{ border-color:var(--green); background:rgba(0,255,102,.12); box-shadow:0 0 12px rgba(0,255,102,.2); }
+        .tt-groups{ display:grid; grid-template-columns:repeat(auto-fit, minmax(230px,1fr)); gap:14px; margin-bottom:18px; }
+        .tt-group-card{ border:1px solid rgba(255,255,255,0.08); border-radius:14px; padding:14px; background:rgba(0,0,0,0.3); }
+        .tt-group-head{ display:flex; justify-content:space-between; align-items:center; font-family:var(--mono); font-size:.68rem; letter-spacing:1px; color:var(--green); margin-bottom:10px; }
 
         @media (max-width:900px){
             .dash-grid,.req-grid,.shop-layout,.stat-row,.form-grid,.three-col{ grid-template-columns:1fr; }
@@ -1124,7 +1140,7 @@
         socket.on('gangShopUpdated', () => { if(isVisible('gangshop')){ loadGangCatalog(); if(isGangAdmin()) loadGangShopCatalog(); } });
         socket.on('gangOrdersUpdated', () => { if(isVisible('gangshop')){ if(userData && userData.role === 'Gang_Member') loadMyGangOrders(); if(isGangAdmin()) loadGangOrders(); } });
         socket.on('tournament:created', () => { toast('🏆 تم إطلاق بطولة جديدة!', 'warn'); if(isVisible('tournament')) loadTournamentAll(); });
-        socket.on('tournament:groups-assigned', () => { if(isVisible('tournament')) loadTournamentAll(); });
+        socket.on('tournament:bracket-assigned', () => { if(isVisible('tournament')) loadTournamentAll(); });
         socket.on('tournament:match-scheduled', () => { if(isVisible('tournament')) loadTournamentAll(); });
         socket.on('tournament:match-completed', () => { if(isVisible('tournament')) loadTournamentAll(); });
         socket.on('tournament:stage-advanced', () => { if(isVisible('tournament')) loadTournamentAll(); });
@@ -1940,10 +1956,26 @@
     function ttFindMatch(id){
         return (tourData && tourData.matches || []).find(m => String(m._id) === String(id));
     }
+    function ttRounds(){
+        if(!tourData) return 0;
+        if(tourData.gangCount) return Math.round(Math.log2(tourData.gangCount));
+        const ms = tourData.matches || [];
+        if(ms.some(m => m.round != null)) return Math.max.apply(null, ms.map(m => m.round || 0)) || 1;
+        if(ms.some(m => m.stage === 'final')) return ms.some(m => m.stage === 'semifinal') ? 3 : 2;
+        return 1;
+    }
+    function ttRoundLabel(r, R){
+        if(r === R) return '🏆 النهائي';
+        if(R === 4){ if(r === 1) return 'دور الـ16'; if(r === 2) return 'ربع النهائي'; if(r === 3) return 'نصف النهائي'; }
+        if(R === 3){ if(r === 1) return 'ربع النهائي'; if(r === 2) return 'نصف النهائي'; }
+        if(R === 2){ if(r === 1) return 'نصف النهائي'; }
+        return 'دور ' + r;
+    }
     function ttStageLabel(m){
         if(!m) return '';
         if(m.stage === 'group') return 'المجموعة ' + (m.groupNumber||'');
-        if(m.stage === 'semifinal') return 'نصف النهائي';
+        if(m.stage === 'semifinal' && m.round == null) return 'نصف النهائي';
+        if(m.round != null) return ttRoundLabel(m.round, ttRounds());
         return 'النهائي';
     }
     function ttWeaponsHtml(m){
@@ -1990,7 +2022,7 @@
             return;
         }
         if(tourData.status === 'setup' || tourData.status === 'ongoing'){
-            box.innerHTML += `<button class="btn-cyber btn-ghost" onclick="ttGroupsModal()"><i class="fa-solid fa-shuffle" style="margin-left:6px;"></i>توزيع المجموعات</button>`;
+            box.innerHTML += `<button class="btn-cyber btn-ghost" onclick="ttBracketModal()"><i class="fa-solid fa-shuffle" style="margin-left:6px;"></i>تحديد العصابات وتوليد المربع</button>`;
             box.innerHTML += `<button class="btn-cyber btn-ghost" onclick="ttPrizesModal()"><i class="fa-solid fa-gift" style="margin-left:6px;"></i>إدارة الجوايز</button>`;
             box.innerHTML += `<button class="btn-cyber btn-red" onclick="ttCancel()"><i class="fa-solid fa-ban" style="margin-left:6px;"></i>إلغاء البطولة</button>`;
         }
@@ -2030,19 +2062,133 @@
             box.innerHTML = '<div class="empty">لا توجد بطولة حالية.</div>';
             return;
         }
+        const ms = tourData.matches || [];
+        if(ms.length && ms.every(m => m.round == null)){ renderLegacyBracket(); return; }
+        if(!ms.length){
+            box.innerHTML = '<div class="empty">لم تُحدد العصابات بعد — الـ Don يضغط "تحديد العصابات وتوليد المربع".</div>';
+            return;
+        }
+        const gangCount = tourData.gangCount || 8;
+        const R = ttRounds();
+        if(!R){ box.innerHTML = '<div class="empty">شجرة البطولة غير متاحة بعد.</div>'; return; }
+
+        const cardW = 250, cardH = 140, colGap = 64, colW = cardW + colGap, cellH = 176;
+        const leaves = gangCount / 2;
+        const height = leaves * cellH;
+        const cols = 2 * (R - 1) + 1;
+        const width = cols * colW;
+
+        const rounds = {};
+        ms.forEach(m => { if(m.round == null) return; (rounds[m.round] = rounds[m.round] || []).push(m); });
+        Object.keys(rounds).forEach(r => rounds[r].sort((a,b) => a.slotIndex - b.slotIndex));
+
+        const colX = c => c * colW;
+        const totalInRound = r => Math.pow(2, R - r);
+        const colFor = (r, k) => {
+            if(r === R) return R - 1;
+            const half = totalInRound(r) / 2;
+            return k < half ? (r - 1) : (2 * R - 1 - r);
+        };
+        const sideFor = (r, k) => (r === R) ? 'c' : (k < totalInRound(r) / 2 ? 'l' : 'r');
+        const spanTop = (r, k) => k * Math.pow(2, r - 1) * cellH;
+        const spanH = r => Math.pow(2, r - 1) * cellH;
+
+        let html = '';
+        html += `<div class="tt-bracket-wrap"><div class="tt-bracket" style="width:${width}px; height:${height}px; direction:ltr;">`;
+
+        for(let c = 0; c < cols; c++){
+            const label = (c === R - 1) ? '🏆 النهائي' : ttRoundLabel((c < R - 1) ? (c + 1) : (2 * R - 1 - c), R);
+            html += `<div class="tt-bracket-col-head" style="left:${colX(c)}px; width:${cardW}px;">${label}</div>`;
+        }
+
+        const cards = {};
+        for(let r = 1; r <= R; r++){
+            (rounds[r] || []).forEach((m, idx) => {
+                const k = m.slotIndex != null ? m.slotIndex : idx;
+                const x = colX(colFor(r, k));
+                const top = spanTop(r, k) + (spanH(r) - cardH) / 2;
+                cards[r + ':' + k] = { x, top, k, r };
+                html += ttBracketCardHtml(m, r, k, x, top, cardW, cardH);
+            });
+        }
+
+        const vertDrawn = {};
+        for(let r = 1; r < R; r++){
+            (rounds[r] || []).forEach((m, idx) => {
+                const k = m.slotIndex != null ? m.slotIndex : idx;
+                const pk = Math.floor(k / 2);
+                const parent = cards[(r + 1) + ':' + pk];
+                const child = cards[r + ':' + k];
+                if(!parent || !child) return;
+                const childY = spanTop(r, k) + spanH(r) / 2;
+                const parentY = spanTop(r + 1, pk) + spanH(r + 1) / 2;
+                const childX = colX(colFor(r, k));
+                const parentX = colX(colFor(r + 1, pk));
+                if(sideFor(r, k) === 'l'){
+                    const gap = parentX - (childX + cardW);
+                    const mid = childX + cardW + gap / 2;
+                    html += `<div class="tt-conn h" style="left:${childX + cardW}px; top:${childY - 1}px; width:${mid - (childX + cardW)}px;"></div>`;
+                    if(!vertDrawn[mid]){
+                        const sibY = spanTop(r, k ^ 1) + spanH(r) / 2;
+                        html += `<div class="tt-conn v" style="left:${mid - 1}px; top:${Math.min(childY, sibY)}px; height:${Math.abs(sibY - childY)}px;"></div>`;
+                        vertDrawn[mid] = true;
+                    }
+                    html += `<div class="tt-conn h" style="left:${mid}px; top:${parentY - 1}px; width:${parentX - mid}px;"></div>`;
+                } else {
+                    const parentRight = parentX + cardW;
+                    const gap = childX - parentRight;
+                    const mid = parentRight + gap / 2;
+                    html += `<div class="tt-conn h" style="left:${mid}px; top:${childY - 1}px; width:${childX - mid}px;"></div>`;
+                    if(!vertDrawn[mid]){
+                        const sibY = spanTop(r, k ^ 1) + spanH(r) / 2;
+                        html += `<div class="tt-conn v" style="left:${mid - 1}px; top:${Math.min(childY, sibY)}px; height:${Math.abs(sibY - childY)}px;"></div>`;
+                        vertDrawn[mid] = true;
+                    }
+                    html += `<div class="tt-conn h" style="left:${parentRight}px; top:${parentY - 1}px; width:${mid - parentRight}px;"></div>`;
+                }
+            });
+        }
+
+        html += '</div></div>';
+        box.innerHTML = html;
+    }
+    function ttBracketCardHtml(m, r, k, x, top, cardW, cardH){
+        const ready = m.gangA && m.gangB;
+        const a = ttGangName(m.gangA), b = ttGangName(m.gangB);
+        const winA = m.status === 'completed' && m.result.winner && String(m.result.winner) === String(m.gangA);
+        const winB = m.status === 'completed' && m.result.winner && String(m.result.winner) === String(m.gangB);
+        const rowStyle = w => w ? 'color:var(--green);' : '';
+        let body;
+        if(!ready){
+            body = '<div class="tt-tbd">بانتظار تأهل الفائزين...</div>';
+        } else {
+            body = `
+            <div style="display:flex; align-items:center; gap:6px; padding:5px 8px; border-radius:8px; background:rgba(0,0,0,.35);">
+                <span class="tt-name" style="flex:1; text-align:left; ${rowStyle(winA)}">${esc(a)}</span>
+                ${m.status === 'completed' ? `<span class="tt-score" style="${rowStyle(winA)}">${m.result.scoreA}</span>` : ''}
+            </div>
+            <div style="display:flex; align-items:center; gap:6px; padding:5px 8px; border-radius:8px; background:rgba(0,0,0,.35); margin-top:6px;">
+                ${m.status === 'completed' ? `<span class="tt-score" style="${rowStyle(winB)}">${m.result.scoreB}</span>` : ''}
+                <span class="tt-name" style="flex:1; text-align:right; ${rowStyle(winB)}">${esc(b)}</span>
+            </div>`;
+        }
+        const meta = m.status === 'completed' ? '' : (m.scheduledAt ? `<span style="color:var(--amber); font-family:var(--mono); font-size:.58rem;">${fmtDate(m.scheduledAt)}</span>` : '');
+        const btns = ready ? ttMatchMetaHtml(m) : '';
+        return `<div class="tt-match-card tt-bracket-card" style="left:${x}px; top:${top}px; width:${cardW}px; height:${cardH}px;">
+            <div class="tt-match-stage" style="font-size:.58rem; margin-bottom:6px;">${ttStageLabel(m)}${meta}</div>
+            ${body}
+            ${ready ? ttWeaponsHtml(m) : ''}
+            <div style="position:absolute; right:8px; bottom:6px; display:flex; gap:4px; flex-wrap:wrap; justify-content:flex-end; max-width:230px;">${btns}</div>
+        </div>`;
+    }
+    function renderLegacyBracket(){
+        const box = $('tt-bracket-box'); if(!box) return;
         let groupsHtml = '<div class="tt-groups">';
         (tourData.groups || []).forEach(g => {
             const m = ttFindMatch(g.matchId);
             const gangA = g.gangs && g.gangs[0], gangB = g.gangs && g.gangs[1];
-            let aBadge='', bBadge='';
-            if(m && m.status === 'completed'){
-                const wa = m.result.winner && String(m.result.winner) === String(gangA && gangA._id);
-                const wb = m.result.winner && String(m.result.winner) === String(gangB && gangB._id);
-                aBadge = wa ? '<span class="badge Approved">✅ متأهلة</span>' : (wb ? '<span class="badge Rejected">❌ مقصية</span>' : '');
-                bBadge = wb ? '<span class="badge Approved">✅ متأهلة</span>' : (wa ? '<span class="badge Rejected">❌ مقصية</span>' : '');
-            }
-            const aHtml = `<div class="tt-team"><span class="tt-name">${esc(gangA ? gangA.name : 'TBD')}</span><span style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">${m && m.status==='completed' ? `<span class="tt-score">${m.result.scoreA}</span>` : ''}${aBadge}</span></div>`;
-            const bHtml = `<div class="tt-team"><span class="tt-name">${esc(gangB ? gangB.name : 'TBD')}</span><span style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">${bBadge}${m && m.status==='completed' ? `<span class="tt-score">${m.result.scoreB}</span>` : ''}</span></div>`;
+            const aHtml = `<div class="tt-team"><span class="tt-name">${esc(gangA ? gangA.name : 'TBD')}</span>${m && m.status==='completed' ? `<span class="tt-score">${m.result.scoreA}</span>` : ''}</div>`;
+            const bHtml = `<div class="tt-team"><span class="tt-name">${esc(gangB ? gangB.name : 'TBD')}</span>${m && m.status==='completed' ? `<span class="tt-score">${m.result.scoreB}</span>` : ''}</div>`;
             groupsHtml += `<div class="tt-group-card">
                 <div class="tt-group-head"><span>المجموعة ${g.groupNumber}</span><span style="display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end;">${m ? ttMatchMetaHtml(m) : ''}</span></div>
                 ${aHtml}${bHtml}
@@ -2052,11 +2198,11 @@
         groupsHtml += '</div>';
         const semis = (tourData.matches || []).filter(x => x.stage === 'semifinal');
         const finalM = (tourData.matches || []).find(x => x.stage === 'final');
-        const semiCard = (m, idx) => {
-            if(!m) return `<div class="tt-match-card" style="border-color:rgba(255,179,0,.4);"><div class="tt-match-stage"><span>نصف النهائي ${idx+1}</span></div><div class="tt-tbd">بانتظار تأهل فائزي المجموعات...</div></div>`;
+        const semiCard = m => {
+            if(!m) return `<div class="tt-match-card" style="border-color:rgba(255,179,0,.4); margin-bottom:12px;"><div class="tt-match-stage"><span>نصف النهائي</span></div><div class="tt-tbd">بانتظار تأهل فائزي المجموعات...</div></div>`;
             const a = ttGangName(m.gangA), b = ttGangName(m.gangB);
-            return `<div class="tt-match-card">
-                <div class="tt-match-stage"><span>نصف النهائي ${idx+1}</span>${m.scheduledAt ? `<span style="color:var(--amber);">${fmtDate(m.scheduledAt)}</span>` : ''}</div>
+            return `<div class="tt-match-card" style="margin-bottom:12px;">
+                <div class="tt-match-stage"><span>نصف النهائي</span>${m.scheduledAt ? `<span style="color:var(--amber);">${fmtDate(m.scheduledAt)}</span>` : ''}</div>
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
                     <span class="tt-team" style="flex:1; margin:0;"><span class="tt-name">${esc(a)}</span>${m.status==='completed' ? `<span class="tt-score">${m.result.scoreA}</span>` : ''}</span>
                     <div class="tt-vs">VS</div>
@@ -2066,26 +2212,12 @@
                 <div style="margin-top:10px; display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end;">${ttMatchMetaHtml(m)}</div>
             </div>`;
         };
-        let bracketHtml = '<div class="tt-bracket">';
-        bracketHtml += `<div class="tt-bracket-col">${semiCard(semis[0], 0)}</div>`;
-        bracketHtml += `<div class="tt-bracket-col">${semiCard(semis[1], 1)}</div>`;
-        let finalHtml = '<div class="tt-match-card tt-bracket-final" style="border-color:rgba(255,179,0,.5); background:rgba(255,179,0,0.05);">';
-        finalHtml += '<div class="tt-match-stage"><span>🏆 النهائي</span>' + (finalM && finalM.scheduledAt ? `<span style="color:var(--amber);">${fmtDate(finalM.scheduledAt)}</span>` : '') + '</div>';
-        if(!finalM){
-            finalHtml += '<div class="tt-tbd">الفائزان من نصفي النهائي سيتواجهان هنا...</div>';
-        } else {
-            const a = ttGangName(finalM.gangA), b = ttGangName(finalM.gangB);
-            finalHtml += `<div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
-                <span class="tt-team" style="flex:1; margin:0;"><span class="tt-name">${esc(a)}</span>${finalM.status==='completed' ? `<span class="tt-score">${finalM.result.scoreA}</span>` : ''}</span>
-                <div class="tt-vs">VS</div>
-                <span class="tt-team" style="flex:1; margin:0; flex-direction:row-reverse;"><span class="tt-name">${esc(b)}</span>${finalM.status==='completed' ? `<span class="tt-score">${finalM.result.scoreB}</span>` : ''}</span>
-            </div>
-            ${ttWeaponsHtml(finalM)}
-            <div style="margin-top:10px; display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end;">${ttMatchMetaHtml(finalM)}</div>`;
+        let html = groupsHtml;
+        html += '<div style="max-width:720px; margin:0 auto;">' + semis.map(semiCard).join('') + '</div>';
+        if(finalM || semis.length === 2){
+            html += '<div style="max-width:720px; margin:18px auto 0;">' + semiCard(finalM) + '</div>';
         }
-        finalHtml += '</div>';
-        bracketHtml += finalHtml + '</div>';
-        box.innerHTML = groupsHtml + bracketHtml;
+        box.innerHTML = html;
     }
     function renderTournamentPrizes(){
         const box = $('tt-prizes-box'); if(!box) return;
@@ -2202,17 +2334,45 @@
             $('gang-modal-overlay').classList.add('open');
         } catch(e){ toast(e.message, 'err'); }
     }
-    async function ttLaunch(){
+    let ttLaunchSize = 8;
+    function ttLaunch(){
         if(!isTournamentManager()) return;
-        openModal('إطلاق بطولة جديدة', 'سيتم جلب العصابات الحالية وإنشاء بطولة جديدة. متابعة؟', async () => {
-            try {
-                const d = await api('/api/tournaments', { method:'POST' });
-                const n = (d.availableGangs||[]).length;
-                if(n !== 8) toast('⚠️ انطلق! عدد العصابات الحالية: ' + n + ' (المفروض 8). وزّعها يدوياً.', 'warn');
-                else toast('تم إطلاق البطولة!');
-                loadTournamentAll();
-            } catch(e){ toast(e.message, 'err'); }
-        });
+        ttLaunchSize = 8;
+        $('gang-modal-title').innerText = '🔥 إطلاق بطولة جديدة';
+        $('gang-modal-body').innerHTML = `
+            <div style="font-size:.78rem; color:var(--muted); margin-bottom:12px;">حدد عدد العصابات المشاركة — ستختار العصابات بعد الإطلاق.</div>
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                <div class="tt-size-chip" data-size="4" onclick="ttPickSize(4)">4 <span>عصابة</span></div>
+                <div class="tt-size-chip on" data-size="8" onclick="ttPickSize(8)">8 <span>عصابة</span></div>
+                <div class="tt-size-chip" data-size="16" onclick="ttPickSize(16)">16 <span>عصابة</span></div>
+            </div>
+            <div style="margin-top:10px; font-family:var(--mono); font-size:.72rem; color:var(--amber);">العدد المختار: <b id="tt-size-out">8</b></div>`;
+        const actionsEl = $('gang-modal-actions');
+        actionsEl.innerHTML = '';
+        const goBtn = document.createElement('button');
+        goBtn.className = 'btn-cyber btn-green'; goBtn.style.padding = '10px 22px';
+        goBtn.innerText = 'إطلاق';
+        goBtn.onclick = () => ttDoLaunch();
+        actionsEl.appendChild(goBtn);
+        const cancelBtn = document.createElement('button');
+        cancelBtn.className = 'btn-cyber btn-red'; cancelBtn.style.padding = '10px 22px';
+        cancelBtn.innerText = 'إلغاء';
+        cancelBtn.onclick = closeGangModal;
+        actionsEl.appendChild(cancelBtn);
+        $('gang-modal-overlay').classList.add('open');
+    }
+    function ttPickSize(s){
+        ttLaunchSize = s;
+        document.querySelectorAll('.tt-size-chip').forEach(c => c.classList.toggle('on', Number(c.dataset.size) === s));
+        const o = $('tt-size-out'); if(o) o.textContent = s;
+    }
+    async function ttDoLaunch(){
+        try {
+            const d = await api('/api/tournaments', { method:'POST', body:{ gangCount: ttLaunchSize } });
+            toast('تم إطلاق البطولة! (' + ttLaunchSize + ' عصابة)');
+            closeGangModal();
+            loadTournamentAll();
+        } catch(e){ toast(e.message, 'err'); }
     }
     function ttCancel(){
         if(!isTournamentManager()) return;
@@ -2228,41 +2388,37 @@
             catch(e){ toast(e.message, 'err'); }
         });
     }
-    async function ttGroupsModal(){
+    let ttBracketSel = [];
+    async function ttBracketModal(){
         if(!isTournamentManager()) return;
+        const need = tourData.gangCount || 8;
         let gangs = (tourData && tourData.gangs && tourData.gangs.length) ? tourData.gangs : null;
         if(!gangs || !gangs.length){
             try { gangs = await api('/api/tournaments/gangs'); } catch(e){ gangs = []; }
         }
         if(!gangs.length){ toast('لا توجد عصابات مسجلة.', 'err'); return; }
-        const opts = gangs.map(g => `<option value="${g._id}">${esc(g.name)}</option>`).join('');
-        const existing = {};
-        (tourData && tourData.groups || []).forEach(g => {
-            if(g.gangs && g.gangs.length === 2){ existing[g.groupNumber] = g.gangs; }
-        });
-        $('gang-modal-title').innerText = '🎲 توزيع المجموعات — 4 مجموعات × عصابتين';
-        let body = '';
-        for(let i=1; i<=4; i++){
-            const cur = existing[i] || [];
-            const selA = cur[0] ? cur[0]._id : '', selB = cur[1] ? cur[1]._id : '';
-            body += `<div style="margin-bottom:10px; border:1px solid rgba(255,255,255,.08); border-radius:10px; padding:10px; background:rgba(0,0,0,.25);">
-                <div style="font-family:var(--mono); font-size:.68rem; color:var(--green); margin-bottom:6px;">المجموعة ${i}</div>
-                <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                    <select class="cyber-input" id="tt-g${i}a" style="flex:1;">${selA ? opts.replace(`value="${selA}"`, `value="${selA}" selected`) : opts}</select>
-                    <select class="cyber-input" id="tt-g${i}b" style="flex:1;">${selB ? opts.replace(`value="${selB}"`, `value="${selB}" selected`) : opts}</select>
-                </div>
+        ttBracketSel = [];
+        const r1 = (tourData.matches || []).filter(m => m.round === 1 && m.gangA).sort((a,b) => a.slotIndex - b.slotIndex);
+        r1.forEach(m => { const a = String(m.gangA), b = String(m.gangB); if(!ttBracketSel.includes(a)) ttBracketSel.push(a); if(!ttBracketSel.includes(b)) ttBracketSel.push(b); });
+        $('gang-modal-title').innerText = '🎲 تحديد العصابات — شجرة Knockout';
+        const warn = tourData.status === 'ongoing' ? '<div style="margin-bottom:8px; color:var(--red); font-size:.7rem;">⚠️ إعادة التوليد ستمسح كل النتائج المسجلة.</div>' : '';
+        $('gang-modal-body').innerHTML = `
+            <div style="font-size:.75rem; color:var(--muted); margin-bottom:6px;">اختر <b>${need}</b> عصابة بالضبط — الترتيب = ترتيب البذر (1 ضد 2، 3 ضد 4...).</div>
+            ${warn}
+            <div style="margin-bottom:10px; font-family:var(--mono); font-size:.72rem; color:var(--amber);" id="tt-bsel-out">المختار: <b>${ttBracketSel.length}</b> / ${need}</div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;" id="tt-bgangs">
+                ${gangs.map(g => {
+                    const on = ttBracketSel.includes(String(g._id)) ? ' on' : '';
+                    const seed = on ? ttBracketSel.indexOf(String(g._id)) + 1 : '';
+                    return `<div class="tt-gang-chip${on}" data-gid="${g._id}" onclick="ttToggleGang(this)"><span class="tt-seed-num" id="tt-seed-${g._id}">${seed}</span>${esc(g.name)}</div>`;
+                }).join('')}
             </div>`;
-        }
-        if(gangs.length !== 8){
-            body += `<div style="margin-top:8px; color:var(--amber); font-size:.72rem;">⚠️ العدد الحالي للعصابات: ${gangs.length} (المفروض 8).</div>`;
-        }
-        $('gang-modal-body').innerHTML = body;
         const actionsEl = $('gang-modal-actions');
         actionsEl.innerHTML = '';
         const saveBtn = document.createElement('button');
         saveBtn.className = 'btn-cyber btn-green'; saveBtn.style.padding = '10px 22px';
-        saveBtn.innerText = 'تأكيد التوزيع';
-        saveBtn.onclick = () => ttGroupsSave();
+        saveBtn.innerText = 'توليد المربع';
+        saveBtn.onclick = () => ttBracketSave();
         actionsEl.appendChild(saveBtn);
         const cancelBtn = document.createElement('button');
         cancelBtn.className = 'btn-cyber btn-red'; cancelBtn.style.padding = '10px 22px';
@@ -2271,16 +2427,29 @@
         actionsEl.appendChild(cancelBtn);
         $('gang-modal-overlay').classList.add('open');
     }
-    async function ttGroupsSave(){
-        const groups = [];
-        for(let i=1; i<=4; i++){
-            const a = $('tt-g'+i+'a').value, b = $('tt-g'+i+'b').value;
-            if(!a || !b){ toast('املأ كل المجموعات', 'warn'); return; }
-            groups.push({ gangA: a, gangB: b });
+    function ttToggleGang(el){
+        const gid = el.dataset.gid;
+        const need = tourData.gangCount || 8;
+        const idx = ttBracketSel.indexOf(gid);
+        if(idx !== -1){
+            ttBracketSel.splice(idx, 1);
+            el.classList.remove('on');
+        } else {
+            if(ttBracketSel.length >= need){ toast('وصلت للحد الأقصى (' + need + ')', 'warn'); return; }
+            ttBracketSel.push(gid);
+            el.classList.add('on');
         }
+        ttBracketSel.forEach((id, i) => {
+            const s = $('tt-seed-' + id); if(s) s.textContent = i + 1;
+        });
+        const o = $('tt-bsel-out'); if(o) o.innerHTML = 'المختار: <b>' + ttBracketSel.length + '</b> / ' + need;
+    }
+    async function ttBracketSave(){
+        const need = tourData.gangCount || 8;
+        if(ttBracketSel.length !== need){ toast('اختر ' + need + ' عصابة بالضبط.', 'warn'); return; }
         try {
-            await api('/api/tournaments/' + tourData._id + '/groups', { method:'PUT', body:{ groups } });
-            toast('تم توزيع المجموعات.');
+            await api('/api/tournaments/' + tourData._id + '/bracket', { method:'PUT', body:{ gangs: ttBracketSel } });
+            toast('تم توليد شجرة الـ knockout.');
             closeGangModal();
             loadTournamentAll();
         } catch(e){ toast(e.message, 'err'); }
