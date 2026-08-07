@@ -287,7 +287,9 @@ const PunchRecord = mongoose.model('PunchRecord', PunchRecordSchema);
 // ================== v8.1: نظام بطولة Champion Cup ==================
 const MatchSchema = new mongoose.Schema({
     tournamentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tournament' },
-    stage: { type: String, enum: ['group', 'semifinal', 'final'], required: true },
+    stage: { type: String, enum: ['group', 'semifinal', 'final', 'knockout'], required: true },
+    round: Number,          // الجولة في نظام knockout (1 = الجولة الأولى)
+    slotIndex: Number,      // موقع المباراة داخل الجولة (0 = الأعلى)
     groupNumber: Number,
     gangA: { type: mongoose.Schema.Types.ObjectId, ref: 'Gang' },
     gangB: { type: mongoose.Schema.Types.ObjectId, ref: 'Gang' },
@@ -307,6 +309,7 @@ const MatchSchema = new mongoose.Schema({
 const TournamentSchema = new mongoose.Schema({
     name: { type: String, default: () => `Champion Cup #${Date.now()}` },
     status: { type: String, enum: ['setup', 'ongoing', 'completed', 'cancelled'], default: 'setup' },
+    gangCount: { type: Number, default: 8 },   // عدد العصابات المشاركة (4 / 8 / 16)
     gangs: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Gang' }],
     groups: [{
         groupNumber: Number,
@@ -1419,14 +1422,19 @@ app.get('/api/tournaments/gangs', verifyAuth(TOURNAMENT_VIEWERS), async (req, re
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// إطلاق بطولة جديدة (يجلب العصابات الحالية أوتوماتيكياً)
+// إطلاق بطولة جديدة (عدد العصابات يحدده الـ Don: 4 / 8 / 16)
 app.post('/api/tournaments', verifyAuth(TOURNAMENT_MANAGERS), async (req, res) => {
     try {
         const active = await Tournament.findOne({ status: { $in: ['setup', 'ongoing'] } });
         if (active) return res.status(400).json({ error: "يوجد بطولة نشطة حالياً. أكملها أو ألغِها قبل إطلاق جديدة." });
+        let gangCount = Number(req.body.gangCount) || 8;
+        if (![4, 8, 16].includes(gangCount)) gangCount = 8;
         const allGangs = await Gang.find({}).select('name');
-        const tournament = await new Tournament({ createdBy: req.user.username }).save();
-        await new AuditLog({ action: 'tournament_created', target_username: '-', performed_by: req.user.username, details: `تم إطلاق ${tournament.name} (${allGangs.length} عصابة)` }).save();
+        if (allGangs.length < gangCount) {
+            return res.status(400).json({ error: `عدد العصابات الحالية (${allGangs.length}) أقل من المطلوب (${gangCount}). اختر عدداً أقل.` });
+        }
+        const tournament = await new Tournament({ createdBy: req.user.username, gangCount }).save();
+        await new AuditLog({ action: 'tournament_created', target_username: '-', performed_by: req.user.username, details: `تم إطلاق ${tournament.name} (${gangCount} عصابة)` }).save();
         io.emit('auditLogUpdated');
         io.emit('tournament:created', { tournamentId: tournament._id });
         res.json({ tournament, availableGangs: allGangs });
@@ -1457,7 +1465,7 @@ app.get('/api/tournaments/today-matches', verifyAuth(TOURNAMENT_VIEWERS), async 
         const active = await Tournament.findOne({ status: { $in: ['setup', 'ongoing'] } });
         if (!active) return res.json([]);
         const matches = await Match.find({ tournamentId: active._id, status: 'scheduled', scheduledAt: { $ne: null } })
-            .sort({ scheduledAt: 1 }).select('stage groupNumber gangA gangB scheduledAt weapons');
+            .sort({ scheduledAt: 1 }).select('stage round groupNumber gangA gangB scheduledAt weapons');
         const now = new Date();
         const startOfToday = new Date(now); startOfToday.setHours(0, 0, 0, 0);
         const endOfToday = new Date(now); endOfToday.setHours(23, 59, 59, 999);
@@ -1485,35 +1493,48 @@ app.get('/api/tournaments/:id', verifyAuth(TOURNAMENT_VIEWERS), async (req, res)
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// توزيع العصابات على 4 مجموعات (عصابتين لكل مجموعة)
-app.put('/api/tournaments/:id/groups', verifyAuth(TOURNAMENT_MANAGERS), async (req, res) => {
+// توليد شجرة knockout: الـ Don يحدد العصابات المشاركة + ترتيب البذر
+app.put('/api/tournaments/:id/bracket', verifyAuth(TOURNAMENT_MANAGERS), async (req, res) => {
     try {
         const t = await Tournament.findById(req.params.id);
         if (!t || t.status === 'completed' || t.status === 'cancelled') return res.status(400).json({ error: "البطولة غير صالحة للتعديل." });
-        const groups = req.body.groups; // [{ gangA: id, gangB: id }] — 4 مجموعات
-        if (!Array.isArray(groups) || groups.length !== 4) return res.status(400).json({ error: "لازم 4 مجموعات بالضبط." });
-        const used = new Set();
-        const gangIds = [];
-        for (const g of groups) {
-            const a = String(g.gangA), b = String(g.gangB);
-            if (!a || !b || a === b) return res.status(400).json({ error: "كل مجموعة لازم يكون فيها عصابة مختلفة." });
-            if (used.has(a) || used.has(b)) return res.status(400).json({ error: "لا يمكن تكرار عصابة في أكثر من مجموعة." });
-            used.add(a); used.add(b);
-            gangIds.push(a, b);
+        const gangCount = t.gangCount || 8;
+        const gangIds = req.body.gangs;
+        if (!Array.isArray(gangIds) || gangIds.length !== gangCount) return res.status(400).json({ error: `لازم تحديد ${gangCount} عصابة بالضبط.` });
+        const seen = new Set();
+        for (const g of gangIds) {
+            const id = String(g);
+            if (!id || seen.has(id)) return res.status(400).json({ error: "لا يمكن تكرار عصابة في المربع." });
+            seen.add(id);
         }
+        const validGangs = await Gang.find({ _id: { $in: gangIds } }).select('_id');
+        if (validGangs.length !== gangCount) return res.status(400).json({ error: "إحدى العصابات غير موجودة." });
+
         t.gangs = gangIds;
-        t.groups = [];
-        t.semiFinals = []; t.final = null; t.champion = null; t.distributedAt = null;
+        t.groups = []; t.semiFinals = []; t.final = null; t.champion = null; t.distributedAt = null; t.completedAt = null;
         await Match.deleteMany({ tournamentId: t._id });
-        for (let i = 0; i < 4; i++) {
-            const m = await new Match({ tournamentId: t._id, stage: 'group', groupNumber: i + 1, gangA: groups[i].gangA, gangB: groups[i].gangB }).save();
-            t.groups.push({ groupNumber: i + 1, gangs: [groups[i].gangA, groups[i].gangB], matchId: m._id });
+
+        const totalRounds = Math.round(Math.log2(gangCount));
+        let roundMatches = gangCount / 2;
+        for (let r = 1; r <= totalRounds; r++) {
+            for (let s = 0; s < roundMatches; s++) {
+                const isFirst = r === 1;
+                await new Match({
+                    tournamentId: t._id,
+                    stage: r === totalRounds ? 'final' : 'knockout',
+                    round: r,
+                    slotIndex: s,
+                    gangA: isFirst ? gangIds[s * 2] : null,
+                    gangB: isFirst ? gangIds[s * 2 + 1] : null
+                }).save();
+            }
+            roundMatches = roundMatches / 2;
         }
         t.status = 'ongoing';
         await t.save();
-        await new AuditLog({ action: 'tournament_groups', target_username: '-', performed_by: req.user.username, details: `تم توزيع مجموعات ${t.name}` }).save();
+        await new AuditLog({ action: 'tournament_bracket', target_username: '-', performed_by: req.user.username, details: `توليد شجرة knockout لـ ${t.name} (${gangCount} عصابات)` }).save();
         io.emit('auditLogUpdated');
-        io.emit('tournament:groups-assigned', { tournamentId: t._id });
+        io.emit('tournament:bracket-assigned', { tournamentId: t._id });
         const full = await loadTournamentById(t._id);
         res.json(full);
     } catch (err) { res.status(500).json({ error: err.message }); }
@@ -1540,8 +1561,45 @@ app.post('/api/tournaments/:id/matches/:matchId/schedule', verifyAuth(TOURNAMENT
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// إعادة حساب شجرة التأهل بناءً على النتائج المسجلة
-async function recomputeBracket(t) {
+// إعادة حساب شجرة التأهل (نظام knockout) بعد تسجيل/تعديل النتائج
+// resetFrom: جولة يُعاد منها تصفير ما بعدها (تُستخدم عند تعديل نتيجة)
+async function recomputeBracket(t, resetFrom) {
+    const matches = await Match.find({ tournamentId: t._id }).sort({ round: 1, slotIndex: 1 });
+    if (!matches.length) return;
+    const hasRounds = matches.some(m => m.round != null);
+    if (!hasRounds) return recomputeBracketLegacy(t);
+    const maxRound = Math.max.apply(null, matches.map(m => m.round || 1));
+    if (resetFrom) {
+        const toReset = matches.filter(m => m.round != null && m.round >= resetFrom);
+        toReset.forEach(m => {
+            m.status = 'scheduled'; m.gangA = null; m.gangB = null;
+            m.scheduledAt = null; m.weapons = []; m.result = undefined;
+        });
+        await Promise.all(toReset.map(m => m.save()));
+    }
+    const byRound = {};
+    matches.forEach(m => { if (m.round != null) (byRound[m.round] = byRound[m.round] || {})[m.slotIndex] = m; });
+    const fill = matches.filter(m => m.round != null && m.round > 1);
+    for (const m of fill) {
+        if (m.status === 'completed') continue;
+        const src = byRound[m.round - 1];
+        const a = src && src[m.slotIndex * 2];
+        const b = src && src[m.slotIndex * 2 + 1];
+        if (a && a.status === 'completed') m.gangA = a.result.winner;
+        if (b && b.status === 'completed') m.gangB = b.result.winner;
+    }
+    await Promise.all(fill.map(m => m.save()));
+    const finalM = byRound[maxRound] && byRound[maxRound][0];
+    if (finalM && finalM.status === 'completed') {
+        t.champion = finalM.result.winner;
+        t.status = 'completed';
+        t.completedAt = new Date();
+    }
+    await t.save();
+}
+
+// إعادة حساب شجرة التأهل للنظام القديم (مجموعات ← نصف نهائي ← نهائي)
+async function recomputeBracketLegacy(t) {
     const groups = await Match.find({ tournamentId: t._id, stage: 'group' });
     const byGroup = {};
     groups.forEach(x => { byGroup[x.groupNumber] = x; });
@@ -1625,7 +1683,7 @@ app.put('/api/tournaments/:id/matches/:matchId/result', verifyAuth(TOURNAMENT_MA
         m.result.winner = scoreA > scoreB ? m.gangA : m.gangB;
         m.result.notes = String(req.body.notes || '');
         await m.save();
-        await recomputeBracket(t);
+        await recomputeBracket(t, m.round != null ? m.round + 1 : null);
         await new AuditLog({ action: 'tournament_result_edited', target_username: '-', performed_by: req.user.username, details: `تعديل نتيجة في ${t.name}` }).save();
         io.emit('auditLogUpdated');
         io.emit('tournament:match-completed', { tournamentId: t._id, matchId: m._id });
