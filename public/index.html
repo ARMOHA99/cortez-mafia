@@ -2142,7 +2142,7 @@
             const top = spanTop(0, i) + (spanH(0) - gangBoxH) / 2;
             const g = order[i];
             const gname = g && g.name ? g.name : ttGangName(g);
-            html += `<div class="tt-gang-box" style="left:${x}px; top:${top}px; width:${cardW}px; height:${gangBoxH}px;">
+            html += `<div class="tt-gang-box" data-leaf="${i}" style="left:${x}px; top:${top}px; width:${cardW}px; height:${gangBoxH}px;">
                 <span class="tt-gang-box-seed">${i + 1}</span><span class="tt-gang-box-name">${esc(gname)}</span>
             </div>`;
         }
@@ -2159,57 +2159,101 @@
             });
         }
 
-        // خطوط الربط (SVG): كل صندوق/بطاقة تصل ببطاقة والدها (مربع الفائز) أعلاه
-        const lines = [];
-        const childExists = (lv, k) => lv === 0 ? (k < gangCount) : !!cards[lv + ':' + k];
-        const childCenter = (lv, k) => spanTop(lv, k) + spanH(lv) / 2;
-        const drawConn = (lv, k) => {
-            const pk = Math.floor(k / 2);
-            const parent = cards[(lv + 1) + ':' + pk];
-            if(!parent) return;
-            const cy = childCenter(lv, k);
-            const py = spanTop(lv + 1, pk) + spanH(lv + 1) / 2;
-            const cX = colX(colFor(lv, k));
-            const pX = parent.x;
-            const side = sideFor(lv, k);
-            const sib = k ^ 1;
-            const sibOk = childExists(lv, sib);
-            const sy = childCenter(lv, sib);
-            let mid;
-            if(side === 'l'){
-                mid = cX + cardW + (pX - (cX + cardW)) / 2;
-                lines.push({ x1: cX + cardW, y1: cy, x2: mid, y2: cy });
-                if(k % 2 === 0){
-                    if(sibOk) lines.push({ x1: mid, y1: Math.min(cy, sy), x2: mid, y2: Math.max(cy, sy) });
-                    lines.push({ x1: mid, y1: py, x2: pX, y2: py });
-                }
-            } else {
-                const pRight = pX + cardW;
-                mid = pRight + (cX - pRight) / 2;
-                lines.push({ x1: mid, y1: cy, x2: cX, y2: cy });
-                if(k % 2 === 1){
-                    if(sibOk) lines.push({ x1: mid, y1: Math.min(cy, sy), x2: mid, y2: Math.max(cy, sy) });
-                    lines.push({ x1: pRight, y1: py, x2: mid, y2: py });
-                }
-            }
-        };
-        for(let i = 0; i < gangCount; i++) drawConn(0, i);
-        for(let lv = 1; lv < R; lv++){
-            (rounds[lv] || []).forEach((m, idx) => {
-                const k = m.slotIndex != null ? m.slotIndex : idx;
-                drawConn(lv, k);
-            });
-        }
-        html += `<svg class="tt-bracket-svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`;
-        lines.forEach(l => {
-            html += `<line x1="${l.x1}" y1="${l.y1}" x2="${l.x2}" y2="${l.y2}" stroke="#FFD700" stroke-opacity="0.6" stroke-width="2"/>`;
-        });
-        html += '</svg>';
+        // خطوط الربط تُرسم بعد اكتمال الـ DOM بالقياس الفعلي (getBoundingClientRect) — راجع ttDrawConnectors
+        html += `<svg class="tt-bracket-svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"></svg>`;
 
         html += '</div>';
         html += '<div class="tt-cortez">CORTEZ</div>';
         html += '</div>';
         box.innerHTML = html;
+        ttDrawConnectors(box);
+        if(!window._ttResizeBound){
+            window._ttResizeBound = true;
+            window.addEventListener('resize', () => {
+                const b = $('tt-bracket-box');
+                if(b && b.querySelector('.tt-bracket-svg')) ttDrawConnectors(b);
+            });
+        }
+    }
+    function ttDrawConnectors(box){
+        if(!box) box = $('tt-bracket-box');
+        if(!box) return;
+        const svg = box.querySelector('.tt-bracket-svg'); if(!svg) return;
+        const br = box.querySelector('.tt-bracket'); if(!br) return;
+        const brRect = br.getBoundingClientRect();
+        // ⚠️ امسح كل الخطوط القديمة قبل إعادة الرسم — بلا تكديس
+        svg.setAttribute('width', brRect.width);
+        svg.setAttribute('height', brRect.height);
+        svg.style.width = brRect.width + 'px';
+        svg.style.height = brRect.height + 'px';
+        svg.innerHTML = '';
+        const NS = 'http://www.w3.org/2000/svg';
+        const addLine = (x1, y1, x2, y2, gold) => {
+            const el = document.createElementNS(NS, 'line');
+            el.setAttribute('x1', x1); el.setAttribute('y1', y1);
+            el.setAttribute('x2', x2); el.setAttribute('y2', y2);
+            el.setAttribute('stroke', gold ? '#FFD700' : '#666');
+            el.setAttribute('stroke-opacity', gold ? '0.65' : '0.35');
+            el.setAttribute('stroke-width', gold ? '2' : '1.5');
+            svg.appendChild(el);
+        };
+        const gangCount = (tourData && tourData.gangCount) || 8;
+        const R = ttRounds();
+        const matchKey = {};
+        (tourData.matches || []).forEach(m => { if(m.round != null) matchKey[m.round + ':' + m.slotIndex] = m; });
+        // زوج (i, i+1) يوصل بنفس المباراة فالدور الجاي — بلا أي رابط زايد
+        const drawPair = (child, sib, parent, gold) => {
+            const cR = child.getBoundingClientRect(), sR = sib.getBoundingClientRect(), pR = parent.getBoundingClientRect();
+            const yA = cR.top + cR.height / 2 - brRect.top;
+            const yB = sR.top + sR.height / 2 - brRect.top;
+            const yP = pR.top + pR.height / 2 - brRect.top;
+            const left = cR.left < pR.left;
+            let xStart, xEnd;
+            if(left){ xStart = cR.right - brRect.left; xEnd = pR.left - brRect.left; }
+            else { xStart = cR.left - brRect.left; xEnd = pR.right - brRect.left; }
+            const xMid = (xStart + xEnd) / 2;   // نص المسافة بين الدورين
+            // 1) أفقي من الطفل لـ xMid عند yA
+            // 2) أفقي من الشقيق لـ xMid عند yB
+            // 3) عمودي عند xMid من yA إلى yB بالضبط (بلا زيادة)
+            // 4) أفقي من xMid عند yParent نحو صندوق الدور الجاي
+            if(left){
+                addLine(xStart, yA, xMid, yA, gold);
+                addLine(xStart, yB, xMid, yB, gold);
+                addLine(xMid, Math.min(yA, yB), xMid, Math.max(yA, yB), gold);
+                addLine(xMid, yP, xEnd, yP, gold);
+            } else {
+                addLine(xMid, yA, xStart, yA, gold);
+                addLine(xMid, yB, xStart, yB, gold);
+                addLine(xMid, Math.min(yA, yB), xMid, Math.max(yA, yB), gold);
+                addLine(xEnd, yP, xMid, yP, gold);
+            }
+        };
+        // أوراق العصابات → الدور الأول
+        for(let i = 0; i < gangCount; i++){
+            const child = box.querySelector('.tt-gang-box[data-leaf="' + i + '"]');
+            const sib = box.querySelector('.tt-gang-box[data-leaf="' + (i ^ 1) + '"]');
+            const pk = Math.floor(i / 2);
+            const parent = box.querySelector('.tt-bracket-card[data-r="1"][data-s="' + pk + '"]');
+            if(!child || !sib || !parent) continue;
+            const pm = matchKey['1:' + pk];
+            const gold = !!(pm && pm.gangA && pm.gangB);
+            if(i % 2 === 0) drawPair(child, sib, parent, gold);
+        }
+        // بطاقات الجولات 1..R-1 → الجولة الموالية
+        for(let r = 1; r < R; r++){
+            const nodes = gangCount / Math.pow(2, r);
+            for(let k = 0; k < nodes; k++){
+                const child = box.querySelector('.tt-bracket-card[data-r="' + r + '"][data-s="' + k + '"]');
+                const sib = box.querySelector('.tt-bracket-card[data-r="' + r + '"][data-s="' + (k ^ 1) + '"]');
+                const parent = box.querySelector('.tt-bracket-card[data-r="' + (r + 1) + '"][data-s="' + Math.floor(k / 2) + '"]');
+                if(!child || !sib || !parent) continue;
+                const cm = matchKey[r + ':' + k];
+                if(cm && !cm.gangA && !cm.gangB) continue;   // صندوق TBD فارغ — لا يُرسم له خط
+                const pm = matchKey[(r + 1) + ':' + Math.floor(k / 2)];
+                const gold = !!(cm && cm.gangA && cm.gangB && pm && pm.gangA && pm.gangB);
+                if(k % 2 === 0) drawPair(child, sib, parent, gold);
+            }
+        }
     }
     function ttBracketCardHtml(m, r, k, x, top, cardW, cardH){
         const a = ttGangName(m.gangA), b = ttGangName(m.gangB);
@@ -2238,7 +2282,7 @@
         }
         const meta = m.status === 'completed' ? '' : (m.scheduledAt ? `<span style="color:var(--amber); font-family:var(--mono); font-size:.58rem;">${fmtDate(m.scheduledAt)}</span>` : '');
         const btns = (m.gangA && m.gangB) ? ttMatchMetaHtml(m) : '';
-        return `<div class="tt-match-card tt-bracket-card" style="left:${x}px; top:${top}px; width:${cardW}px; height:${cardH}px;" onclick="ttMatchInfo('${m._id}')">
+        return `<div class="tt-match-card tt-bracket-card" data-r="${r}" data-s="${k}" style="left:${x}px; top:${top}px; width:${cardW}px; height:${cardH}px;" onclick="ttMatchInfo('${m._id}')">
             <div class="tt-match-stage" style="font-size:.58rem; margin-bottom:6px;">${ttStageLabel(m)}${meta}</div>
             ${body}
             ${(m.gangA && m.gangB) ? ttWeaponsHtml(m) : ''}
@@ -2748,20 +2792,22 @@
     async function ttPrizesModal(){
         if(!isTournamentManager()) return;
         let items;
-        try { items = await api('/api/shop/items'); } catch(e){ items = []; }
+        try { items = await api('/api/gang-shop/items'); } catch(e){ items = []; }
         const current = tourData.prizePool || [];
         $('gang-modal-title').innerText = '🎁 إدارة الجوايز';
         $('gang-modal-body').innerHTML = `
-            <div style="font-size:.75rem; color:var(--muted); margin-bottom:10px;">اختر عناصر من الشوب مع الكمية. الكمية تُسجل "ممنوحة" للبطل عند التوزيع.</div>
+            <div style="font-size:.75rem; color:var(--muted); margin-bottom:10px;">اختر عناصر من شوب العصابات مع الكمية. الكمية تُسجل "ممنوحة" للبطل وتُحذف من المخزون عند التوزيع.</div>
             <div id="tt-prize-editor">
             ${items.length ? items.map((it, i) => {
                 const found = current.find(p => String(p.shopItemId) === String(it._id));
-                return `<div style="display:flex; align-items:center; gap:8px; padding:8px; border:1px solid rgba(255,255,255,.08); border-radius:10px; margin-bottom:6px; background:rgba(0,0,0,.25);">
+                const price = it.buy_price || it.sell_price || 0;
+                const out = it.in_stock === false;
+                return `<div style="display:flex; align-items:center; gap:8px; padding:8px; border:1px solid ${out ? 'rgba(255,90,90,.4)' : 'rgba(255,255,255,.08)'}; border-radius:10px; margin-bottom:6px; background:rgba(0,0,0,.25); opacity:${out ? .5 : 1};">
                     <img src="${esc(it.image_url||'')}" onerror="this.style.display='none'" style="width:38px; height:38px; object-fit:cover; border-radius:8px;">
-                    <div style="flex:1;"><div style="font-size:.78rem; font-weight:700;">${esc(it.name)}</div><div style="font-size:.68rem; color:var(--muted); font-family:var(--mono);">${money(it.price)}</div></div>
-                    <input class="cyber-input" type="number" min="0" id="tt-pq-${i}" value="${found ? found.quantity : 0}" style="width:64px;" placeholder="0">
+                    <div style="flex:1;"><div style="font-size:.78rem; font-weight:700;">${esc(it.name)}</div><div style="font-size:.68rem; color:var(--muted); font-family:var(--mono);">${money(price)}${out ? ' · نفد من المخزون' : ''}</div></div>
+                    <input class="cyber-input" type="number" min="0" id="tt-pq-${i}" value="${found ? found.quantity : 0}" ${out ? 'disabled' : ''} style="width:64px;" placeholder="0">
                 </div>`;
-            }).join('') : '<div class="empty">لا توجد عناصر في الشوب. أضف عناصر للشوب أولاً.</div>'}
+            }).join('') : '<div class="empty">لا توجد عناصر في شوب العصابات. أضف عناصر للشوب أولاً.</div>'}
             </div>`;
         const actionsEl = $('gang-modal-actions');
         actionsEl.innerHTML = '';
