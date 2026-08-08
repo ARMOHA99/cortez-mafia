@@ -309,7 +309,8 @@ const MatchSchema = new mongoose.Schema({
 const TournamentSchema = new mongoose.Schema({
     name: { type: String, default: () => `Champion Cup #${Date.now()}` },
     status: { type: String, enum: ['setup', 'ongoing', 'completed', 'cancelled'], default: 'setup' },
-    gangCount: { type: Number, default: 8 },   // عدد العصابات المشاركة (أي عدد زوجي من 4 إلى 16 — تُدار الـ byes تلقائياً)
+    gangCount: { type: Number, enum: [4, 8, 16, 32], default: 8 },   // عدد العصابات المشاركة (قوى 2 فقط: 4 / 8 / 16 / 32 — بلا byes)
+    totalRounds: Number,   // = log2(gangCount) — يُحسب أوتوماتيك عند توليد المربع
     gangs: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Gang' }],
     groups: [{
         groupNumber: Number,
@@ -1450,7 +1451,7 @@ app.post('/api/tournaments', verifyAuth(TOURNAMENT_MANAGERS), async (req, res) =
         const active = await Tournament.findOne({ status: { $in: ['setup', 'ongoing'] } });
         if (active) return res.status(400).json({ error: "يوجد بطولة نشطة حالياً. أكملها أو ألغِها قبل إطلاق جديدة." });
         let gangCount = Number(req.body.gangCount) || 8;
-        if (gangCount < 4 || gangCount > 16 || gangCount % 2 !== 0) gangCount = 8;
+        if ([4, 8, 16, 32].indexOf(gangCount) === -1) gangCount = 8;
         const allGangs = await Gang.find({}).select('name');
         if (allGangs.length < gangCount) {
             return res.status(400).json({ error: `عدد العصابات الحالية (${allGangs.length}) أقل من المطلوب (${gangCount}). اختر عدداً أقل.` });
@@ -1515,7 +1516,7 @@ app.get('/api/tournaments/:id', verifyAuth(TOURNAMENT_VIEWERS), async (req, res)
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// توليد شجرة knockout: الـ Don يحدد العصابات المشاركة + ترتيب الأزواج (مع دعم الـ byes للأعداد غير قوى 2)
+// توليد شجرة knockout: الـ Don يحدد العصابات المشاركة + ترتيب الأزواج (قوى 2 فقط: 4/8/16/32 — شجرة كاملة بلا byes)
 app.put('/api/tournaments/:id/bracket', verifyAuth(TOURNAMENT_MANAGERS), async (req, res) => {
     try {
         const t = await Tournament.findById(req.params.id);
@@ -1536,27 +1537,20 @@ app.put('/api/tournaments/:id/bracket', verifyAuth(TOURNAMENT_MANAGERS), async (
         t.groups = []; t.semiFinals = []; t.final = null; t.champion = null; t.distributedAt = null; t.completedAt = null;
         await Match.deleteMany({ tournamentId: t._id });
 
-        // حجم الشجرة الكامل (أقرب قوة 2 أعلى من عدد العصابات) — العصابات تملأ الأوراق الأولى، والباقي Bye
-        let P = 1; while (P < gangCount) P *= 2;
-        const L = Math.round(Math.log2(P));
+        // شجرة كاملة: gangCount = قوة 2 → عدد الجولات = log2(gangCount) وكل الخانات ممتلئة
+        const L = Math.round(Math.log2(gangCount));
+        t.totalRounds = L;
 
         for (let r = 1; r <= L; r++) {
-            const nodes = P / Math.pow(2, r);
+            const nodes = Math.pow(2, L - r);
             for (let s = 0; s < nodes; s++) {
-                // أول ورقة ضمن امتداد هذه العقدة: s * 2^r — إن تجاوزت عدد العصابات فلا توجد عصابات هنا
-                const leafStart = s * Math.pow(2, r);
-                if (leafStart >= gangCount) continue;
                 const m = new Match({
                     tournamentId: t._id,
                     stage: r === L ? 'final' : 'knockout',
                     round: r,
                     slotIndex: s
                 });
-                if (r === 1) {
-                    const a = s * 2, b = s * 2 + 1;
-                    if (a < gangCount) m.gangA = gangIds[a];
-                    if (b < gangCount) m.gangB = gangIds[b];
-                }
+                if (r === 1) { m.gangA = gangIds[s * 2]; m.gangB = gangIds[s * 2 + 1]; }
                 await m.save();
             }
         }
@@ -1594,7 +1588,7 @@ app.post('/api/tournaments/:id/matches/:matchId/schedule', verifyAuth(TOURNAMENT
 // إعادة حساب شجرة التأهل (نظام knockout) بعد تسجيل/تعديل النتائج
 // resetFrom: جولة يُعاد منها تصفير ما بعدها (تُستخدم عند تعديل نتيجة)
 // يعتمد على الشجرة الكاملة: العقدة (round, slotIndex) أولادها هم (round-1, slot*2) و (round-1, slot*2+1)
-// العقدة "تأهل مباشر" (Bye): جانب واحد فقط ممتلئ → يمر الفائز للأعلى بدون مباراة
+// لا يوجد Bye (قوى 2 فقط): كل عقدة بجانبين، والفائز يتأهل للأعلى فقط عند اكتمال مباراته
 async function recomputeBracket(t, resetFrom) {
     const matches = await Match.find({ tournamentId: t._id }).sort({ round: 1, slotIndex: 1 });
     if (!matches.length) return;
@@ -1611,13 +1605,12 @@ async function recomputeBracket(t, resetFrom) {
     }
     const byRound = {};
     matches.forEach(m => { if (m.round != null) (byRound[m.round] = byRound[m.round] || {})[m.slotIndex] = m; });
-    // شاغل العقدة: الفائز إن اكتملت، أو العصابة الوحيدة في عقدة Bye، أو لا شيء
+    // شاغل العقدة: الفائز فقط عند اكتمال المباراة — بلا Bye (قوى 2)
     const occupant = (r, s) => {
         const m = byRound[r] && byRound[r][s];
         if (!m) return null;
         if (m.status === 'completed') return m.result.winner;
-        if (m.gangB) return null;       // مباراة حقيقية بانتظار اللعب
-        return m.gangA || null;         // عقدة Bye / تأهل مباشر
+        return null;        // مباراة حقيقية بانتظار اللعب
     };
     const fill = matches.filter(m => m.round != null && m.round > 1);
     for (const m of fill) {
