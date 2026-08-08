@@ -311,20 +311,27 @@
         .tt-prize-total{ text-align:center; margin-top:16px; font-family:var(--mono); color:var(--amber); font-size:1.1rem; }
         .tt-archive-item{ display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; padding:14px; border-radius:12px; border:1px solid rgba(255,255,255,0.07); background:rgba(0,0,0,0.3); margin-bottom:10px; }
 
-        /* شجرة knockout بخطوط ربط والنهائي في المنتصف */
-        .tt-bracket-wrap{ overflow-x:auto; padding:34px 8px 10px; }
+        /* شجرة knockout — تصميم البرومبت: أسود / ذهبي / أبيض + خطوط SVG */
+        .tt-bracket-wrap{ overflow-x:auto; padding:44px 8px 10px; background:#000; border-radius:16px; border:1px solid rgba(255,255,255,.1); }
         .tt-bracket{ position:relative; margin:0 auto; }
-        .tt-bracket-col-head{ position:absolute; top:-30px; text-align:center; font-family:var(--mono); font-size:.62rem; letter-spacing:2px; color:var(--amber); white-space:nowrap; }
-        .tt-bracket-card{ position:absolute; padding:9px 10px; border-radius:12px; direction:ltr; }
-        .tt-bracket-card .tt-tbd{ padding:6px; }
-        .tt-conn{ position:absolute; background:rgba(0,255,102,.45); pointer-events:none; }
-        .tt-conn.h{ height:2px; }
-        .tt-conn.v{ width:2px; }
+        .tt-bracket-title{ text-align:center; font-family:var(--display); font-size:1.5rem; font-weight:800; color:#FFD700; text-shadow:0 0 8px rgba(255,215,0,.55),0 0 22px rgba(255,215,0,.3); letter-spacing:1px; padding:2px 0; }
+        .tt-bracket-sub{ text-align:center; font-family:var(--mono); font-size:.6rem; letter-spacing:3px; color:#aaa; margin:2px 0 10px; }
+        .tt-bracket-col-head{ position:absolute; top:-30px; text-align:center; font-family:var(--mono); font-size:.62rem; letter-spacing:2px; color:#FFD700; text-shadow:0 0 6px rgba(255,215,0,.4); white-space:nowrap; }
+        .tt-bracket-card{ position:absolute; padding:9px 10px; border-radius:12px; direction:ltr; background:#000; border:1px solid rgba(255,255,255,.4); cursor:pointer; transition:.15s; }
+        .tt-bracket-card:hover{ border-color:#FFD700; box-shadow:0 0 12px rgba(255,215,0,.25); }
+        .tt-bracket-card .tt-tbd{ padding:6px; color:#999; }
+        .tt-bracket-card .tt-name{ color:#fff; text-transform:uppercase; font-weight:700; }
+        .tt-bracket-card .tt-name.win{ color:#FFD700; text-shadow:0 0 8px rgba(255,215,0,.5); }
+        .tt-bracket-card .tt-score{ color:#FFD700; }
+        .tt-bracket-svg{ position:absolute; left:0; top:0; pointer-events:none; }
 
-        /* صندوق عصابة مستقل في أسفل الشجرة */
-        .tt-gang-box{ position:absolute; display:flex; align-items:center; gap:8px; padding:0 12px; border-radius:10px; background:rgba(0,0,0,.5); border:1px solid rgba(0,255,102,.35); box-sizing:border-box; direction:ltr; }
-        .tt-gang-box-seed{ min-width:24px; height:24px; line-height:24px; text-align:center; border-radius:50%; font-family:var(--mono); font-size:.66rem; color:#0a0a0a; background:var(--amber); flex-shrink:0; }
-        .tt-gang-box-name{ flex:1; font-size:.8rem; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        /* صندوق عصابة مستقل (أوراق الشجرة) */
+        .tt-gang-box{ position:absolute; display:flex; align-items:center; gap:8px; padding:0 12px; border-radius:10px; background:#000; border:1px solid rgba(255,255,255,.5); box-sizing:border-box; direction:ltr; }
+        .tt-gang-box-seed{ min-width:24px; height:24px; line-height:24px; text-align:center; border-radius:50%; font-family:var(--mono); font-size:.66rem; color:#000; background:#FFD700; font-weight:700; flex-shrink:0; }
+        .tt-gang-box-name{ flex:1; font-size:.82rem; font-weight:800; text-transform:uppercase; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+        /* شعار CORTEZ تحت الشجرة */
+        .tt-cortez{ text-align:center; padding:14px 0 2px; font-family:var(--display); font-size:1.05rem; font-weight:800; color:#FFD700; text-shadow:0 0 8px rgba(255,215,0,.5),0 0 22px rgba(255,215,0,.25); letter-spacing:6px; }
 
         /* صفوف الأزواج في مودال تحديد العصابات */
         .tt-pair-row{ display:flex; align-items:center; gap:8px; padding:9px 10px; border:1px solid rgba(255,255,255,.08); border-radius:12px; background:rgba(0,0,0,.3); margin-bottom:8px; flex-wrap:wrap; }
@@ -1986,10 +1993,10 @@
     }
     function ttRoundLabel(r, R){
         if(r === R) return '🏆 النهائي';
-        if(R === 4){ if(r === 1) return 'دور الـ16'; if(r === 2) return 'ربع النهائي'; if(r === 3) return 'نصف النهائي'; }
-        if(R === 3){ if(r === 1) return 'ربع النهائي'; if(r === 2) return 'نصف النهائي'; }
-        if(R === 2){ if(r === 1) return 'نصف النهائي'; }
-        return 'دور ' + r;
+        const fromFinal = R - r;
+        if(fromFinal === 1) return 'نصف النهائي';
+        if(fromFinal === 2) return 'ربع النهائي';
+        return 'دور الـ' + Math.pow(2, fromFinal + 1);
     }
     function ttStageLabel(m){
         if(!m) return '';
@@ -2007,11 +2014,11 @@
         const mgr = isTournamentManager();
         if(m.status === 'completed'){
             html += `<span class="badge Approved">✔️ ${m.result.scoreA} - ${m.result.scoreB}</span>`;
-            if(mgr) html += `<button class="btn-cyber btn-ghost" style="padding:4px 9px; font-size:.65rem;" onclick="ttEditResultModal('${m._id}')">✏️ تعديل</button>`;
+            if(mgr) html += `<button class="btn-cyber btn-ghost" style="padding:4px 9px; font-size:.65rem;" onclick="event.stopPropagation(); ttEditResultModal('${m._id}')">✏️ تعديل</button>`;
         } else {
             html += `<span class="badge Pending">⏳ ${m.scheduledAt ? 'مجدولة' : 'غير مجدولة'}</span>`;
-            if(mgr && m.gangA && m.gangB) html += `<button class="btn-cyber btn-ghost" style="padding:4px 9px; font-size:.65rem;" onclick="ttScheduleModal('${m._id}')">⏱️ جدولة</button>`;
-            if(mgr && m.gangA && m.gangB) html += `<button class="btn-cyber btn-green" style="padding:4px 9px; font-size:.65rem;" onclick="ttResultModal('${m._id}')">✔️ نتيجة</button>`;
+            if(mgr && m.gangA && m.gangB) html += `<button class="btn-cyber btn-ghost" style="padding:4px 9px; font-size:.65rem;" onclick="event.stopPropagation(); ttScheduleModal('${m._id}')">⏱️ جدولة</button>`;
+            if(mgr && m.gangA && m.gangB) html += `<button class="btn-cyber btn-green" style="padding:4px 9px; font-size:.65rem;" onclick="event.stopPropagation(); ttResultModal('${m._id}')">✔️ نتيجة</button>`;
         }
         return html;
     }
@@ -2089,13 +2096,12 @@
             return;
         }
         const gangCount = tourData.gangCount || 8;
-        const P = ttNextPow2(gangCount);
         const R = ttRounds();
         if(!R){ box.innerHTML = '<div class="empty">شجرة البطولة غير متاحة بعد.</div>'; return; }
 
         const cardW = 250, cardH = 140, colGap = 64, colW = cardW + colGap, cellH = 176;
         const gangBoxH = 44;
-        const height = P * cellH;
+        const height = gangCount * cellH;
         const cols = 2 * R + 1;
         const width = cols * colW;
 
@@ -2105,7 +2111,6 @@
 
         const colX = c => c * colW;
         // المستوى: 0 = أوراق العصابات، 1..R = جولات المباريات (المستوى R = النهائي في المنتصف)
-        const totalInLevel = lv => Math.pow(2, R - lv);
         const colFor = (lv, k) => {
             if(lv === R) return R;
             const half = Math.pow(2, R - lv - 1);
@@ -2116,7 +2121,10 @@
         const spanH = lv => Math.pow(2, lv) * cellH;
 
         let html = '';
-        html += `<div class="tt-bracket-wrap"><div class="tt-bracket" style="width:${width}px; height:${height}px; direction:ltr;">`;
+        html += `<div class="tt-bracket-wrap">
+            <div class="tt-bracket-title">${esc(tourData.name || 'CHAMPION CUP')}</div>
+            <div class="tt-bracket-sub">🏆 SINGLE ELIMINATION — ${gangCount} GANGS — BEST OF 3 🏆</div>
+            <div class="tt-bracket" style="width:${width}px; height:${height}px; direction:ltr;">`;
 
         for(let c = 0; c < cols; c++){
             let label;
@@ -2151,14 +2159,10 @@
             });
         }
 
-        // خطوط الربط: كل صندوق/بطاقة تصل ببطاقة والدها (مربع الفائز) أعلاه
-        const conn = {
-            h: (x1,y1,x2,y2) => x2 > x1 ? `<div class="tt-conn h" style="left:${x1}px; top:${y1 - 1}px; width:${x2 - x1}px;"></div>` : '',
-            v: (x,y,hgt) => hgt > 0 ? `<div class="tt-conn v" style="left:${x - 1}px; top:${y}px; height:${hgt}px;"></div>` : ''
-        };
+        // خطوط الربط (SVG): كل صندوق/بطاقة تصل ببطاقة والدها (مربع الفائز) أعلاه
+        const lines = [];
         const childExists = (lv, k) => lv === 0 ? (k < gangCount) : !!cards[lv + ':' + k];
         const childCenter = (lv, k) => spanTop(lv, k) + spanH(lv) / 2;
-        const vertDrawn = {};
         const drawConn = (lv, k) => {
             const pk = Math.floor(k / 2);
             const parent = cards[(lv + 1) + ':' + pk];
@@ -2174,17 +2178,19 @@
             let mid;
             if(side === 'l'){
                 mid = cX + cardW + (pX - (cX + cardW)) / 2;
-                html += conn.h(cX + cardW, cy, mid, cy);
-                const vkey = mid + ':l';
-                if(sibOk && !vertDrawn[vkey]){ html += conn.v(mid, Math.min(cy, sy), Math.abs(sy - cy)); vertDrawn[vkey] = true; }
-                html += conn.h(mid, py, pX, py);
+                lines.push({ x1: cX + cardW, y1: cy, x2: mid, y2: cy });
+                if(k % 2 === 0){
+                    if(sibOk) lines.push({ x1: mid, y1: Math.min(cy, sy), x2: mid, y2: Math.max(cy, sy) });
+                    lines.push({ x1: mid, y1: py, x2: pX, y2: py });
+                }
             } else {
                 const pRight = pX + cardW;
                 mid = pRight + (cX - pRight) / 2;
-                html += conn.h(mid, cy, cX, cy);
-                const vkey = mid + ':r';
-                if(sibOk && !vertDrawn[vkey]){ html += conn.v(mid, Math.min(cy, sy), Math.abs(sy - cy)); vertDrawn[vkey] = true; }
-                html += conn.h(pRight, py, mid, py);
+                lines.push({ x1: mid, y1: cy, x2: cX, y2: cy });
+                if(k % 2 === 1){
+                    if(sibOk) lines.push({ x1: mid, y1: Math.min(cy, sy), x2: mid, y2: Math.max(cy, sy) });
+                    lines.push({ x1: pRight, y1: py, x2: mid, y2: py });
+                }
             }
         };
         for(let i = 0; i < gangCount; i++) drawConn(0, i);
@@ -2194,38 +2200,45 @@
                 drawConn(lv, k);
             });
         }
+        html += `<svg class="tt-bracket-svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`;
+        lines.forEach(l => {
+            html += `<line x1="${l.x1}" y1="${l.y1}" x2="${l.x2}" y2="${l.y2}" stroke="#FFD700" stroke-opacity="0.6" stroke-width="2"/>`;
+        });
+        html += '</svg>';
 
-        html += '</div></div>';
+        html += '</div>';
+        html += '<div class="tt-cortez">CORTEZ</div>';
+        html += '</div>';
         box.innerHTML = html;
     }
     function ttBracketCardHtml(m, r, k, x, top, cardW, cardH){
         const a = ttGangName(m.gangA), b = ttGangName(m.gangB);
         const winA = m.status === 'completed' && m.result.winner && String(m.result.winner) === String(m.gangA);
         const winB = m.status === 'completed' && m.result.winner && String(m.result.winner) === String(m.gangB);
-        const rowStyle = w => w ? 'color:var(--green);' : '';
+        const rowStyle = w => w ? 'color:#FFD700; text-shadow:0 0 8px rgba(255,215,0,.5);' : '';
         let body;
         if(m.gangA && m.gangB){
             body = `
-            <div style="display:flex; align-items:center; gap:6px; padding:5px 8px; border-radius:8px; background:rgba(0,0,0,.35);">
+            <div style="display:flex; align-items:center; gap:6px; padding:5px 8px; border-radius:8px; background:rgba(255,255,255,.05);">
                 <span class="tt-name" style="flex:1; text-align:left; ${rowStyle(winA)}">${esc(a)}</span>
                 ${m.status === 'completed' ? `<span class="tt-score" style="${rowStyle(winA)}">${m.result.scoreA}</span>` : ''}
             </div>
-            <div style="display:flex; align-items:center; gap:6px; padding:5px 8px; border-radius:8px; background:rgba(0,0,0,.35); margin-top:6px;">
+            <div style="display:flex; align-items:center; gap:6px; padding:5px 8px; border-radius:8px; background:rgba(255,255,255,.05); margin-top:6px;">
                 ${m.status === 'completed' ? `<span class="tt-score" style="${rowStyle(winB)}">${m.result.scoreB}</span>` : ''}
                 <span class="tt-name" style="flex:1; text-align:right; ${rowStyle(winB)}">${esc(b)}</span>
             </div>`;
         } else if(m.gangA){
             body = `
-            <div style="display:flex; align-items:center; gap:6px; padding:5px 8px; border-radius:8px; background:rgba(0,255,102,.08);">
-                <span class="tt-name" style="flex:1; text-align:left; color:var(--green);">${esc(a)}</span>
+            <div style="display:flex; align-items:center; gap:6px; padding:5px 8px; border-radius:8px; background:rgba(255,255,255,.05);">
+                <span class="tt-name" style="flex:1; text-align:left; color:#FFD700;">${esc(a)}</span>
             </div>
-            <div class="tt-tbd" style="font-size:.66rem; padding:4px;">تأهل مباشر — بانتظار الخصم</div>`;
+            <div class="tt-tbd" style="font-size:.66rem; padding:4px;">بانتظار وصول الخصم...</div>`;
         } else {
             body = '<div class="tt-tbd">بانتظار تأهل الفائزين...</div>';
         }
         const meta = m.status === 'completed' ? '' : (m.scheduledAt ? `<span style="color:var(--amber); font-family:var(--mono); font-size:.58rem;">${fmtDate(m.scheduledAt)}</span>` : '');
         const btns = (m.gangA && m.gangB) ? ttMatchMetaHtml(m) : '';
-        return `<div class="tt-match-card tt-bracket-card" style="left:${x}px; top:${top}px; width:${cardW}px; height:${cardH}px;">
+        return `<div class="tt-match-card tt-bracket-card" style="left:${x}px; top:${top}px; width:${cardW}px; height:${cardH}px;" onclick="ttMatchInfo('${m._id}')">
             <div class="tt-match-stage" style="font-size:.58rem; margin-bottom:6px;">${ttStageLabel(m)}${meta}</div>
             ${body}
             ${(m.gangA && m.gangB) ? ttWeaponsHtml(m) : ''}
@@ -2389,10 +2402,10 @@
     function ttLaunch(){
         if(!isTournamentManager()) return;
         ttLaunchSize = 8;
-        const sizes = [4,6,8,10,12,14,16];
+        const sizes = [4,8,16,32];
         $('gang-modal-title').innerText = '🔥 إطلاق بطولة جديدة';
         $('gang-modal-body').innerHTML = `
-            <div style="font-size:.78rem; color:var(--muted); margin-bottom:12px;">حدد عدد العصابات المشاركة (عدد زوجي من 4 إلى 16) — ستختار العصابات وأزواج المربع بعد الإطلاق.</div>
+            <div style="font-size:.78rem; color:var(--muted); margin-bottom:12px;">حدد عدد العصابات المشاركة (قوى 2: 4 / 8 / 16 / 32) — ستختار العصابات وأزواج المربع بعد الإطلاق.</div>
             <div style="display:flex; gap:10px; flex-wrap:wrap;">
                 ${sizes.map(s => `<div class="tt-size-chip${s === 8 ? ' on' : ''}" data-size="${s}" onclick="ttPickSize(${s})">${s} <span>عصابة</span></div>`).join('')}
             </div>
@@ -2625,6 +2638,38 @@
             closeGangModal();
             loadTournamentAll();
         } catch(e){ toast(e.message, 'err'); }
+    }
+    function ttMatchInfo(matchId){
+        const m = ttFindMatch(matchId);
+        if(!m) return;
+        const a = ttGangName(m.gangA), b = ttGangName(m.gangB);
+        if(!m.gangA && !m.gangB){
+            $('gang-modal-title').innerText = '📋 ' + ttStageLabel(m);
+            $('gang-modal-body').innerHTML = '<div class="tt-tbd">بانتظار تأهل الفائزين من الدور السابق...</div>';
+        } else {
+            const status = m.status === 'completed' ? '<span class="badge Approved">✔️ مكتملة</span>' : `<span class="badge Pending">⏳ ${m.scheduledAt ? 'مجدولة' : 'غير مجدولة'}</span>`;
+            const time = m.scheduledAt ? `<span style="color:var(--amber); font-family:var(--mono); font-size:.68rem;">🕐 ${fmtDate(m.scheduledAt)}</span>` : '';
+            const weapons = (m.weapons && m.weapons.length) ? '<div class="tt-weapons">أسلحة: ' + m.weapons.map((w,i)=>`<b>R${i+1}</b> ${esc(w)}`).join(' · ') + '</div>' : '';
+            const notes = m.result && m.result.notes ? `<div style="margin-top:10px; font-size:.78rem; color:var(--muted);">📝 ${esc(m.result.notes)}</div>` : '';
+            const rec = m.result && m.result.recordedBy ? `<div style="margin-top:4px; font-size:.64rem; color:var(--muted);">سجّلها: ${esc(m.result.recordedBy)}</div>` : '';
+            $('gang-modal-title').innerText = '📋 ' + ttStageLabel(m);
+            $('gang-modal-body').innerHTML = `
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:10px;">${status}${time}</div>
+                <div class="tt-team"><span class="tt-name" style="flex:1; text-align:left; color:#fff;">${esc(a)}</span>${m.status === 'completed' ? `<span class="tt-score">${m.result.scoreA}</span>` : ''}</div>
+                <div class="tt-team" style="margin-top:8px;"><span class="tt-score">${m.status === 'completed' ? m.result.scoreB : ''}</span><span class="tt-name" style="flex:1; text-align:right; color:#fff;">${esc(b)}</span></div>
+                <div style="font-family:var(--mono); font-size:.9rem; color:#FFD700; text-align:center; margin:8px 0 4px;">${m.status === 'completed' ? m.result.scoreA + ' - ' + m.result.scoreB : 'Best of 3 — أول من يصل لـ 2 يفوز'}</div>
+                ${weapons}
+                ${notes}
+                ${rec}`;
+        }
+        const actionsEl = $('gang-modal-actions');
+        actionsEl.innerHTML = '';
+        const closeBtn = document.createElement('button');
+        closeBtn.className = 'btn-cyber btn-ghost'; closeBtn.style.padding = '10px 22px';
+        closeBtn.innerText = 'إغلاق';
+        closeBtn.onclick = closeGangModal;
+        actionsEl.appendChild(closeBtn);
+        $('gang-modal-overlay').classList.add('open');
     }
     function ttResultModal(matchId){
         if(!isTournamentManager()) return;
