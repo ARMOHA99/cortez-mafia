@@ -292,11 +292,17 @@
         #gang-modal-body .input-group input, #gang-modal-body .input-group select{ width:100%; }
 
         /* ===== Champion Cup ===== */
+        .tt-groups{ display:grid; grid-template-columns:repeat(auto-fit, minmax(230px,1fr)); gap:14px; margin-bottom:18px; }
+        .tt-group-card{ border:1px solid rgba(255,255,255,0.08); border-radius:14px; padding:14px; background:rgba(0,0,0,0.3); }
+        .tt-group-head{ display:flex; justify-content:space-between; align-items:center; font-family:var(--mono); font-size:.68rem; letter-spacing:1px; color:var(--green); margin-bottom:10px; }
         .tt-team{ display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 10px; border-radius:10px; background:rgba(0,0,0,0.35); margin-bottom:8px; border:1px solid rgba(255,255,255,0.05); }
         .tt-team:last-child{ margin-bottom:0; }
         .tt-team .tt-name{ font-weight:700; font-size:.82rem; }
         .tt-score{ font-family:var(--mono); color:var(--amber); font-weight:700; }
-        .tt-match-card{ border:1px solid var(--green-line); border-radius:14px; padding:14px; background:rgba(0,0,0,0.4); }
+        .tt-bracket{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+        .tt-bracket-col{ display:flex; flex-direction:column; gap:12px; }
+        .tt-bracket-final{ grid-column:1 / -1; }
+        .tt-match-card{ border:1px solid var(--green-line); border-radius:14px; padding:14px; background:rgba(0,255,102,0.05); }
         .tt-match-stage{ font-family:var(--mono); font-size:.65rem; letter-spacing:2px; color:var(--green); margin-bottom:8px; display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap; }
         .tt-vs{ text-align:center; color:var(--muted); font-family:var(--mono); font-size:.72rem; margin:6px 0; }
         .tt-weapons{ margin-top:8px; font-size:.72rem; color:var(--muted); }
@@ -310,43 +316,6 @@
         .tt-prize-body{ padding:12px; }
         .tt-prize-total{ text-align:center; margin-top:16px; font-family:var(--mono); color:var(--amber); font-size:1.1rem; }
         .tt-archive-item{ display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; padding:14px; border-radius:12px; border:1px solid rgba(255,255,255,0.07); background:rgba(0,0,0,0.3); margin-bottom:10px; }
-
-        /* شجرة knockout — تصميم البرومبت: أسود / ذهبي / أبيض + خطوط SVG */
-        .tt-bracket-wrap{ overflow-x:auto; padding:44px 8px 10px; background:#000; border-radius:16px; border:1px solid rgba(255,255,255,.1); }
-        .tt-bracket{ position:relative; margin:0 auto; }
-        .tt-bracket-title{ text-align:center; font-family:var(--display); font-size:1.5rem; font-weight:800; color:#FFD700; text-shadow:0 0 8px rgba(255,215,0,.55),0 0 22px rgba(255,215,0,.3); letter-spacing:1px; padding:2px 0; }
-        .tt-bracket-sub{ text-align:center; font-family:var(--mono); font-size:.6rem; letter-spacing:3px; color:#aaa; margin:2px 0 10px; }
-        .tt-bracket-col-head{ position:absolute; top:-30px; text-align:center; font-family:var(--mono); font-size:.62rem; letter-spacing:2px; color:#fff; text-shadow:0 0 6px rgba(255,255,255,.35); white-space:nowrap; }
-        .tt-bracket-card{ position:absolute; padding:9px 10px; border-radius:12px; direction:ltr; background:#000; border:1px solid rgba(255,255,255,.4); cursor:pointer; transition:.15s; }
-        .tt-bracket-card:hover{ border-color:#fff; box-shadow:0 0 12px rgba(255,255,255,.2); }
-        .tt-bracket-card .tt-tbd{ padding:6px; color:#999; }
-        .tt-bracket-card .tt-name{ color:#fff; text-transform:uppercase; font-weight:700; }
-        .tt-bracket-card .tt-name.win{ color:#fff; text-shadow:0 0 8px rgba(255,255,255,.55); }
-        .tt-bracket-card .tt-score{ color:#fff; }
-        .tt-bracket-svg{ position:absolute; left:0; top:0; pointer-events:none; }
-
-        /* صندوق عصابة مستقل (أوراق الشجرة) */
-        .tt-gang-box{ position:absolute; display:flex; align-items:center; gap:8px; padding:0 12px; border-radius:10px; background:#000; border:1px solid rgba(255,255,255,.5); box-sizing:border-box; direction:ltr; }
-        .tt-gang-box-name{ flex:1; font-size:.82rem; font-weight:800; text-transform:uppercase; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-
-        /* شعار CORTEZ تحت الشجرة */
-        .tt-cortez{ text-align:center; padding:14px 0 2px; font-family:var(--display); font-size:1.05rem; font-weight:800; color:#FFD700; text-shadow:0 0 8px rgba(255,215,0,.5),0 0 22px rgba(255,215,0,.25); letter-spacing:6px; }
-
-        /* صفوف الأزواج في مودال تحديد العصابات */
-        .tt-pair-row{ display:flex; align-items:center; gap:8px; padding:9px 10px; border:1px solid rgba(255,255,255,.08); border-radius:12px; background:rgba(0,0,0,.3); margin-bottom:8px; flex-wrap:wrap; }
-        .tt-pair-label{ font-family:var(--mono); font-size:.66rem; letter-spacing:1px; color:var(--green); min-width:64px; }
-        .tt-pair-vs{ color:var(--muted); font-family:var(--mono); font-size:.68rem; }
-        .tt-pair-sel{ flex:1; min-width:130px; }
-
-
-        /* اختيار العصابات / عدد العصابات */
-        .tt-gang-chip{ cursor:pointer; display:flex; align-items:center; gap:8px; padding:10px 14px; border:1px solid rgba(255,255,255,.12); border-radius:12px; background:rgba(0,0,0,.3); font-size:.8rem; font-weight:600; transition:.15s; }
-        .tt-gang-chip:hover{ border-color:var(--green-line); }
-        .tt-gang-chip.on{ border-color:var(--green); background:rgba(0,255,102,.12); box-shadow:0 0 12px rgba(0,255,102,.2); }
-        .tt-seed-num{ min-width:22px; height:22px; line-height:22px; text-align:center; border-radius:50%; font-family:var(--mono); font-size:.65rem; color:#0a0a0a; background:var(--amber); }
-        .tt-groups{ display:grid; grid-template-columns:repeat(auto-fit, minmax(230px,1fr)); gap:14px; margin-bottom:18px; }
-        .tt-group-card{ border:1px solid rgba(255,255,255,0.08); border-radius:14px; padding:14px; background:rgba(0,0,0,0.3); }
-        .tt-group-head{ display:flex; justify-content:space-between; align-items:center; font-family:var(--mono); font-size:.68rem; letter-spacing:1px; color:var(--green); margin-bottom:10px; }
 
         @media (max-width:900px){
             .dash-grid,.req-grid,.shop-layout,.stat-row,.form-grid,.three-col{ grid-template-columns:1fr; }
@@ -1155,15 +1124,14 @@
         socket.on('gangShopUpdated', () => { if(isVisible('gangshop')){ loadGangCatalog(); if(isGangAdmin()) loadGangShopCatalog(); } });
         socket.on('gangOrdersUpdated', () => { if(isVisible('gangshop')){ if(userData && userData.role === 'Gang_Member') loadMyGangOrders(); if(isGangAdmin()) loadGangOrders(); } });
         socket.on('tournament:created', () => { toast('🏆 تم إطلاق بطولة جديدة!', 'warn'); if(isVisible('tournament')) loadTournamentAll(); });
-        socket.on('tournament:bracket-seeded', () => { if(isVisible('tournament')) loadTournamentAll(); });
+        socket.on('tournament:groups-assigned', () => { if(isVisible('tournament')) loadTournamentAll(); });
         socket.on('tournament:match-scheduled', () => { if(isVisible('tournament')) loadTournamentAll(); });
         socket.on('tournament:match-completed', () => { if(isVisible('tournament')) loadTournamentAll(); });
-        socket.on('tournament:round-advanced', () => { if(isVisible('tournament')) loadTournamentAll(); });
+        socket.on('tournament:stage-advanced', () => { if(isVisible('tournament')) loadTournamentAll(); });
         socket.on('tournament:completed', () => { toast('🏆 انتهت البطولة وتم تحديد البطل!', 'warn'); if(isVisible('tournament')) loadTournamentAll(); });
         socket.on('tournament:prizes-updated', () => { if(isVisible('tournament')) loadTournamentAll(); });
         socket.on('tournament:prizes-distributed', () => { toast('🎁 تم توزيع الجوايز.', 'warn'); if(isVisible('tournament')) loadTournamentAll(); });
         socket.on('tournament:cancelled', () => { toast('تم إلغاء البطولة.', 'warn'); if(isVisible('tournament')) loadTournamentAll(); });
-        socket.on('tournament:deleted', () => { if(isVisible('tournament') && tourActiveTab === 'archive') loadTournamentArchive(); });
     }
     function isVisible(sec){ return $('sec-'+sec) && $('sec-'+sec).classList.contains('active'); }
     function applyDutyUI(){
@@ -1969,37 +1937,13 @@
         if(g) return g.name;
         return id.name || 'TBD';
     }
-    function ttNextPow2(n){
-        let p = 1; while(p < n) p *= 2;
-        return p;
-    }
-    function ttGangsOrder(){
-        // ترتيب العصابات في أوراق الشجرة (0 = أول ورقة) — حسب ترتيب البذر المخزّن
-        return (tourData && tourData.gangs || []).map(g => g._id || g);
-    }
     function ttFindMatch(id){
         return (tourData && tourData.matches || []).find(m => String(m._id) === String(id));
-    }
-    function ttRounds(){
-        if(!tourData) return 0;
-        if(tourData.gangCount) return Math.round(Math.log2(ttNextPow2(tourData.gangCount)));
-        const ms = tourData.matches || [];
-        if(ms.some(m => m.round != null)) return Math.max.apply(null, ms.map(m => m.round || 0)) || 1;
-        if(ms.some(m => m.stage === 'final')) return ms.some(m => m.stage === 'semifinal') ? 3 : 2;
-        return 1;
-    }
-    function ttRoundLabel(r, R){
-        if(r === R) return '🏆 النهائي';
-        const fromFinal = R - r;
-        if(fromFinal === 1) return 'نصف النهائي';
-        if(fromFinal === 2) return 'ربع النهائي';
-        return 'دور الـ' + Math.pow(2, fromFinal + 1);
     }
     function ttStageLabel(m){
         if(!m) return '';
         if(m.stage === 'group') return 'المجموعة ' + (m.groupNumber||'');
-        if(m.stage === 'semifinal' && m.round == null) return 'نصف النهائي';
-        if(m.round != null) return ttRoundLabel(m.round, ttRounds());
+        if(m.stage === 'semifinal') return 'نصف النهائي';
         return 'النهائي';
     }
     function ttWeaponsHtml(m){
@@ -2011,11 +1955,11 @@
         const mgr = isTournamentManager();
         if(m.status === 'completed'){
             html += `<span class="badge Approved">✔️ ${m.result.scoreA} - ${m.result.scoreB}</span>`;
-            if(mgr) html += `<button class="btn-cyber btn-ghost" style="padding:4px 9px; font-size:.65rem;" onclick="event.stopPropagation(); ttEditResultModal('${m._id}')">✏️ تعديل</button>`;
+            if(mgr) html += `<button class="btn-cyber btn-ghost" style="padding:4px 9px; font-size:.65rem;" onclick="ttEditResultModal('${m._id}')">✏️ تعديل</button>`;
         } else {
             html += `<span class="badge Pending">⏳ ${m.scheduledAt ? 'مجدولة' : 'غير مجدولة'}</span>`;
-            if(mgr && m.gangA && m.gangB) html += `<button class="btn-cyber btn-ghost" style="padding:4px 9px; font-size:.65rem;" onclick="event.stopPropagation(); ttScheduleModal('${m._id}')">⏱️ جدولة</button>`;
-            if(mgr && m.gangA && m.gangB) html += `<button class="btn-cyber btn-green" style="padding:4px 9px; font-size:.65rem;" onclick="event.stopPropagation(); ttResultModal('${m._id}')">✔️ نتيجة</button>`;
+            if(mgr) html += `<button class="btn-cyber btn-ghost" style="padding:4px 9px; font-size:.65rem;" onclick="ttScheduleModal('${m._id}')">⏱️ جدولة</button>`;
+            if(mgr) html += `<button class="btn-cyber btn-green" style="padding:4px 9px; font-size:.65rem;" onclick="ttResultModal('${m._id}')">✔️ نتيجة</button>`;
         }
         return html;
     }
@@ -2046,7 +1990,7 @@
             return;
         }
         if(tourData.status === 'setup' || tourData.status === 'ongoing'){
-            box.innerHTML += `<button class="btn-cyber btn-ghost" onclick="ttBracketModal()"><i class="fa-solid fa-shuffle" style="margin-left:6px;"></i>تحديد العصابات وتوليد المربع</button>`;
+            box.innerHTML += `<button class="btn-cyber btn-ghost" onclick="ttGroupsModal()"><i class="fa-solid fa-shuffle" style="margin-left:6px;"></i>توزيع المجموعات</button>`;
             box.innerHTML += `<button class="btn-cyber btn-ghost" onclick="ttPrizesModal()"><i class="fa-solid fa-gift" style="margin-left:6px;"></i>إدارة الجوايز</button>`;
             box.innerHTML += `<button class="btn-cyber btn-red" onclick="ttCancel()"><i class="fa-solid fa-ban" style="margin-left:6px;"></i>إلغاء البطولة</button>`;
         }
@@ -2086,215 +2030,19 @@
             box.innerHTML = '<div class="empty">لا توجد بطولة حالية.</div>';
             return;
         }
-        const ms = tourData.matches || [];
-        if(ms.length && ms.every(m => m.round == null)){ renderLegacyBracket(); return; }
-        if(!ms.length){
-            box.innerHTML = '<div class="empty">لم تُحدد العصابات بعد — الـ Don يضغط "تحديد العصابات وتوليد المربع".</div>';
-            return;
-        }
-        const gangCount = tourData.gangCount || 8;
-        const R = ttRounds();
-        if(!R){ box.innerHTML = '<div class="empty">شجرة البطولة غير متاحة بعد.</div>'; return; }
-
-        const cardW = 250, cardH = 140, colGap = 64, colW = cardW + colGap, cellH = 176;
-        const gangBoxH = 44;
-        const height = gangCount * cellH;
-        const cols = 2 * R + 1;
-        const width = cols * colW;
-
-        const rounds = {};
-        ms.forEach(m => { if(m.round == null) return; (rounds[m.round] = rounds[m.round] || []).push(m); });
-        Object.keys(rounds).forEach(r => rounds[r].sort((a,b) => a.slotIndex - b.slotIndex));
-
-        const colX = c => c * colW;
-        // المستوى: 0 = أوراق العصابات، 1..R = جولات المباريات (المستوى R = النهائي في المنتصف)
-        const colFor = (lv, k) => {
-            if(lv === R) return R;
-            const half = Math.pow(2, R - lv - 1);
-            return k < half ? lv : (2 * R - lv);
-        };
-        const sideFor = (lv, k) => (lv === R) ? 'c' : (k < Math.pow(2, R - lv - 1) ? 'l' : 'r');
-        const spanTop = (lv, k) => k * Math.pow(2, lv) * cellH;
-        const spanH = lv => Math.pow(2, lv) * cellH;
-
-        let html = '';
-        html += `<div class="tt-bracket-wrap">
-            <div class="tt-bracket-title">${esc(tourData.name || 'CHAMPION CUP')}</div>
-            <div class="tt-bracket-sub">🏆 SINGLE ELIMINATION — ${gangCount} GANGS — BEST OF 3 🏆</div>
-            <div class="tt-bracket" style="width:${width}px; height:${height}px; direction:ltr;">`;
-
-        for(let c = 0; c < cols; c++){
-            let label;
-            if(c === R) label = '🏆 النهائي';
-            else if(c === 0 || c === 2 * R) label = '👥 المشاركون';
-            else if(c < R) label = ttRoundLabel(c, R);
-            else label = ttRoundLabel(2 * R - c, R);
-            html += `<div class="tt-bracket-col-head" style="left:${colX(c)}px; width:${cardW}px;">${label}</div>`;
-        }
-
-        // صناديق العصابات — كل عصابة في صندوقها الخاص (أوراق الشجرة)
-        const order = ttGangsOrder();
-        for(let i = 0; i < gangCount; i++){
-            const x = colX(colFor(0, i));
-            const top = spanTop(0, i) + (spanH(0) - gangBoxH) / 2;
-            const g = order[i];
-            const gname = g && g.name ? g.name : ttGangName(g);
-            html += `<div class="tt-gang-box" data-leaf="${i}" style="left:${x}px; top:${top}px; width:${cardW}px; height:${gangBoxH}px;">
-                <span class="tt-gang-box-name">${esc(gname)}</span>
-            </div>`;
-        }
-
-        // بطاقات المباريات (المستويات 1..R)
-        const cards = {};
-        for(let r = 1; r <= R; r++){
-            (rounds[r] || []).forEach((m, idx) => {
-                const k = m.slotIndex != null ? m.slotIndex : idx;
-                const x = colX(colFor(r, k));
-                const top = spanTop(r, k) + (spanH(r) - cardH) / 2;
-                cards[r + ':' + k] = { x, top, k, r };
-                html += ttBracketCardHtml(m, r, k, x, top, cardW, cardH);
-            });
-        }
-
-        // خطوط الربط تُرسم بعد اكتمال الـ DOM بالقياس الفعلي (getBoundingClientRect) — راجع ttDrawConnectors
-        html += `<svg class="tt-bracket-svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"></svg>`;
-
-        html += '</div>';
-        html += '<div class="tt-cortez">CORTEZ</div>';
-        html += '</div>';
-        box.innerHTML = html;
-        ttDrawConnectors(box);
-        if(!window._ttResizeBound){
-            window._ttResizeBound = true;
-            window.addEventListener('resize', () => {
-                const b = $('tt-bracket-box');
-                if(b && b.querySelector('.tt-bracket-svg')) ttDrawConnectors(b);
-            });
-        }
-    }
-    function ttDrawConnectors(box){
-        if(!box) box = $('tt-bracket-box');
-        if(!box) return;
-        const svg = box.querySelector('.tt-bracket-svg'); if(!svg) return;
-        const br = box.querySelector('.tt-bracket'); if(!br) return;
-        const brRect = br.getBoundingClientRect();
-        // ⚠️ امسح كل الخطوط القديمة قبل إعادة الرسم — بلا تكديس
-        svg.setAttribute('width', brRect.width);
-        svg.setAttribute('height', brRect.height);
-        svg.style.width = brRect.width + 'px';
-        svg.style.height = brRect.height + 'px';
-        svg.innerHTML = '';
-        const NS = 'http://www.w3.org/2000/svg';
-        const addLine = (x1, y1, x2, y2, determined) => {
-            const el = document.createElementNS(NS, 'line');
-            el.setAttribute('x1', x1); el.setAttribute('y1', y1);
-            el.setAttribute('x2', x2); el.setAttribute('y2', y2);
-            // خطوط الربط بيضاء — الذهبي محصور فالعنوان وشعار CORTEZ فقط
-            el.setAttribute('stroke', determined ? '#E5E5E5' : '#FFFFFF');
-            el.setAttribute('stroke-opacity', determined ? '0.85' : '0.18');
-            el.setAttribute('stroke-width', determined ? '2' : '1.5');
-            svg.appendChild(el);
-        };
-        const gangCount = (tourData && tourData.gangCount) || 8;
-        const R = ttRounds();
-        const matchKey = {};
-        (tourData.matches || []).forEach(m => { if(m.round != null) matchKey[m.round + ':' + m.slotIndex] = m; });
-        // زوج (i, i+1) يوصل بنفس المباراة فالدور الجاي — بلا أي رابط زايد
-        const drawPair = (child, sib, parent, determined) => {
-            const cR = child.getBoundingClientRect(), sR = sib.getBoundingClientRect(), pR = parent.getBoundingClientRect();
-            const yA = cR.top + cR.height / 2 - brRect.top;
-            const yB = sR.top + sR.height / 2 - brRect.top;
-            const yP = pR.top + pR.height / 2 - brRect.top;
-            const left = cR.left < pR.left;
-            let xStart, xEnd;
-            if(left){ xStart = cR.right - brRect.left; xEnd = pR.left - brRect.left; }
-            else { xStart = cR.left - brRect.left; xEnd = pR.right - brRect.left; }
-            const xMid = (xStart + xEnd) / 2;   // نص المسافة بين الدورين
-            // 1) أفقي من الطفل لـ xMid عند yA
-            // 2) أفقي من الشقيق لـ xMid عند yB
-            // 3) عمودي عند xMid من yA إلى yB بالضبط (بلا زيادة)
-            // 4) أفقي من xMid عند yParent نحو صندوق الدور الجاي
-            if(left){
-                addLine(xStart, yA, xMid, yA, determined);
-                addLine(xStart, yB, xMid, yB, determined);
-                addLine(xMid, Math.min(yA, yB), xMid, Math.max(yA, yB), determined);
-                addLine(xMid, yP, xEnd, yP, determined);
-            } else {
-                addLine(xMid, yA, xStart, yA, determined);
-                addLine(xMid, yB, xStart, yB, determined);
-                addLine(xMid, Math.min(yA, yB), xMid, Math.max(yA, yB), determined);
-                addLine(xEnd, yP, xMid, yP, determined);
-            }
-        };
-        // أوراق العصابات → الدور الأول
-        for(let i = 0; i < gangCount; i++){
-            const child = box.querySelector('.tt-gang-box[data-leaf="' + i + '"]');
-            const sib = box.querySelector('.tt-gang-box[data-leaf="' + (i ^ 1) + '"]');
-            const pk = Math.floor(i / 2);
-            const parent = box.querySelector('.tt-bracket-card[data-r="1"][data-s="' + pk + '"]');
-            if(!child || !sib || !parent) continue;
-            const pm = matchKey['1:' + pk];
-            const determined = !!(pm && pm.gangA && pm.gangB);
-            if(i % 2 === 0) drawPair(child, sib, parent, determined);
-        }
-        // بطاقات الجولات 1..R-1 → الجولة الموالية
-        for(let r = 1; r < R; r++){
-            const nodes = gangCount / Math.pow(2, r);
-            for(let k = 0; k < nodes; k++){
-                const child = box.querySelector('.tt-bracket-card[data-r="' + r + '"][data-s="' + k + '"]');
-                const sib = box.querySelector('.tt-bracket-card[data-r="' + r + '"][data-s="' + (k ^ 1) + '"]');
-                const parent = box.querySelector('.tt-bracket-card[data-r="' + (r + 1) + '"][data-s="' + Math.floor(k / 2) + '"]');
-                if(!child || !sib || !parent) continue;
-                const cm = matchKey[r + ':' + k];
-                if(cm && !cm.gangA && !cm.gangB) continue;   // صندوق TBD فارغ — لا يُرسم له خط
-                const pm = matchKey[(r + 1) + ':' + Math.floor(k / 2)];
-                const determined = !!(cm && cm.gangA && cm.gangB && pm && pm.gangA && pm.gangB);
-                if(k % 2 === 0) drawPair(child, sib, parent, determined);
-            }
-        }
-    }
-    function ttBracketCardHtml(m, r, k, x, top, cardW, cardH){
-        const a = ttGangName(m.gangA), b = ttGangName(m.gangB);
-        const winA = m.status === 'completed' && m.result.winner && String(m.result.winner) === String(m.gangA);
-        const winB = m.status === 'completed' && m.result.winner && String(m.result.winner) === String(m.gangB);
-        const rowStyle = w => w ? 'color:#fff; text-shadow:0 0 8px rgba(255,255,255,.55);' : '';
-        let body;
-        if(m.gangA && m.gangB){
-            body = `
-            <div style="display:flex; align-items:center; gap:6px; padding:5px 8px; border-radius:8px; background:rgba(255,255,255,.05);">
-                <span class="tt-name" style="flex:1; text-align:left; ${rowStyle(winA)}">${esc(a)}</span>
-                ${m.status === 'completed' ? `<span class="tt-score" style="${rowStyle(winA)}">${m.result.scoreA}</span>` : ''}
-            </div>
-            <div style="display:flex; align-items:center; gap:6px; padding:5px 8px; border-radius:8px; background:rgba(255,255,255,.05); margin-top:6px;">
-                ${m.status === 'completed' ? `<span class="tt-score" style="${rowStyle(winB)}">${m.result.scoreB}</span>` : ''}
-                <span class="tt-name" style="flex:1; text-align:right; ${rowStyle(winB)}">${esc(b)}</span>
-            </div>`;
-        } else if(m.gangA){
-            body = `
-            <div style="display:flex; align-items:center; gap:6px; padding:5px 8px; border-radius:8px; background:rgba(255,255,255,.05);">
-                <span class="tt-name" style="flex:1; text-align:left; color:#fff;">${esc(a)}</span>
-            </div>
-            <div class="tt-tbd" style="font-size:.66rem; padding:4px;">بانتظار وصول الخصم...</div>`;
-        } else {
-            body = '<div class="tt-tbd">بانتظار تأهل الفائزين...</div>';
-        }
-        const meta = m.status === 'completed' ? '' : (m.scheduledAt ? `<span style="color:var(--amber); font-family:var(--mono); font-size:.58rem;">${fmtDate(m.scheduledAt)}</span>` : '');
-        const btns = (m.gangA && m.gangB) ? ttMatchMetaHtml(m) : '';
-        return `<div class="tt-match-card tt-bracket-card" data-r="${r}" data-s="${k}" style="left:${x}px; top:${top}px; width:${cardW}px; height:${cardH}px;" onclick="ttMatchInfo('${m._id}')">
-            <div class="tt-match-stage" style="font-size:.58rem; margin-bottom:6px;">${ttStageLabel(m)}${meta}</div>
-            ${body}
-            ${(m.gangA && m.gangB) ? ttWeaponsHtml(m) : ''}
-            <div style="position:absolute; right:8px; bottom:6px; display:flex; gap:4px; flex-wrap:wrap; justify-content:flex-end; max-width:230px;">${btns}</div>
-        </div>`;
-    }
-    function renderLegacyBracket(){
-        const box = $('tt-bracket-box'); if(!box) return;
         let groupsHtml = '<div class="tt-groups">';
         (tourData.groups || []).forEach(g => {
             const m = ttFindMatch(g.matchId);
             const gangA = g.gangs && g.gangs[0], gangB = g.gangs && g.gangs[1];
-            const aHtml = `<div class="tt-team"><span class="tt-name">${esc(gangA ? gangA.name : 'TBD')}</span>${m && m.status==='completed' ? `<span class="tt-score">${m.result.scoreA}</span>` : ''}</div>`;
-            const bHtml = `<div class="tt-team"><span class="tt-name">${esc(gangB ? gangB.name : 'TBD')}</span>${m && m.status==='completed' ? `<span class="tt-score">${m.result.scoreB}</span>` : ''}</div>`;
+            let aBadge='', bBadge='';
+            if(m && m.status === 'completed'){
+                const wa = m.result.winner && String(m.result.winner) === String(gangA && gangA._id);
+                const wb = m.result.winner && String(m.result.winner) === String(gangB && gangB._id);
+                aBadge = wa ? '<span class="badge Approved">✅ متأهلة</span>' : (wb ? '<span class="badge Rejected">❌ مقصية</span>' : '');
+                bBadge = wb ? '<span class="badge Approved">✅ متأهلة</span>' : (wa ? '<span class="badge Rejected">❌ مقصية</span>' : '');
+            }
+            const aHtml = `<div class="tt-team"><span class="tt-name">${esc(gangA ? gangA.name : 'TBD')}</span><span style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">${m && m.status==='completed' ? `<span class="tt-score">${m.result.scoreA}</span>` : ''}${aBadge}</span></div>`;
+            const bHtml = `<div class="tt-team"><span class="tt-name">${esc(gangB ? gangB.name : 'TBD')}</span><span style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">${bBadge}${m && m.status==='completed' ? `<span class="tt-score">${m.result.scoreB}</span>` : ''}</span></div>`;
             groupsHtml += `<div class="tt-group-card">
                 <div class="tt-group-head"><span>المجموعة ${g.groupNumber}</span><span style="display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end;">${m ? ttMatchMetaHtml(m) : ''}</span></div>
                 ${aHtml}${bHtml}
@@ -2304,11 +2052,11 @@
         groupsHtml += '</div>';
         const semis = (tourData.matches || []).filter(x => x.stage === 'semifinal');
         const finalM = (tourData.matches || []).find(x => x.stage === 'final');
-        const semiCard = m => {
-            if(!m) return `<div class="tt-match-card" style="border-color:rgba(255,179,0,.4); margin-bottom:12px;"><div class="tt-match-stage"><span>نصف النهائي</span></div><div class="tt-tbd">بانتظار تأهل فائزي المجموعات...</div></div>`;
+        const semiCard = (m, idx) => {
+            if(!m) return `<div class="tt-match-card" style="border-color:rgba(255,179,0,.4);"><div class="tt-match-stage"><span>نصف النهائي ${idx+1}</span></div><div class="tt-tbd">بانتظار تأهل فائزي المجموعات...</div></div>`;
             const a = ttGangName(m.gangA), b = ttGangName(m.gangB);
-            return `<div class="tt-match-card" style="margin-bottom:12px;">
-                <div class="tt-match-stage"><span>نصف النهائي</span>${m.scheduledAt ? `<span style="color:var(--amber);">${fmtDate(m.scheduledAt)}</span>` : ''}</div>
+            return `<div class="tt-match-card">
+                <div class="tt-match-stage"><span>نصف النهائي ${idx+1}</span>${m.scheduledAt ? `<span style="color:var(--amber);">${fmtDate(m.scheduledAt)}</span>` : ''}</div>
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
                     <span class="tt-team" style="flex:1; margin:0;"><span class="tt-name">${esc(a)}</span>${m.status==='completed' ? `<span class="tt-score">${m.result.scoreA}</span>` : ''}</span>
                     <div class="tt-vs">VS</div>
@@ -2318,12 +2066,26 @@
                 <div style="margin-top:10px; display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end;">${ttMatchMetaHtml(m)}</div>
             </div>`;
         };
-        let html = groupsHtml;
-        html += '<div style="max-width:720px; margin:0 auto;">' + semis.map(semiCard).join('') + '</div>';
-        if(finalM || semis.length === 2){
-            html += '<div style="max-width:720px; margin:18px auto 0;">' + semiCard(finalM) + '</div>';
+        let bracketHtml = '<div class="tt-bracket">';
+        bracketHtml += `<div class="tt-bracket-col">${semiCard(semis[0], 0)}</div>`;
+        bracketHtml += `<div class="tt-bracket-col">${semiCard(semis[1], 1)}</div>`;
+        let finalHtml = '<div class="tt-match-card tt-bracket-final" style="border-color:rgba(255,179,0,.5); background:rgba(255,179,0,0.05);">';
+        finalHtml += '<div class="tt-match-stage"><span>🏆 النهائي</span>' + (finalM && finalM.scheduledAt ? `<span style="color:var(--amber);">${fmtDate(finalM.scheduledAt)}</span>` : '') + '</div>';
+        if(!finalM){
+            finalHtml += '<div class="tt-tbd">الفائزان من نصفي النهائي سيتواجهان هنا...</div>';
+        } else {
+            const a = ttGangName(finalM.gangA), b = ttGangName(finalM.gangB);
+            finalHtml += `<div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
+                <span class="tt-team" style="flex:1; margin:0;"><span class="tt-name">${esc(a)}</span>${finalM.status==='completed' ? `<span class="tt-score">${finalM.result.scoreA}</span>` : ''}</span>
+                <div class="tt-vs">VS</div>
+                <span class="tt-team" style="flex:1; margin:0; flex-direction:row-reverse;"><span class="tt-name">${esc(b)}</span>${finalM.status==='completed' ? `<span class="tt-score">${finalM.result.scoreB}</span>` : ''}</span>
+            </div>
+            ${ttWeaponsHtml(finalM)}
+            <div style="margin-top:10px; display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end;">${ttMatchMetaHtml(finalM)}</div>`;
         }
-        box.innerHTML = html;
+        finalHtml += '</div>';
+        bracketHtml += finalHtml + '</div>';
+        box.innerHTML = groupsHtml + bracketHtml;
     }
     function renderTournamentPrizes(){
         const box = $('tt-prizes-box'); if(!box) return;
@@ -2386,20 +2148,10 @@
                     <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
                         <span class="badge ${t.status==='completed'?'Approved':'Rejected'}">${t.status==='completed' ? '🏆 ' + esc(champ) : '🗑️ ملغاة'}</span>
                         <button class="btn-cyber btn-ghost" style="padding:6px 12px; font-size:.7rem;" onclick="ttArchiveDetail('${t._id}')">عرض التفاصيل</button>
-                        ${isTournamentManager() ? `<button class="btn-cyber btn-red" style="padding:6px 12px; font-size:.7rem;" onclick="ttArchiveDelete('${t._id}')"><i class="fa-solid fa-trash" style="margin-left:5px;"></i>حذف</button>` : ''}
                     </div>
                 </div>`;
             });
         } catch(e){ box.innerHTML = '<div class="empty">تعذر تحميل الأرشيف</div>'; }
-    }
-    async function ttArchiveDelete(id){
-        openModal('🗑️ حذف البطولة', 'هل أنت متأكد؟ سيتم حذف البطولة ومبارياتها نهائياً من الأرشيف ولا يمكن التراجع.', async () => {
-            try {
-                const r = await api('/api/tournaments/' + id, { method:'DELETE' });
-                toast(r.msg || 'تم الحذف.');
-                loadTournamentArchive();
-            } catch(e){ toast(e.message, 'err'); }
-        });
     }
     async function ttArchiveDetail(id){
         try {
@@ -2450,40 +2202,17 @@
             $('gang-modal-overlay').classList.add('open');
         } catch(e){ toast(e.message, 'err'); }
     }
-    function ttLaunch(){
+    async function ttLaunch(){
         if(!isTournamentManager()) return;
-        $('gang-modal-title').innerText = '🔥 إطلاق بطولة جديدة';
-        $('gang-modal-body').innerHTML = `
-            <div style="font-size:.78rem; color:var(--muted); margin-bottom:12px;">البطولة دايما بين <b>8 عصابات بالضبط</b> — إقصاء مباشر Best of 3: ربع النهائي → نصف النهائي → النهائي.</div>
-            <div style="display:flex; gap:10px; align-items:center; padding:12px; border:1px solid rgba(255,255,255,.15); border-radius:12px; background:rgba(0,0,0,.35);">
-                <span style="font-size:1.6rem;">🏆</span>
-                <div style="flex:1;">
-                    <div style="font-family:var(--mono); font-weight:700; letter-spacing:1px;">8 GANGS — SINGLE ELIMINATION</div>
-                    <div style="font-size:.68rem; color:var(--muted); margin-top:3px;">سيتم جلب العصابات المتاحة تلقائياً بعد الإطلاق، ويمكنك تعديل القائمة والأزواج يدوياً قبل توليد المربع.</div>
-                </div>
-            </div>
-            <div style="margin-top:10px; font-family:var(--mono); font-size:.72rem; color:var(--amber);">العدد ثابت: <b id="tt-size-out">8</b> عصابات</div>`;
-        const actionsEl = $('gang-modal-actions');
-        actionsEl.innerHTML = '';
-        const goBtn = document.createElement('button');
-        goBtn.className = 'btn-cyber btn-green'; goBtn.style.padding = '10px 22px';
-        goBtn.innerText = 'إطلاق';
-        goBtn.onclick = () => ttDoLaunch();
-        actionsEl.appendChild(goBtn);
-        const cancelBtn = document.createElement('button');
-        cancelBtn.className = 'btn-cyber btn-red'; cancelBtn.style.padding = '10px 22px';
-        cancelBtn.innerText = 'إلغاء';
-        cancelBtn.onclick = closeGangModal;
-        actionsEl.appendChild(cancelBtn);
-        $('gang-modal-overlay').classList.add('open');
-    }
-    async function ttDoLaunch(){
-        try {
-            const d = await api('/api/tournaments', { method:'POST', body:{ gangCount: 8 } });
-            toast('تم إطلاق البطولة! (8 عصابات)');
-            closeGangModal();
-            loadTournamentAll();
-        } catch(e){ toast(e.message, 'err'); }
+        openModal('إطلاق بطولة جديدة', 'سيتم جلب العصابات الحالية وإنشاء بطولة جديدة. متابعة؟', async () => {
+            try {
+                const d = await api('/api/tournaments', { method:'POST' });
+                const n = (d.availableGangs||[]).length;
+                if(n !== 8) toast('⚠️ انطلق! عدد العصابات الحالية: ' + n + ' (المفروض 8). وزّعها يدوياً.', 'warn');
+                else toast('تم إطلاق البطولة!');
+                loadTournamentAll();
+            } catch(e){ toast(e.message, 'err'); }
+        });
     }
     function ttCancel(){
         if(!isTournamentManager()) return;
@@ -2499,53 +2228,41 @@
             catch(e){ toast(e.message, 'err'); }
         });
     }
-    let ttPairs = [];
-    let ttAllGangs = [];
-    async function ttBracketModal(){
+    async function ttGroupsModal(){
         if(!isTournamentManager()) return;
-        const need = tourData.gangCount || 8;
-        try { ttAllGangs = await api('/api/tournaments/gangs'); } catch(e){ ttAllGangs = []; }
-        // تهيئة الأزواج: إما من ترتيب المربع الحالي إن وُجد، أو تسجيل أوتوماتيكي (جلب العصابات المتاحة)
-        const order = ttGangsOrder();
-        const hasSeed = order.some(o => o);
-        ttPairs = [];
-        if(hasSeed){
-            for(let s = 0; s < need / 2; s++){
-                const ga = order[s * 2], gb = order[s * 2 + 1];
-                ttPairs.push([ga ? String(ga._id || ga) : null, gb ? String(gb._id || gb) : null]);
-            }
-        } else {
-            const pick = ttAllGangs.slice(0, need);
-            for(let s = 0; s < need / 2; s++){
-                const ga = pick[s * 2], gb = pick[s * 2 + 1];
-                ttPairs.push([ga ? String(ga._id) : null, gb ? String(gb._id) : null]);
-            }
+        let gangs = (tourData && tourData.gangs && tourData.gangs.length) ? tourData.gangs : null;
+        if(!gangs || !gangs.length){
+            try { gangs = await api('/api/tournaments/gangs'); } catch(e){ gangs = []; }
         }
-        $('gang-modal-title').innerText = '🎲 تحديد العصابات وأزواج المربع';
-        const warn = tourData.status === 'ongoing' ? '<div style="margin-bottom:8px; color:var(--red); font-size:.7rem;">⚠️ إعادة التوليد ستمسح كل النتائج المسجلة.</div>' : '';
-        const shortWarn = ttAllGangs.length < need ? `<div style="margin-bottom:8px; color:var(--amber); font-size:.7rem;">⚠️ العصابات المتاحة حالياً: <b>${ttAllGangs.length}</b> من <b>${need}</b> — أضف عصابات يدوياً (زر "+ عصابة جديدة") لإكمال المربع قبل التوليد.</div>` : '';
-        $('gang-modal-body').innerHTML = `
-            <div style="font-size:.75rem; color:var(--muted); margin-bottom:8px;">ركّب <b>${need}</b> عصابة في أزواج — كل عصابة في صندوقها، وصندوقا أي مباراتين يلتقيان في صندوق فائز أعلاهما.</div>
-            ${warn}
-            ${shortWarn}
-            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
-                <button class="btn-cyber btn-ghost" onclick="ttRandomizePairs()" style="flex:1; min-width:120px;"><i class="fa-solid fa-shuffle" style="margin-left:6px;"></i>🎲 عشوائي</button>
-                <button class="btn-cyber btn-ghost" onclick="ttAddGangRow()" style="flex:1; min-width:120px;"><i class="fa-solid fa-plus" style="margin-left:6px;"></i>+ عصابة جديدة</button>
-            </div>
-            <div id="tt-add-gang-wrap" style="display:none; margin-bottom:10px;">
+        if(!gangs.length){ toast('لا توجد عصابات مسجلة.', 'err'); return; }
+        const opts = gangs.map(g => `<option value="${g._id}">${esc(g.name)}</option>`).join('');
+        const existing = {};
+        (tourData && tourData.groups || []).forEach(g => {
+            if(g.gangs && g.gangs.length === 2){ existing[g.groupNumber] = g.gangs; }
+        });
+        $('gang-modal-title').innerText = '🎲 توزيع المجموعات — 4 مجموعات × عصابتين';
+        let body = '';
+        for(let i=1; i<=4; i++){
+            const cur = existing[i] || [];
+            const selA = cur[0] ? cur[0]._id : '', selB = cur[1] ? cur[1]._id : '';
+            body += `<div style="margin-bottom:10px; border:1px solid rgba(255,255,255,.08); border-radius:10px; padding:10px; background:rgba(0,0,0,.25);">
+                <div style="font-family:var(--mono); font-size:.68rem; color:var(--green); margin-bottom:6px;">المجموعة ${i}</div>
                 <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                    <input class="cyber-input" id="tt-new-gang-name" placeholder="اسم العصابة الجديدة" style="flex:2; min-width:180px;">
-                    <button class="btn-cyber btn-green" onclick="ttAddGang()" style="flex:1; min-width:90px;">حفظ</button>
+                    <select class="cyber-input" id="tt-g${i}a" style="flex:1;">${selA ? opts.replace(`value="${selA}"`, `value="${selA}" selected`) : opts}</select>
+                    <select class="cyber-input" id="tt-g${i}b" style="flex:1;">${selB ? opts.replace(`value="${selB}"`, `value="${selB}" selected`) : opts}</select>
                 </div>
-            </div>
-            <div style="margin-bottom:10px; font-family:var(--mono); font-size:.72rem; color:var(--amber);" id="tt-bsel-out"></div>
-            <div id="tt-pair-area"></div>`;
+            </div>`;
+        }
+        if(gangs.length !== 8){
+            body += `<div style="margin-top:8px; color:var(--amber); font-size:.72rem;">⚠️ العدد الحالي للعصابات: ${gangs.length} (المفروض 8).</div>`;
+        }
+        $('gang-modal-body').innerHTML = body;
         const actionsEl = $('gang-modal-actions');
         actionsEl.innerHTML = '';
         const saveBtn = document.createElement('button');
         saveBtn.className = 'btn-cyber btn-green'; saveBtn.style.padding = '10px 22px';
-        saveBtn.innerText = 'توليد المربع';
-        saveBtn.onclick = () => ttBracketSave();
+        saveBtn.innerText = 'تأكيد التوزيع';
+        saveBtn.onclick = () => ttGroupsSave();
         actionsEl.appendChild(saveBtn);
         const cancelBtn = document.createElement('button');
         cancelBtn.className = 'btn-cyber btn-red'; cancelBtn.style.padding = '10px 22px';
@@ -2553,97 +2270,17 @@
         cancelBtn.onclick = closeGangModal;
         actionsEl.appendChild(cancelBtn);
         $('gang-modal-overlay').classList.add('open');
-        ttRenderPairs();
     }
-    function ttPairOptions(s, side){
-        const cur = ttPairs[s][side];
-        const used = {};
-        ttPairs.forEach((p, i) => { p.forEach((v, j) => { if(!(i === s && j === side) && v) used[String(v)] = true; }); });
-        let html = '<option value="">— اختر عصابة —</option>';
-        ttAllGangs.forEach(g => {
-            const gid = String(g._id);
-            const sel = cur && String(cur) === gid ? 'selected' : '';
-            const dis = used[gid] ? 'disabled' : '';
-            html += `<option value="${gid}" ${sel} ${dis}>${esc(g.name)}</option>`;
-        });
-        return html;
-    }
-    function ttRenderPairs(){
-        const wrap = $('tt-pair-area'); if(!wrap) return;
-        const need = tourData.gangCount || 8;
-        let html = '';
-        for(let s = 0; s < need / 2; s++){
-            html += `
-            <div class="tt-pair-row">
-                <span class="tt-pair-label">مباراة ${s + 1}</span>
-                <select class="cyber-input tt-pair-sel" onchange="ttPairChanged(${s},0,this.value)">${ttPairOptions(s, 0)}</select>
-                <span class="tt-pair-vs">ضد</span>
-                <select class="cyber-input tt-pair-sel" onchange="ttPairChanged(${s},1,this.value)">${ttPairOptions(s, 1)}</select>
-            </div>`;
+    async function ttGroupsSave(){
+        const groups = [];
+        for(let i=1; i<=4; i++){
+            const a = $('tt-g'+i+'a').value, b = $('tt-g'+i+'b').value;
+            if(!a || !b){ toast('املأ كل المجموعات', 'warn'); return; }
+            groups.push({ gangA: a, gangB: b });
         }
-        wrap.innerHTML = html;
-        ttPairCount();
-    }
-    function ttPairCount(){
-        const need = tourData.gangCount || 8;
-        let filled = 0;
-        const used = {};
-        ttPairs.forEach(p => {
-            if(p[0]){ used[String(p[0])] = true; if(p[1]) filled++; }
-        });
-        const el = $('tt-bsel-out'); if(!el) return;
-        el.innerHTML = 'أزواج مكتملة: <b>' + filled + '</b> / ' + (need / 2) + ' — عصابات ممتلئة: <b>' + Object.keys(used).length + '</b> / ' + need;
-    }
-    function ttPairChanged(s, side, val){
-        ttPairs[s][side] = val || null;
-        ttRenderPairs();
-    }
-    function ttRandomizePairs(){
-        const need = tourData.gangCount || 8;
-        const gids = ttAllGangs.map(g => String(g._id));
-        for(let i = gids.length - 1; i > 0; i--){
-            const j = Math.floor(Math.random() * (i + 1));
-            const t = gids[i]; gids[i] = gids[j]; gids[j] = t;
-        }
-        ttPairs = [];
-        for(let s = 0; s < need / 2; s++){
-            ttPairs.push([gids[s * 2] || null, gids[s * 2 + 1] || null]);
-        }
-        ttRenderPairs();
-    }
-    function ttAddGangRow(){
-        const wrap = $('tt-add-gang-wrap'); if(!wrap) return;
-        const show = wrap.style.display === 'none';
-        wrap.style.display = show ? 'block' : 'none';
-        if(show){ const inp = $('tt-new-gang-name'); if(inp) inp.focus(); }
-    }
-    async function ttAddGang(){
-        const inp = $('tt-new-gang-name');
-        if(!inp) return;
-        const name = inp.value.trim();
-        if(!name){ toast('اكتب اسم العصابة.', 'warn'); return; }
         try {
-            const g = await api('/api/tournaments/gangs', { method:'POST', body:{ name } });
-            ttAllGangs.push({ _id: g._id, name: g.name });
-            ttAllGangs.sort((a,b) => String(a.name).localeCompare(String(b.name), 'ar'));
-            inp.value = '';
-            ttRenderPairs();
-            toast('تمت إضافة العصابة ' + g.name);
-        } catch(e){ toast(e.message, 'err'); }
-    }
-    async function ttBracketSave(){
-        const need = tourData.gangCount || 8;
-        const order = [];
-        for(let s = 0; s < need / 2; s++){
-            const p = ttPairs[s] || [];
-            if(!p[0] || !p[1]){ toast('أكمل أزواج المربع أولاً (مباراة ' + (s + 1) + ').', 'warn'); return; }
-            order.push(p[0], p[1]);
-        }
-        const seen = new Set(order.map(String));
-        if(seen.size !== need){ toast('لا يمكن تكرار عصابة في المربع.', 'warn'); return; }
-        try {
-            await api('/api/tournaments/' + tourData._id + '/bracket', { method:'PUT', body:{ gangs: order } });
-            toast('تم توليد شجرة الـ knockout.');
+            await api('/api/tournaments/' + tourData._id + '/groups', { method:'PUT', body:{ groups } });
+            toast('تم توزيع المجموعات.');
             closeGangModal();
             loadTournamentAll();
         } catch(e){ toast(e.message, 'err'); }
@@ -2696,38 +2333,6 @@
             closeGangModal();
             loadTournamentAll();
         } catch(e){ toast(e.message, 'err'); }
-    }
-    function ttMatchInfo(matchId){
-        const m = ttFindMatch(matchId);
-        if(!m) return;
-        const a = ttGangName(m.gangA), b = ttGangName(m.gangB);
-        if(!m.gangA && !m.gangB){
-            $('gang-modal-title').innerText = '📋 ' + ttStageLabel(m);
-            $('gang-modal-body').innerHTML = '<div class="tt-tbd">بانتظار تأهل الفائزين من الدور السابق...</div>';
-        } else {
-            const status = m.status === 'completed' ? '<span class="badge Approved">✔️ مكتملة</span>' : `<span class="badge Pending">⏳ ${m.scheduledAt ? 'مجدولة' : 'غير مجدولة'}</span>`;
-            const time = m.scheduledAt ? `<span style="color:var(--amber); font-family:var(--mono); font-size:.68rem;">🕐 ${fmtDate(m.scheduledAt)}</span>` : '';
-            const weapons = (m.weapons && m.weapons.length) ? '<div class="tt-weapons">أسلحة: ' + m.weapons.map((w,i)=>`<b>R${i+1}</b> ${esc(w)}`).join(' · ') + '</div>' : '';
-            const notes = m.result && m.result.notes ? `<div style="margin-top:10px; font-size:.78rem; color:var(--muted);">📝 ${esc(m.result.notes)}</div>` : '';
-            const rec = m.result && m.result.recordedBy ? `<div style="margin-top:4px; font-size:.64rem; color:var(--muted);">سجّلها: ${esc(m.result.recordedBy)}</div>` : '';
-            $('gang-modal-title').innerText = '📋 ' + ttStageLabel(m);
-            $('gang-modal-body').innerHTML = `
-                <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:10px;">${status}${time}</div>
-                <div class="tt-team"><span class="tt-name" style="flex:1; text-align:left; color:#fff;">${esc(a)}</span>${m.status === 'completed' ? `<span class="tt-score">${m.result.scoreA}</span>` : ''}</div>
-                <div class="tt-team" style="margin-top:8px;"><span class="tt-score">${m.status === 'completed' ? m.result.scoreB : ''}</span><span class="tt-name" style="flex:1; text-align:right; color:#fff;">${esc(b)}</span></div>
-                <div style="font-family:var(--mono); font-size:.9rem; color:#FFD700; text-align:center; margin:8px 0 4px;">${m.status === 'completed' ? m.result.scoreA + ' - ' + m.result.scoreB : 'Best of 3 — أول من يصل لـ 2 يفوز'}</div>
-                ${weapons}
-                ${notes}
-                ${rec}`;
-        }
-        const actionsEl = $('gang-modal-actions');
-        actionsEl.innerHTML = '';
-        const closeBtn = document.createElement('button');
-        closeBtn.className = 'btn-cyber btn-ghost'; closeBtn.style.padding = '10px 22px';
-        closeBtn.innerText = 'إغلاق';
-        closeBtn.onclick = closeGangModal;
-        actionsEl.appendChild(closeBtn);
-        $('gang-modal-overlay').classList.add('open');
     }
     function ttResultModal(matchId){
         if(!isTournamentManager()) return;
@@ -2806,22 +2411,20 @@
     async function ttPrizesModal(){
         if(!isTournamentManager()) return;
         let items;
-        try { items = await api('/api/gang-shop/items'); } catch(e){ items = []; }
+        try { items = await api('/api/shop/items'); } catch(e){ items = []; }
         const current = tourData.prizePool || [];
         $('gang-modal-title').innerText = '🎁 إدارة الجوايز';
         $('gang-modal-body').innerHTML = `
-            <div style="font-size:.75rem; color:var(--muted); margin-bottom:10px;">اختر عناصر من شوب العصابات مع الكمية. الكمية تُسجل "ممنوحة" للبطل وتُحذف من المخزون عند التوزيع.</div>
+            <div style="font-size:.75rem; color:var(--muted); margin-bottom:10px;">اختر عناصر من الشوب مع الكمية. الكمية تُسجل "ممنوحة" للبطل عند التوزيع.</div>
             <div id="tt-prize-editor">
             ${items.length ? items.map((it, i) => {
                 const found = current.find(p => String(p.shopItemId) === String(it._id));
-                const price = it.buy_price || it.sell_price || 0;
-                const out = it.in_stock === false;
-                return `<div style="display:flex; align-items:center; gap:8px; padding:8px; border:1px solid ${out ? 'rgba(255,90,90,.4)' : 'rgba(255,255,255,.08)'}; border-radius:10px; margin-bottom:6px; background:rgba(0,0,0,.25); opacity:${out ? .5 : 1};">
+                return `<div style="display:flex; align-items:center; gap:8px; padding:8px; border:1px solid rgba(255,255,255,.08); border-radius:10px; margin-bottom:6px; background:rgba(0,0,0,.25);">
                     <img src="${esc(it.image_url||'')}" onerror="this.style.display='none'" style="width:38px; height:38px; object-fit:cover; border-radius:8px;">
-                    <div style="flex:1;"><div style="font-size:.78rem; font-weight:700;">${esc(it.name)}</div><div style="font-size:.68rem; color:var(--muted); font-family:var(--mono);">${money(price)}${out ? ' · نفد من المخزون' : ''}</div></div>
-                    <input class="cyber-input" type="number" min="0" id="tt-pq-${i}" value="${found ? found.quantity : 0}" ${out ? 'disabled' : ''} style="width:64px;" placeholder="0">
+                    <div style="flex:1;"><div style="font-size:.78rem; font-weight:700;">${esc(it.name)}</div><div style="font-size:.68rem; color:var(--muted); font-family:var(--mono);">${money(it.price)}</div></div>
+                    <input class="cyber-input" type="number" min="0" id="tt-pq-${i}" value="${found ? found.quantity : 0}" style="width:64px;" placeholder="0">
                 </div>`;
-            }).join('') : '<div class="empty">لا توجد عناصر في شوب العصابات. أضف عناصر للشوب أولاً.</div>'}
+            }).join('') : '<div class="empty">لا توجد عناصر في الشوب. أضف عناصر للشوب أولاً.</div>'}
             </div>`;
         const actionsEl = $('gang-modal-actions');
         actionsEl.innerHTML = '';
