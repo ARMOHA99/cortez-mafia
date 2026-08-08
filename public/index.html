@@ -324,9 +324,6 @@
         .tt-bracket-card .tt-name.win{ color:#fff; text-shadow:0 0 8px rgba(255,255,255,.55); }
         .tt-bracket-card .tt-score{ color:#fff; }
         .tt-bracket-svg{ position:absolute; left:0; top:0; pointer-events:none; }
-        .tt-bracket-stack{ position:relative; display:flex; flex-direction:column; align-items:center; gap:30px; padding:16px 10px 6px; }
-        .tt-bracket-srow{ display:flex; justify-content:center; gap:12px; flex-wrap:wrap; width:100%; }
-        .tt-bracket-stack .tt-bracket-card{ position:relative !important; margin:0; }
 
         /* صندوق عصابة مستقل (أوراق الشجرة) */
         .tt-gang-box{ position:absolute; display:flex; align-items:center; gap:8px; padding:0 12px; border-radius:10px; background:#000; border:1px solid rgba(255,255,255,.5); box-sizing:border-box; direction:ltr; }
@@ -2101,86 +2098,68 @@
 
         const cardW = 250, cardH = 140, colGap = 64, colW = cardW + colGap, cellH = 176;
         const gangBoxH = 44;
+        const height = gangCount * cellH;
+        const cols = 2 * R + 1;
+        const width = cols * colW;
 
         const rounds = {};
         ms.forEach(m => { if(m.round == null) return; (rounds[m.round] = rounds[m.round] || []).push(m); });
         Object.keys(rounds).forEach(r => rounds[r].sort((a,b) => a.slotIndex - b.slotIndex));
 
-        const mobile = window.innerWidth < 900;
+        const colX = c => c * colW;
+        // المستوى: 0 = أوراق العصابات، 1..R = جولات المباريات (المستوى R = النهائي في المنتصف)
+        const colFor = (lv, k) => {
+            if(lv === R) return R;
+            const half = Math.pow(2, R - lv - 1);
+            return k < half ? lv : (2 * R - lv);
+        };
+        const sideFor = (lv, k) => (lv === R) ? 'c' : (k < Math.pow(2, R - lv - 1) ? 'l' : 'r');
+        const spanTop = (lv, k) => k * Math.pow(2, lv) * cellH;
+        const spanH = lv => Math.pow(2, lv) * cellH;
+
         let html = '';
         html += `<div class="tt-bracket-wrap">
             <div class="tt-bracket-title">${esc(tourData.name || 'CHAMPION CUP')}</div>
-            <div class="tt-bracket-sub">🏆 SINGLE ELIMINATION — ${gangCount} GANGS — BEST OF 3 🏆</div>`;
+            <div class="tt-bracket-sub">🏆 SINGLE ELIMINATION — ${gangCount} GANGS — BEST OF 3 🏆</div>
+            <div class="tt-bracket" style="width:${width}px; height:${height}px; direction:ltr;">`;
 
-        if(mobile){
-            // تخطيط الموبايل: الجولات تتكوم فوق بعض (الجانبان فوق بعض) بدل جنب بعض — نفس الخطوط تُرسم بالقياس الفعلي
-            const scW = Math.min(window.innerWidth - 36, 340);
-            html += `<div class="tt-bracket-stack">`;
-            for(let r = 1; r <= R; r++){
-                html += `<div class="tt-bracket-srow">`;
-                (rounds[r] || []).forEach((m, idx) => {
-                    const k = m.slotIndex != null ? m.slotIndex : idx;
-                    html += ttBracketCardHtml(m, r, k, 'position:relative; margin:0 auto; ', scW, cardH);
-                });
-                html += `</div>`;
-            }
-            html += `<svg class="tt-bracket-svg"></svg>`;
-            html += `</div>`;
-        } else {
-            const height = gangCount * cellH;
-            const cols = 2 * R + 1;
-            const width = cols * colW;
-
-            const colX = c => c * colW;
-            // المستوى: 0 = أوراق العصابات، 1..R = جولات المباريات (المستوى R = النهائي في المنتصف)
-            const colFor = (lv, k) => {
-                if(lv === R) return R;
-                const half = Math.pow(2, R - lv - 1);
-                return k < half ? lv : (2 * R - lv);
-            };
-            const spanTop = (lv, k) => k * Math.pow(2, lv) * cellH;
-            const spanH = lv => Math.pow(2, lv) * cellH;
-
-            html += `<div class="tt-bracket" style="width:${width}px; height:${height}px; direction:ltr;">`;
-
-            for(let c = 0; c < cols; c++){
-                let label;
-                if(c === R) label = '🏆 النهائي';
-                else if(c === 0 || c === 2 * R) label = '👥 المشاركون';
-                else if(c < R) label = ttRoundLabel(c, R);
-                else label = ttRoundLabel(2 * R - c, R);
-                html += `<div class="tt-bracket-col-head" style="left:${colX(c)}px; width:${cardW}px;">${label}</div>`;
-            }
-
-            // صناديق العصابات — كل عصابة في صندوقها الخاص (أوراق الشجرة)
-            const order = ttGangsOrder();
-            for(let i = 0; i < gangCount; i++){
-                const x = colX(colFor(0, i));
-                const top = spanTop(0, i) + (spanH(0) - gangBoxH) / 2;
-                const g = order[i];
-                const gname = g && g.name ? g.name : ttGangName(g);
-                html += `<div class="tt-gang-box" data-leaf="${i}" style="left:${x}px; top:${top}px; width:${cardW}px; height:${gangBoxH}px;">
-                    <span class="tt-gang-box-name">${esc(gname)}</span>
-                </div>`;
-            }
-
-            // بطاقات المباريات (المستويات 1..R)
-            const cards = {};
-            for(let r = 1; r <= R; r++){
-                (rounds[r] || []).forEach((m, idx) => {
-                    const k = m.slotIndex != null ? m.slotIndex : idx;
-                    const x = colX(colFor(r, k));
-                    const top = spanTop(r, k) + (spanH(r) - cardH) / 2;
-                    cards[r + ':' + k] = { x, top, k, r };
-                    html += ttBracketCardHtml(m, r, k, 'left:' + x + 'px; top:' + top + 'px; ', cardW, cardH);
-                });
-            }
-
-            // خطوط الربط تُرسم بعد اكتمال الـ DOM بالقياس الفعلي (getBoundingClientRect) — راجع ttDrawConnectors
-            html += `<svg class="tt-bracket-svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"></svg>`;
-
-            html += '</div>';
+        for(let c = 0; c < cols; c++){
+            let label;
+            if(c === R) label = '🏆 النهائي';
+            else if(c === 0 || c === 2 * R) label = '👥 المشاركون';
+            else if(c < R) label = ttRoundLabel(c, R);
+            else label = ttRoundLabel(2 * R - c, R);
+            html += `<div class="tt-bracket-col-head" style="left:${colX(c)}px; width:${cardW}px;">${label}</div>`;
         }
+
+        // صناديق العصابات — كل عصابة في صندوقها الخاص (أوراق الشجرة)
+        const order = ttGangsOrder();
+        for(let i = 0; i < gangCount; i++){
+            const x = colX(colFor(0, i));
+            const top = spanTop(0, i) + (spanH(0) - gangBoxH) / 2;
+            const g = order[i];
+            const gname = g && g.name ? g.name : ttGangName(g);
+            html += `<div class="tt-gang-box" data-leaf="${i}" style="left:${x}px; top:${top}px; width:${cardW}px; height:${gangBoxH}px;">
+                <span class="tt-gang-box-name">${esc(gname)}</span>
+            </div>`;
+        }
+
+        // بطاقات المباريات (المستويات 1..R)
+        const cards = {};
+        for(let r = 1; r <= R; r++){
+            (rounds[r] || []).forEach((m, idx) => {
+                const k = m.slotIndex != null ? m.slotIndex : idx;
+                const x = colX(colFor(r, k));
+                const top = spanTop(r, k) + (spanH(r) - cardH) / 2;
+                cards[r + ':' + k] = { x, top, k, r };
+                html += ttBracketCardHtml(m, r, k, x, top, cardW, cardH);
+            });
+        }
+
+        // خطوط الربط تُرسم بعد اكتمال الـ DOM بالقياس الفعلي (getBoundingClientRect) — راجع ttDrawConnectors
+        html += `<svg class="tt-bracket-svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"></svg>`;
+
+        html += '</div>';
         html += '<div class="tt-cortez">CORTEZ</div>';
         html += '</div>';
         box.innerHTML = html;
@@ -2189,10 +2168,7 @@
             window._ttResizeBound = true;
             window.addEventListener('resize', () => {
                 const b = $('tt-bracket-box');
-                if(!b || !b.querySelector('.tt-bracket-svg')) return;
-                const curStack = !!b.querySelector('.tt-bracket-stack');
-                if(curStack !== (window.innerWidth < 900)) renderTournamentBracket();
-                else ttDrawConnectors(b);
+                if(b && b.querySelector('.tt-bracket-svg')) ttDrawConnectors(b);
             });
         }
     }
@@ -2200,7 +2176,7 @@
         if(!box) box = $('tt-bracket-box');
         if(!box) return;
         const svg = box.querySelector('.tt-bracket-svg'); if(!svg) return;
-        const br = box.querySelector('.tt-bracket') || box.querySelector('.tt-bracket-stack'); if(!br) return;
+        const br = box.querySelector('.tt-bracket'); if(!br) return;
         const brRect = br.getBoundingClientRect();
         // ⚠️ امسح كل الخطوط القديمة قبل إعادة الرسم — بلا تكديس
         svg.setAttribute('width', brRect.width);
@@ -2223,36 +2199,6 @@
         const R = ttRounds();
         const matchKey = {};
         (tourData.matches || []).forEach(m => { if(m.round != null) matchKey[m.round + ':' + m.slotIndex] = m; });
-        const isStack = !!box.querySelector('.tt-bracket-stack');
-        if(isStack){
-            // تخطيط الموبايل: الجولات عمودية (كل جولة صف فوق الصف اللي بعدها) — الرابط من أسفل طفلي الصف نحو أعلى الأب
-            for(let r = 1; r < R; r++){
-                const nodes = gangCount / Math.pow(2, r);
-                for(let k = 0; k < nodes; k += 2){
-                    const child = box.querySelector('.tt-bracket-card[data-r="' + r + '"][data-s="' + k + '"]');
-                    const sib = box.querySelector('.tt-bracket-card[data-r="' + r + '"][data-s="' + (k ^ 1) + '"]');
-                    const parent = box.querySelector('.tt-bracket-card[data-r="' + (r + 1) + '"][data-s="' + Math.floor(k / 2) + '"]');
-                    if(!child || !sib || !parent) continue;
-                    const cm = matchKey[r + ':' + k];
-                    if(cm && !cm.gangA && !cm.gangB) continue;   // صندوق TBD فارغ — لا يُرسم له خط
-                    const pm = matchKey[(r + 1) + ':' + Math.floor(k / 2)];
-                    const determined = !!(cm && cm.gangA && cm.gangB && pm && pm.gangA && pm.gangB);
-                    const cR = child.getBoundingClientRect(), sR = sib.getBoundingClientRect(), pR = parent.getBoundingClientRect();
-                    const xA = (cR.left + cR.width / 2) - brRect.left;
-                    const xB = (sR.left + sR.width / 2) - brRect.left;
-                    const xMid = (xA + xB) / 2;
-                    const yBar = Math.max(cR.bottom, sR.bottom) - brRect.top + 12;
-                    const yP = pR.top - brRect.top;
-                    const xP = (pR.left + pR.width / 2) - brRect.left;
-                    addLine(xA, cR.bottom - brRect.top, xA, yBar, determined);
-                    addLine(xB, sR.bottom - brRect.top, xB, yBar, determined);
-                    addLine(xA, yBar, xB, yBar, determined);
-                    addLine(xMid, yBar, xMid, yP, determined);
-                    if(Math.abs(xP - xMid) > 1) addLine(xMid, yP, xP, yP, determined);
-                }
-            }
-            return;
-        }
         // زوج (i, i+1) يوصل بنفس المباراة فالدور الجاي — بلا أي رابط زايد
         const drawPair = (child, sib, parent, determined) => {
             const cR = child.getBoundingClientRect(), sR = sib.getBoundingClientRect(), pR = parent.getBoundingClientRect();
@@ -2307,7 +2253,7 @@
             }
         }
     }
-    function ttBracketCardHtml(m, r, k, posStyle, cardW, cardH){
+    function ttBracketCardHtml(m, r, k, x, top, cardW, cardH){
         const a = ttGangName(m.gangA), b = ttGangName(m.gangB);
         const winA = m.status === 'completed' && m.result.winner && String(m.result.winner) === String(m.gangA);
         const winB = m.status === 'completed' && m.result.winner && String(m.result.winner) === String(m.gangB);
@@ -2334,7 +2280,7 @@
         }
         const meta = m.status === 'completed' ? '' : (m.scheduledAt ? `<span style="color:var(--amber); font-family:var(--mono); font-size:.58rem;">${fmtDate(m.scheduledAt)}</span>` : '');
         const btns = (m.gangA && m.gangB) ? ttMatchMetaHtml(m) : '';
-        return `<div class="tt-match-card tt-bracket-card" data-r="${r}" data-s="${k}" style="${posStyle}width:${cardW}px; height:${cardH}px;" onclick="ttMatchInfo('${m._id}')">
+        return `<div class="tt-match-card tt-bracket-card" data-r="${r}" data-s="${k}" style="left:${x}px; top:${top}px; width:${cardW}px; height:${cardH}px;" onclick="ttMatchInfo('${m._id}')">
             <div class="tt-match-stage" style="font-size:.58rem; margin-bottom:6px;">${ttStageLabel(m)}${meta}</div>
             ${body}
             ${(m.gangA && m.gangB) ? ttWeaponsHtml(m) : ''}
