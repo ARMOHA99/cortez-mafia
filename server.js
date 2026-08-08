@@ -309,8 +309,8 @@ const MatchSchema = new mongoose.Schema({
 const TournamentSchema = new mongoose.Schema({
     name: { type: String, default: () => `Champion Cup #${Date.now()}` },
     status: { type: String, enum: ['setup', 'ongoing', 'completed', 'cancelled'], default: 'setup' },
-    gangCount: { type: Number, enum: [4, 8, 16, 32], default: 8 },   // عدد العصابات المشاركة (قوى 2 فقط: 4 / 8 / 16 / 32 — بلا byes)
-    totalRounds: Number,   // = log2(gangCount) — يُحسب أوتوماتيك عند توليد المربع
+    gangCount: { type: Number, default: 8 },   // ثابت دايما 8 عصابات بالضبط — ماشي اختيار
+    totalRounds: { type: Number, default: 3 },   // ثابت: ربع النهائي / نصف النهائي / النهائي
     gangs: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Gang' }],
     groups: [{
         groupNumber: Number,
@@ -1445,19 +1445,14 @@ app.post('/api/tournaments/gangs', verifyAuth(TOURNAMENT_MANAGERS), async (req, 
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// إطلاق بطولة جديدة (عدد العصابات يحدده الـ Don: أي عدد زوجي من 4 إلى 16)
+// إطلاق بطولة جديدة (عدد العصابات ثابت = 8 بالضبط)
 app.post('/api/tournaments', verifyAuth(TOURNAMENT_MANAGERS), async (req, res) => {
     try {
         const active = await Tournament.findOne({ status: { $in: ['setup', 'ongoing'] } });
         if (active) return res.status(400).json({ error: "يوجد بطولة نشطة حالياً. أكملها أو ألغِها قبل إطلاق جديدة." });
-        let gangCount = Number(req.body.gangCount) || 8;
-        if ([4, 8, 16, 32].indexOf(gangCount) === -1) gangCount = 8;
         const allGangs = await Gang.find({}).select('name');
-        if (allGangs.length < gangCount) {
-            return res.status(400).json({ error: `عدد العصابات الحالية (${allGangs.length}) أقل من المطلوب (${gangCount}). اختر عدداً أقل.` });
-        }
-        const tournament = await new Tournament({ createdBy: req.user.username, gangCount }).save();
-        await new AuditLog({ action: 'tournament_created', target_username: '-', performed_by: req.user.username, details: `تم إطلاق ${tournament.name} (${gangCount} عصابة)` }).save();
+        const tournament = await new Tournament({ createdBy: req.user.username, gangCount: 8 }).save();
+        await new AuditLog({ action: 'tournament_created', target_username: '-', performed_by: req.user.username, details: `تم إطلاق ${tournament.name} (8 عصابات)` }).save();
         io.emit('auditLogUpdated');
         io.emit('tournament:created', { tournamentId: tournament._id });
         res.json({ tournament, availableGangs: allGangs });
@@ -1558,7 +1553,7 @@ app.put('/api/tournaments/:id/bracket', verifyAuth(TOURNAMENT_MANAGERS), async (
         await t.save();
         await new AuditLog({ action: 'tournament_bracket', target_username: '-', performed_by: req.user.username, details: `توليد شجرة knockout لـ ${t.name} (${gangCount} عصابات)` }).save();
         io.emit('auditLogUpdated');
-        io.emit('tournament:bracket-assigned', { tournamentId: t._id });
+        io.emit('tournament:bracket-seeded', { tournamentId: t._id });
         const full = await loadTournamentById(t._id);
         res.json(full);
     } catch (err) { res.status(500).json({ error: err.message }); }
@@ -1694,7 +1689,7 @@ app.post('/api/tournaments/:id/matches/:matchId/result', verifyAuth(TOURNAMENT_M
         if (t.status === 'completed') {
             io.emit('tournament:completed', { tournamentId: t._id, champion: t.champion });
         } else {
-            io.emit('tournament:stage-advanced', { tournamentId: t._id });
+            io.emit('tournament:round-advanced', { tournamentId: t._id });
         }
         const full = await loadTournamentById(t._id);
         res.json(full);
@@ -1720,7 +1715,7 @@ app.put('/api/tournaments/:id/matches/:matchId/result', verifyAuth(TOURNAMENT_MA
         io.emit('auditLogUpdated');
         io.emit('tournament:match-completed', { tournamentId: t._id, matchId: m._id });
         if (t.status === 'completed') io.emit('tournament:completed', { tournamentId: t._id, champion: t.champion });
-        else io.emit('tournament:stage-advanced', { tournamentId: t._id });
+        else io.emit('tournament:round-advanced', { tournamentId: t._id });
         const full = await loadTournamentById(t._id);
         res.json(full);
     } catch (err) { res.status(500).json({ error: err.message }); }
@@ -1787,6 +1782,21 @@ app.post('/api/tournaments/:id/cancel', verifyAuth(TOURNAMENT_MANAGERS), async (
         io.emit('auditLogUpdated');
         io.emit('tournament:cancelled', { tournamentId: t._id });
         res.json({ msg: "تم إلغاء البطولة وحفظها في الأرشيف." });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// حذف بطولة من الأرشيف نهائياً (لتنظيف البطولات التجريبية — TEST)
+app.delete('/api/tournaments/:id', verifyAuth(TOURNAMENT_MANAGERS), async (req, res) => {
+    try {
+        const t = await Tournament.findById(req.params.id);
+        if (!t) return res.status(404).json({ error: "البطولة غير موجودة." });
+        if (t.status !== 'completed' && t.status !== 'cancelled') return res.status(400).json({ error: "لا يمكن حذف بطولة لم تُغلق بعد." });
+        await Match.deleteMany({ tournamentId: t._id });
+        await Tournament.findByIdAndDelete(t._id);
+        await new AuditLog({ action: 'tournament_deleted', target_username: '-', performed_by: req.user.username, details: `حذف ${t.name} من الأرشيف` }).save();
+        io.emit('auditLogUpdated');
+        io.emit('tournament:deleted', { tournamentId: t._id });
+        res.json({ msg: "تم حذف البطولة نهائياً." });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
