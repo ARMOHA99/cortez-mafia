@@ -320,7 +320,7 @@ const TournamentSchema = new mongoose.Schema({
     semiFinals: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Match' }],
     final: { type: mongoose.Schema.Types.ObjectId, ref: 'Match' },
     prizePool: [{
-        shopItemId: { type: mongoose.Schema.Types.ObjectId, ref: 'Item' },
+        shopItemId: { type: mongoose.Schema.Types.ObjectId, ref: 'GangShopItem' },
         name: String,
         image: String,
         price: Number,
@@ -1726,7 +1726,7 @@ app.put('/api/tournaments/:id/matches/:matchId/result', verifyAuth(TOURNAMENT_MA
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// إدارة الجوايز (من عناصر الشوب)
+// إدارة الجوايز (من عناصر شوب العصابات — GangShopItem)
 app.put('/api/tournaments/:id/prizes', verifyAuth(TOURNAMENT_MANAGERS), async (req, res) => {
     try {
         const t = await Tournament.findById(req.params.id);
@@ -1736,9 +1736,11 @@ app.put('/api/tournaments/:id/prizes', verifyAuth(TOURNAMENT_MANAGERS), async (r
         const prizePool = [];
         for (const it of items) {
             const qty = Math.max(1, Number(it.quantity) || 1);
-            const shopItem = await Item.findById(it.shopItemId);
-            if (!shopItem) return res.status(400).json({ error: "منتج غير موجود في الشوب." });
-            prizePool.push({ shopItemId: shopItem._id, name: shopItem.name, image: shopItem.image_url, price: shopItem.price, quantity: qty });
+            const shopItem = await GangShopItem.findById(it.shopItemId);
+            if (!shopItem) return res.status(400).json({ error: "منتج غير موجود في شوب العصابات." });
+            if (shopItem.in_stock === false) return res.status(400).json({ error: `المنتج "${shopItem.name}" نفد من المخزون.` });
+            const price = shopItem.buy_price || shopItem.sell_price || 0;
+            prizePool.push({ shopItemId: shopItem._id, name: shopItem.name, image: shopItem.image_url, price, quantity: qty });
         }
         t.prizePool = prizePool;
         await t.save();
@@ -1755,6 +1757,16 @@ app.post('/api/tournaments/:id/distribute-prizes', verifyAuth([]), async (req, r
         if (!t.champion) return res.status(400).json({ error: "لم يتم تحديد البطل." });
         if (t.distributedAt) return res.status(400).json({ error: "تم توزيع الجوايز مسبقاً." });
         t.distributedAt = new Date();
+        // الكمية تُنقص من مخزون شوب العصابات: كل عنصر ممنوح يُسجَّل كـ"ممنوحة" ويُصفَّى من المخزون
+        if (Array.isArray(t.prizePool)) {
+            for (const prize of t.prizePool) {
+                const shopItem = await GangShopItem.findById(prize.shopItemId);
+                if (shopItem) {
+                    shopItem.in_stock = false;
+                    await shopItem.save();
+                }
+            }
+        }
         await t.save();
         await new AuditLog({ action: 'tournament_prizes_distributed', target_username: '-', performed_by: req.user.username, details: `توزيع جوايز ${t.name} على ${t.champion}` }).save();
         io.emit('auditLogUpdated');
