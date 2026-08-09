@@ -10,6 +10,9 @@ const path = require('path');
 const multer = require('multer');
 const cloudinary = require('cloudinary').v2;
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
+const { isInDutyTimeWindow, algeriaNow, buildDutyWeekDays } = require('./server/shared/time');
+const { ROLES, ROLE_GROUPS } = require('./server/shared/roles');
+const logger = require('./server/shared/logger');
 
 const app = express();
 const server = http.createServer(app);
@@ -65,33 +68,6 @@ const formatMoneyExact = (amount) => {
     if (!amount) return '0';
     return Number(amount).toLocaleString('en-US');
 };
-
-// ================== v8.0: التحقق من نافذة الدوام المسموحة (22:00 - 04:00 بتوقيت الجزائر CET/UTC+1) ==================
-function isInDutyTimeWindow() {
-    const now = new Date();
-    // حساب الوقت الحالي بتوقيت الجزائر (CET = UTC+1)
-    const dzTime = new Date(now.getTime() + (60 * 60 * 1000));
-    const hours = dzTime.getUTCHours();
-    const minutes = dzTime.getUTCMinutes();
-    const totalMinutes = hours * 60 + minutes;
-    // النافذة: من 22:00 (1320 دقيقة) حتى 04:00 (240 دقيقة)
-    // أي من 22:00 (1320) إلى 23:59 (1439) أو من 00:00 (0) إلى 04:00 (240)
-    return totalMinutes >= 1320 || totalMinutes <= 240;
-}
-
-// ================== v8.0: نافذة يوم دوام واحد (من 22:00 حتى 04:00 بتوقيت الجزائر) ==================
-// تُحسب عبر Date.UTC فقط لتبقى صحيحة مهما كان توقيت جهاز السيرفر (22:00 الجزائر = 21:00 UTC)
-function getDutyDayWindow(offsetDays) {
-    const dzNow = new Date(Date.now() + 60 * 60 * 1000);
-    const start = new Date(Date.UTC(
-        dzNow.getUTCFullYear(),
-        dzNow.getUTCMonth(),
-        dzNow.getUTCDate() + offsetDays,
-        21, 0, 0, 0
-    ));
-    const end = new Date(start.getTime() + 6 * 60 * 60 * 1000); // 04:00 بتوقيت الجزائر
-    return { start, end };
-}
 
 // ================== v8.0: نص ملاحظة الغياب التلقائي لعدم تفعيل ON-DUTY ==================
 const MISSED_DUTY_NOTE_TEXT = "غاب عن الدوام - لم يسجل ON-DUTY خلال الفترة المسموحة (22:00 - 04:00 بتوقيت الجزائر)";
@@ -284,53 +260,72 @@ const WeeklyPurchase = mongoose.model('WeeklyPurchase', WeeklyPurchaseSchema);
 const AuditLog = mongoose.model('AuditLog', AuditLogSchema);
 const PunchRecord = mongoose.model('PunchRecord', PunchRecordSchema);
 
-// ================== v8.1: نظام بطولة Champion Cup ==================
-const MatchSchema = new mongoose.Schema({
-    tournamentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tournament' },
-    stage: { type: String, enum: ['group', 'semifinal', 'final'], required: true },
-    groupNumber: Number,
-    gangA: { type: mongoose.Schema.Types.ObjectId, ref: 'Gang' },
-    gangB: { type: mongoose.Schema.Types.ObjectId, ref: 'Gang' },
-    scheduledAt: Date,
-    weapons: { type: [String], default: [] },
-    status: { type: String, enum: ['scheduled', 'completed'], default: 'scheduled' },
-    result: {
-        scoreA: Number,
-        scoreB: Number,
-        winner: { type: mongoose.Schema.Types.ObjectId, ref: 'Gang' },
-        notes: { type: String, default: '' },
-        recordedBy: String,
-        recordedAt: Date
+// ================== بطولة CHAMPION (شجرة مواجهات العصابات المسلحة) ==================
+const ChampionStateSchema = new mongoose.Schema({
+    key: { type: String, default: 'champion', unique: true },
+    qf: { type: Array, default: [] },
+    sf: { type: Array, default: [] },
+    final: { type: Object, default: {} },
+    champion: { type: String, default: '' },
+    updated_by: { type: String, default: '' },
+    updated_at: { type: Date, default: Date.now }
+});
+const ChampionState = mongoose.model('ChampionState', ChampionStateSchema);
+
+const defaultChampionState = () => ({
+    qf: [
+        { a: { name: 'Calavera', score: 0 }, b: { name: 'Ballas', score: 0 } },
+        { a: { name: 'Cryps', score: 0 }, b: { name: 'Bloods', score: 0 } },
+        { a: { name: 'Maranova', score: 0 }, b: { name: 'Families', score: 0 } },
+        { a: { name: 'Ghost Rider', score: 0 }, b: { name: 'Chang', score: 0 } }
+    ],
+    sf: [
+        { a: { name: '', score: 0 }, b: { name: '', score: 0 } },
+        { a: { name: '', score: 0 }, b: { name: '', score: 0 } }
+    ],
+    final: { a: { name: '', score: 0 }, b: { name: '', score: 0 } },
+    champion: ''
+});
+
+const championWinner = (m) => {
+    if (!m || !m.a || !m.b) return null;
+    if (Number(m.a.score) >= 2) return 'a';
+    if (Number(m.b.score) >= 2) return 'b';
+    return null;
+};
+
+// إعادة حساب أسماء نصف النهائي والنهائي والبطل تلقائياً من نتائج الأدوار السابقة (أفضل من 3)
+const syncChampionNames = (s) => {
+    if (!s) return s;
+    const qf = Array.isArray(s.qf) && s.qf.length === 4 ? s.qf : defaultChampionState().qf;
+    const sf = Array.isArray(s.sf) && s.sf.length === 2 ? s.sf : defaultChampionState().sf;
+    const final = s.final && typeof s.final === 'object' ? s.final : defaultChampionState().final;
+
+    const w0 = championWinner(qf[0]), w1 = championWinner(qf[1]);
+    sf[0].a.name = w0 ? qf[0][w0].name : '';
+    sf[0].b.name = w1 ? qf[1][w1].name : '';
+    const w2 = championWinner(qf[2]), w3 = championWinner(qf[3]);
+    sf[1].a.name = w2 ? qf[2][w2].name : '';
+    sf[1].b.name = w3 ? qf[3][w3].name : '';
+
+    const f0 = championWinner(sf[0]), f1 = championWinner(sf[1]);
+    final.a.name = f0 ? sf[0][f0].name : '';
+    final.b.name = f1 ? sf[1][f1].name : '';
+
+    const cw = championWinner(final);
+    s.champion = cw ? final[cw].name : '';
+
+    s.qf = qf; s.sf = sf; s.final = final;
+    return s;
+};
+
+const getChampionDoc = async () => {
+    let doc = await ChampionState.findOne({ key: 'champion' });
+    if (!doc) {
+        doc = await ChampionState.create({ key: 'champion', ...defaultChampionState() });
     }
-});
-
-const TournamentSchema = new mongoose.Schema({
-    name: { type: String, default: () => `Champion Cup #${Date.now()}` },
-    status: { type: String, enum: ['setup', 'ongoing', 'completed', 'cancelled'], default: 'setup' },
-    gangs: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Gang' }],
-    groups: [{
-        groupNumber: Number,
-        gangs: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Gang' }],
-        matchId: { type: mongoose.Schema.Types.ObjectId, ref: 'Match' }
-    }],
-    semiFinals: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Match' }],
-    final: { type: mongoose.Schema.Types.ObjectId, ref: 'Match' },
-    prizePool: [{
-        shopItemId: { type: mongoose.Schema.Types.ObjectId, ref: 'Item' },
-        name: String,
-        image: String,
-        price: Number,
-        quantity: Number
-    }],
-    champion: { type: mongoose.Schema.Types.ObjectId, ref: 'Gang' },
-    distributedAt: Date,
-    createdBy: String,
-    createdAt: { type: Date, default: Date.now },
-    completedAt: Date
-});
-
-const Match = mongoose.model('Match', MatchSchema);
-const Tournament = mongoose.model('Tournament', TournamentSchema);
+    return doc;
+};
 
 async function initSystemDB() {
     try {
@@ -452,7 +447,6 @@ app.get('/api/auth/me', async (req, res) => {
         if (!token) return res.status(401).json({ error: "غير مصرح" });
         const decoded = jwt.verify(token, JWT_SECRET);
         const user = await User.findById(decoded.id, 'username role duty_status fine_amount fine_reason');
-        if (!user) return res.status(401).json({ error: "حسابك لم يعد موجوداً", forceLogout: true });
         res.json(user);
     } catch { res.status(401).json({ error: "انتهت الجلسة" }); }
 });
@@ -559,7 +553,7 @@ app.post('/api/shop/checkout', verifyAuth(['Underboss', 'Soldat', 'Capo', 'GRH',
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/api/shop/orders', verifyAuth(['Don', 'Underboss', 'Business_Manager', 'Chef_Braquage', 'GRH']), async (req, res) => {
+app.get('/api/shop/orders', verifyAuth(['Underboss', 'Business_Manager', 'Chef_Braquage', 'GRH']), async (req, res) => {
     try { const orders = await Order.find().sort({ timestamp: -1 }); res.json(orders); } 
     catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -583,11 +577,11 @@ const confirmPaymentLogic = async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 };
 
-app.post('/api/shop/order/:id/pay', verifyAuth(['Don', 'Underboss', 'Business_Manager', 'GRH', 'Chef_Braquage']), confirmPaymentLogic);
-app.put('/api/shop/order/:id/pay', verifyAuth(['Don', 'Underboss', 'Business_Manager', 'GRH', 'Chef_Braquage']), confirmPaymentLogic);
+app.post('/api/shop/order/:id/pay', verifyAuth(['Underboss', 'Business_Manager']), confirmPaymentLogic);
+app.put('/api/shop/order/:id/pay', verifyAuth(['Underboss', 'Business_Manager']), confirmPaymentLogic);
 
 // رفض طلب شراء من شوب الأعضاء (لا يُضاف أي مبلغ إلى الخزينة)
-app.post('/api/shop/order/:id/reject', verifyAuth(['Don', 'Underboss', 'Business_Manager', 'GRH', 'Chef_Braquage']), async (req, res) => {
+app.post('/api/shop/order/:id/reject', verifyAuth(['Underboss', 'Business_Manager']), async (req, res) => {
     try {
         const order = await Order.findById(req.params.id);
         if (!order || order.status === 'Paid') return res.status(400).json({ error: "الطلب غير موجود أو تم قبضه مسبقاً." });
@@ -997,13 +991,8 @@ app.delete('/api/notes/:id', verifyAuth(['Don', 'Underboss', 'GRH']), async (req
 // يوم الدوام الواحد يمتد من 22:00 إلى 04:00 بتوقيت الجزائر (ليلة الدوام تُحسب لليوم الذي تبدأ فيه)
 app.get('/api/attendance/week', verifyAuth(['Don', 'Underboss', 'GRH', 'Business_Manager']), async (req, res) => {
     try {
-        // تحديد آخر 7 أيام دوام (كل يوم دوام يمتد من 22:00 حتى 04:00 بتوقيت الجزائر)
-        const days = [];
-        for (let i = 6; i >= 0; i--) {
-            const { start: startAbs, end: endAbs } = getDutyDayWindow(-i);
-            const label = startAbs.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
-            days.push({ start: startAbs, end: endAbs, label });
-        }
+        // تحديد آخر 7 أيام دوام (كل يوم يبدأ 22:00 بتوقيت الجزائر = 21:00 UTC)
+        const days = buildDutyWeekDays(7);
 
         const members = await User.find({
             is_blacklisted: false,
@@ -1292,12 +1281,12 @@ app.post('/api/gang-shop/order/:id/cancel', verifyAuth(['Gang_Member']), async (
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/api/gang-shop/orders', verifyAuth(['Don', 'Underboss', 'Business_Manager', 'GRH', 'Chef_Braquage']), async (req, res) => {
+app.get('/api/gang-shop/orders', verifyAuth(['Underboss', 'Business_Manager']), async (req, res) => {
     try { const orders = await GangOrder.find().sort({ timestamp: -1 }); res.json(orders); }
     catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/gang-shop/order/:id/confirm', verifyAuth(['Don', 'Underboss', 'Business_Manager', 'GRH', 'Chef_Braquage']), async (req, res) => {
+app.post('/api/gang-shop/order/:id/confirm', verifyAuth(['Underboss', 'Business_Manager']), async (req, res) => {
     try {
         const order = await GangOrder.findById(req.params.id);
         if (!order || order.status !== 'Pending') return res.status(400).json({ error: "الطلب غير موجود أو لم يعد معلقاً." });
@@ -1311,7 +1300,7 @@ app.post('/api/gang-shop/order/:id/confirm', verifyAuth(['Don', 'Underboss', 'Bu
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/gang-shop/order/:id/reject', verifyAuth(['Don', 'Underboss', 'Business_Manager', 'GRH', 'Chef_Braquage']), async (req, res) => {
+app.post('/api/gang-shop/order/:id/reject', verifyAuth(['Underboss', 'Business_Manager']), async (req, res) => {
     try {
         const { reason } = req.body;
         const order = await GangOrder.findById(req.params.id);
@@ -1325,7 +1314,7 @@ app.post('/api/gang-shop/order/:id/reject', verifyAuth(['Don', 'Underboss', 'Bus
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/api/gang-shop/treasury', verifyAuth(['Don', 'Underboss', 'Business_Manager', 'GRH', 'Chef_Braquage']), async (req, res) => {
+app.get('/api/gang-shop/treasury', verifyAuth(['Underboss', 'Business_Manager']), async (req, res) => {
     try {
         const treasury = await GangTreasury.findOne({});
         const balance = treasury ? treasury.total_balance : 0;
@@ -1407,284 +1396,51 @@ app.get('/api/admin/warnings/list', verifyAuth(['Don', 'Underboss', 'GRH', 'Busi
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ================== v8.1: نظام بطولة Champion Cup ==================
-const TOURNAMENT_MANAGERS = ['Underboss']; // Don يُمرَّر تلقائياً عبر verifyAuth
-const TOURNAMENT_VIEWERS = ['Underboss', 'GRH', 'Business_Manager', 'Chef_Braquage', 'Capo', 'Soldat', 'Gang_Supervisor', 'Gang_Member']; // Don تلقائياً
-
-// قائمة العصابات (من موديل Gang) — للعرض وللإدارة
-app.get('/api/tournaments/gangs', verifyAuth(TOURNAMENT_VIEWERS), async (req, res) => {
+// ================== مسارات بطولة CHAMPION (شجرة مواجهات العصابات) ==================
+// عرض شجرة البطولة (لجميع الأعضاء المصادق عليهم)
+app.get('/api/champion', verifyAuth(['Underboss', 'Soldat', 'Capo', 'GRH', 'Chef_Braquage', 'Business_Manager', 'Gang_Supervisor', 'Gang_Member', 'Don']), async (req, res) => {
     try {
-        const gangs = await Gang.find({}).select('name').sort({ name: 1 });
-        res.json(gangs);
+        const doc = await getChampionDoc();
+        res.json({ qf: doc.qf, sf: doc.sf, final: doc.final, champion: doc.champion, updated_by: doc.updated_by, updated_at: doc.updated_at });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// إطلاق بطولة جديدة (يجلب العصابات الحالية أوتوماتيكياً)
-app.post('/api/tournaments', verifyAuth(TOURNAMENT_MANAGERS), async (req, res) => {
+// حفظ التعديلات وتحديث الشجرة لحظياً للجميع (القيادة)
+app.post('/api/champion/save', verifyAuth(['Underboss', 'Business_Manager', 'Don']), async (req, res) => {
     try {
-        const active = await Tournament.findOne({ status: { $in: ['setup', 'ongoing'] } });
-        if (active) return res.status(400).json({ error: "يوجد بطولة نشطة حالياً. أكملها أو ألغِها قبل إطلاق جديدة." });
-        const allGangs = await Gang.find({}).select('name');
-        const tournament = await new Tournament({ createdBy: req.user.username }).save();
-        await new AuditLog({ action: 'tournament_created', target_username: '-', performed_by: req.user.username, details: `تم إطلاق ${tournament.name} (${allGangs.length} عصابة)` }).save();
-        io.emit('auditLogUpdated');
-        io.emit('tournament:created', { tournamentId: tournament._id });
-        res.json({ tournament, availableGangs: allGangs });
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-async function loadTournamentById(id) {
-    return Tournament.findById(id)
-        .populate('gangs', 'name')
-        .populate('groups.gangs', 'name')
-        .populate('champion', 'name');
-}
-
-// البطولة الحالية (تفاصيل كاملة)
-app.get('/api/tournaments/current', verifyAuth(TOURNAMENT_VIEWERS), async (req, res) => {
-    try {
-        const t = await Tournament.findOne({ status: { $in: ['setup', 'ongoing'] } });
-        if (!t) return res.json(null);
-        const full = await loadTournamentById(t._id);
-        const matches = await Match.find({ tournamentId: t._id });
-        res.json({ ...full.toObject(), matches });
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// مباريات اليوم — أو أقرب مباراة قادمة
-app.get('/api/tournaments/today-matches', verifyAuth(TOURNAMENT_VIEWERS), async (req, res) => {
-    try {
-        const active = await Tournament.findOne({ status: { $in: ['setup', 'ongoing'] } });
-        if (!active) return res.json([]);
-        const matches = await Match.find({ tournamentId: active._id, status: 'scheduled', scheduledAt: { $ne: null } })
-            .sort({ scheduledAt: 1 }).select('stage groupNumber gangA gangB scheduledAt weapons');
-        const now = new Date();
-        const startOfToday = new Date(now); startOfToday.setHours(0, 0, 0, 0);
-        const endOfToday = new Date(now); endOfToday.setHours(23, 59, 59, 999);
-        const today = matches.filter(m => m.scheduledAt >= startOfToday && m.scheduledAt <= endOfToday);
-        res.json(today.length ? today : matches.slice(0, 3));
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// أرشيف البطولات السابقة
-app.get('/api/tournaments/archive', verifyAuth(TOURNAMENT_VIEWERS), async (req, res) => {
-    try {
-        const list = await Tournament.find({ status: { $in: ['completed', 'cancelled'] } })
-            .populate('champion', 'name').sort({ createdAt: -1 });
-        res.json(list);
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// تفاصيل بطولة معينة (من الأرشيف)
-app.get('/api/tournaments/:id', verifyAuth(TOURNAMENT_VIEWERS), async (req, res) => {
-    try {
-        const t = await loadTournamentById(req.params.id);
-        if (!t) return res.status(404).json({ error: "البطولة غير موجودة." });
-        const matches = await Match.find({ tournamentId: t._id });
-        res.json({ ...t.toObject(), matches });
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// توزيع العصابات على 4 مجموعات (عصابتين لكل مجموعة)
-app.put('/api/tournaments/:id/groups', verifyAuth(TOURNAMENT_MANAGERS), async (req, res) => {
-    try {
-        const t = await Tournament.findById(req.params.id);
-        if (!t || t.status === 'completed' || t.status === 'cancelled') return res.status(400).json({ error: "البطولة غير صالحة للتعديل." });
-        const groups = req.body.groups; // [{ gangA: id, gangB: id }] — 4 مجموعات
-        if (!Array.isArray(groups) || groups.length !== 4) return res.status(400).json({ error: "لازم 4 مجموعات بالضبط." });
-        const used = new Set();
-        const gangIds = [];
-        for (const g of groups) {
-            const a = String(g.gangA), b = String(g.gangB);
-            if (!a || !b || a === b) return res.status(400).json({ error: "كل مجموعة لازم يكون فيها عصابة مختلفة." });
-            if (used.has(a) || used.has(b)) return res.status(400).json({ error: "لا يمكن تكرار عصابة في أكثر من مجموعة." });
-            used.add(a); used.add(b);
-            gangIds.push(a, b);
+        const { qf, sf, final } = req.body;
+        if (!Array.isArray(qf) || qf.length !== 4 || !Array.isArray(sf) || sf.length !== 2 || !final || typeof final !== 'object') {
+            return res.status(400).json({ error: "بيانات شجرة البطولة غير صالحة." });
         }
-        t.gangs = gangIds;
-        t.groups = [];
-        t.semiFinals = []; t.final = null; t.champion = null; t.distributedAt = null;
-        await Match.deleteMany({ tournamentId: t._id });
-        for (let i = 0; i < 4; i++) {
-            const m = await new Match({ tournamentId: t._id, stage: 'group', groupNumber: i + 1, gangA: groups[i].gangA, gangB: groups[i].gangB }).save();
-            t.groups.push({ groupNumber: i + 1, gangs: [groups[i].gangA, groups[i].gangB], matchId: m._id });
-        }
-        t.status = 'ongoing';
-        await t.save();
-        await new AuditLog({ action: 'tournament_groups', target_username: '-', performed_by: req.user.username, details: `تم توزيع مجموعات ${t.name}` }).save();
-        io.emit('auditLogUpdated');
-        io.emit('tournament:groups-assigned', { tournamentId: t._id });
-        const full = await loadTournamentById(t._id);
-        res.json(full);
+        const team = (t) => ({ name: String((t && t.name) || ''), score: Math.max(0, Math.min(2, Number((t && t.score) || 0))) });
+        const match = (m) => ({ a: team(m && m.a), b: team(m && m.b) });
+        const cleaned = {
+            qf: Array.from({ length: 4 }, (_, i) => match(qf[i])),
+            sf: Array.from({ length: 2 }, (_, i) => match(sf[i])),
+            final: match(final)
+        };
+        const state = syncChampionNames(cleaned);
+        const doc = await ChampionState.findOneAndUpdate(
+            { key: 'champion' },
+            { $set: { qf: state.qf, sf: state.sf, final: state.final, champion: state.champion, updated_by: req.user.username, updated_at: new Date() } },
+            { upsert: true, new: true }
+        );
+        io.emit('championUpdated');
+        res.json({ msg: "تم حفظ شجرة البطولة وتحديثها لجميع الأعضاء.", state: { qf: doc.qf, sf: doc.sf, final: doc.final, champion: doc.champion, updated_by: doc.updated_by, updated_at: doc.updated_at } });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// جدولة مباراة (تاريخ + وقت + 3 أسلحة)
-app.post('/api/tournaments/:id/matches/:matchId/schedule', verifyAuth(TOURNAMENT_MANAGERS), async (req, res) => {
+// مسح المسابقات السابقة وإعادة تعيين البطولة للأسماء الافتراضية (القيادة العليا)
+app.post('/api/champion/reset', verifyAuth(['Don', 'Underboss']), async (req, res) => {
     try {
-        const t = await Tournament.findById(req.params.id);
-        if (!t || t.status !== 'ongoing') return res.status(400).json({ error: "البطولة غير نشطة." });
-        const m = await Match.findOne({ _id: req.params.matchId, tournamentId: t._id });
-        if (!m) return res.status(404).json({ error: "المباراة غير موجودة." });
-        if (m.status === 'completed') return res.status(400).json({ error: "لا يمكن تعديل مباراة منتهية." });
-        if (!req.body.scheduledAt) return res.status(400).json({ error: "أدخل تاريخ ووقت المباراة." });
-        const weapons = Array.isArray(req.body.weapons) ? req.body.weapons.filter(x => x && String(x).trim()).map(x => String(x).trim()).slice(0, 3) : [];
-        if (weapons.length === 0) return res.status(400).json({ error: "أدخل سلاح راوند واحد على الأقل." });
-        m.scheduledAt = new Date(req.body.scheduledAt);
-        m.weapons = weapons;
-        await m.save();
-        await new AuditLog({ action: 'tournament_match_scheduled', target_username: '-', performed_by: req.user.username, details: `جدولة مباراة (${m.stage}${m.groupNumber ? ' G' + m.groupNumber : ''}) في ${t.name}` }).save();
-        io.emit('auditLogUpdated');
-        io.emit('tournament:match-scheduled', { tournamentId: t._id, matchId: m._id });
-        res.json(m);
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// إعادة حساب شجرة التأهل بناءً على النتائج المسجلة
-async function recomputeBracket(t) {
-    const groups = await Match.find({ tournamentId: t._id, stage: 'group' });
-    const byGroup = {};
-    groups.forEach(x => { byGroup[x.groupNumber] = x; });
-    const allGroupDone = groups.length === 4 && groups.every(x => x.status === 'completed');
-
-    let semis = await Match.find({ tournamentId: t._id, stage: 'semifinal' });
-    if (allGroupDone) {
-        const pairs = [[byGroup[1].result.winner, byGroup[2].result.winner], [byGroup[3].result.winner, byGroup[4].result.winner]];
-        if (semis.length < 2) {
-            for (let i = semis.length; i < 2; i++) {
-                semis.push(await new Match({ tournamentId: t._id, stage: 'semifinal', gangA: pairs[i][0], gangB: pairs[i][1] }).save());
-            }
-        } else {
-            semis.forEach((s, i) => {
-                if (s.status !== 'completed' && pairs[i]) { s.gangA = pairs[i][0]; s.gangB = pairs[i][1]; }
-            });
-            await Promise.all(semis.map(s => s.save()));
-        }
-        t.semiFinals = semis.map(s => s._id);
-    }
-
-    const allSemisDone = semis.length === 2 && semis.every(x => x.status === 'completed');
-    let finalM = t.final ? await Match.findById(t.final) : null;
-    if (allSemisDone) {
-        if (!finalM) {
-            finalM = await new Match({ tournamentId: t._id, stage: 'final', gangA: semis[0].result.winner, gangB: semis[1].result.winner }).save();
-            t.final = finalM._id;
-        } else if (finalM.status !== 'completed') {
-            finalM.gangA = semis[0].result.winner; finalM.gangB = semis[1].result.winner;
-            await finalM.save();
-        }
-    }
-    if (finalM && finalM.status === 'completed') {
-        t.champion = finalM.result.winner;
-        t.status = 'completed';
-        t.completedAt = new Date();
-    }
-    await t.save();
-}
-
-// تسجيل نتيجة مباراة (Best of 3) + التأهل الأوتوماتيكي
-app.post('/api/tournaments/:id/matches/:matchId/result', verifyAuth(TOURNAMENT_MANAGERS), async (req, res) => {
-    try {
-        const t = await Tournament.findById(req.params.id);
-        if (!t || t.status !== 'ongoing') return res.status(400).json({ error: "البطولة غير نشطة." });
-        const m = await Match.findOne({ _id: req.params.matchId, tournamentId: t._id });
-        if (!m) return res.status(404).json({ error: "المباراة غير موجودة." });
-        if (!m.gangA || !m.gangB) return res.status(400).json({ error: "المباراة ما زالت بدون عصابات." });
-        const scoreA = Number(req.body.scoreA), scoreB = Number(req.body.scoreB);
-        const valid = (scoreA === 2 && (scoreB === 0 || scoreB === 1)) || (scoreB === 2 && (scoreA === 0 || scoreA === 1));
-        if (!valid) return res.status(400).json({ error: "نتيجة غير صحيحة: في Best of 3 الفايز لازم يكون 2 والثاني 0 أو 1." });
-        const winner = scoreA > scoreB ? m.gangA : m.gangB;
-        m.result = { scoreA, scoreB, winner, notes: String(req.body.notes || ''), recordedBy: req.user.username, recordedAt: new Date() };
-        m.status = 'completed';
-        await m.save();
-        await recomputeBracket(t);
-        await new AuditLog({ action: 'tournament_result', target_username: '-', performed_by: req.user.username, details: `نتيجة ${scoreA}-${scoreB} في ${t.name}` }).save();
-        io.emit('auditLogUpdated');
-        io.emit('tournament:match-completed', { tournamentId: t._id, matchId: m._id, winner });
-        if (t.status === 'completed') {
-            io.emit('tournament:completed', { tournamentId: t._id, champion: t.champion });
-        } else {
-            io.emit('tournament:stage-advanced', { tournamentId: t._id });
-        }
-        const full = await loadTournamentById(t._id);
-        res.json(full);
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// تعديل نتيجة مسجلة (قبل إغلاق البطولة)
-app.put('/api/tournaments/:id/matches/:matchId/result', verifyAuth(TOURNAMENT_MANAGERS), async (req, res) => {
-    try {
-        const t = await Tournament.findById(req.params.id);
-        if (!t || t.status === 'completed' || t.status === 'cancelled') return res.status(400).json({ error: "لا يمكن تعديل النتيجة بعد إغلاق البطولة." });
-        const m = await Match.findOne({ _id: req.params.matchId, tournamentId: t._id });
-        if (!m || m.status !== 'completed') return res.status(400).json({ error: "المباراة غير موجودة أو غير مسجلة." });
-        const scoreA = Number(req.body.scoreA), scoreB = Number(req.body.scoreB);
-        const valid = (scoreA === 2 && (scoreB === 0 || scoreB === 1)) || (scoreB === 2 && (scoreA === 0 || scoreA === 1));
-        if (!valid) return res.status(400).json({ error: "نتيجة غير صحيحة: الفايز لازم يكون 2 والثاني 0 أو 1." });
-        m.result.scoreA = scoreA; m.result.scoreB = scoreB;
-        m.result.winner = scoreA > scoreB ? m.gangA : m.gangB;
-        m.result.notes = String(req.body.notes || '');
-        await m.save();
-        await recomputeBracket(t);
-        await new AuditLog({ action: 'tournament_result_edited', target_username: '-', performed_by: req.user.username, details: `تعديل نتيجة في ${t.name}` }).save();
-        io.emit('auditLogUpdated');
-        io.emit('tournament:match-completed', { tournamentId: t._id, matchId: m._id });
-        if (t.status === 'completed') io.emit('tournament:completed', { tournamentId: t._id, champion: t.champion });
-        else io.emit('tournament:stage-advanced', { tournamentId: t._id });
-        const full = await loadTournamentById(t._id);
-        res.json(full);
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// إدارة الجوايز (من عناصر الشوب)
-app.put('/api/tournaments/:id/prizes', verifyAuth(TOURNAMENT_MANAGERS), async (req, res) => {
-    try {
-        const t = await Tournament.findById(req.params.id);
-        if (!t || t.status === 'completed' || t.status === 'cancelled') return res.status(400).json({ error: "لا يمكن تعديل الجوايز بعد إغلاق البطولة." });
-        const items = req.body.items;
-        if (!Array.isArray(items)) return res.status(400).json({ error: "بيانات غير صحيحة." });
-        const prizePool = [];
-        for (const it of items) {
-            const qty = Math.max(1, Number(it.quantity) || 1);
-            const shopItem = await Item.findById(it.shopItemId);
-            if (!shopItem) return res.status(400).json({ error: "منتج غير موجود في الشوب." });
-            prizePool.push({ shopItemId: shopItem._id, name: shopItem.name, image: shopItem.image_url, price: shopItem.price, quantity: qty });
-        }
-        t.prizePool = prizePool;
-        await t.save();
-        io.emit('tournament:prizes-updated', { tournamentId: t._id });
-        res.json(t);
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// توزيع الجوايز على العصابة البطلة (Don فقط)
-app.post('/api/tournaments/:id/distribute-prizes', verifyAuth([]), async (req, res) => {
-    try {
-        const t = await Tournament.findById(req.params.id);
-        if (!t || t.status !== 'completed') return res.status(400).json({ error: "البطولة لم تكتمل بعد." });
-        if (!t.champion) return res.status(400).json({ error: "لم يتم تحديد البطل." });
-        if (t.distributedAt) return res.status(400).json({ error: "تم توزيع الجوايز مسبقاً." });
-        t.distributedAt = new Date();
-        await t.save();
-        await new AuditLog({ action: 'tournament_prizes_distributed', target_username: '-', performed_by: req.user.username, details: `توزيع جوايز ${t.name} على ${t.champion}` }).save();
-        io.emit('auditLogUpdated');
-        io.emit('tournament:prizes-distributed', { tournamentId: t._id });
-        res.json({ msg: "تم توزيع الجوايز على العصابة البطلة." });
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// إلغاء البطولة
-app.post('/api/tournaments/:id/cancel', verifyAuth(TOURNAMENT_MANAGERS), async (req, res) => {
-    try {
-        const t = await Tournament.findById(req.params.id);
-        if (!t || t.status === 'completed' || t.status === 'cancelled') return res.status(400).json({ error: "البطولة غير صالحة للإلغاء." });
-        t.status = 'cancelled';
-        t.completedAt = new Date();
-        await t.save();
-        await new AuditLog({ action: 'tournament_cancelled', target_username: '-', performed_by: req.user.username, details: `إلغاء ${t.name}` }).save();
-        io.emit('auditLogUpdated');
-        io.emit('tournament:cancelled', { tournamentId: t._id });
-        res.json({ msg: "تم إلغاء البطولة وحفظها في الأرشيف." });
+        const state = defaultChampionState();
+        const doc = await ChampionState.findOneAndUpdate(
+            { key: 'champion' },
+            { $set: { ...state, updated_by: req.user.username, updated_at: new Date() } },
+            { upsert: true, new: true }
+        );
+        io.emit('championUpdated');
+        res.json({ msg: "تم مسح المسابقات السابقة وإعادة تعيين البطولة.", state: { qf: doc.qf, sf: doc.sf, final: doc.final, champion: doc.champion } });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -1713,15 +1469,8 @@ const forceUserLogout = (username) => {
 // ---------------- Sockets ----------------
 io.on('connection', (socket) => {
     // ربط السوكيت باسم المستخدم المسجل
-    socket.on('register', async (data) => {
+    socket.on('register', (data) => {
         if (data && data.username) {
-            try {
-                const user = await User.findOne({ username: data.username }).select('account_status is_blacklisted');
-                if (!user || user.account_status !== 'approved' || user.is_blacklisted) {
-                    socket.emit('forceLogout', { reason: 'حسابك غير موجود أو تم حظره من النظام.' });
-                    return;
-                }
-            } catch(e){}
             socketUsers[socket.id] = data.username;
             if (!userSockets[data.username]) userSockets[data.username] = [];
             if (!userSockets[data.username].includes(socket.id)) {
@@ -1841,19 +1590,22 @@ cleanupExpiredWarnings();
 let lastAutoNoteDate = '';
 setInterval(async () => {
     try {
-        const now = new Date();
-        const dzNow = new Date(now.getTime() + (60 * 60 * 1000));
-        const hours = dzNow.getUTCHours();
-        const minutes = dzNow.getUTCMinutes();
+        const nowDZ = algeriaNow();
+        const hours = nowDZ.getUTCHours();
+        const minutes = nowDZ.getUTCMinutes();
         if (hours !== 4 || minutes > 0) return;
 
         // ضمان إرسال الملاحظة مرة واحدة فقط في اليوم
-        const todayStr = dzNow.toISOString().slice(0, 10);
+        const todayStr = nowDZ.toISOString().slice(0, 10);
         if (lastAutoNoteDate === todayStr) return;
         lastAutoNoteDate = todayStr;
 
-        // نافذة الدوام الماضية (ليلة أمس): من 22:00 حتى 04:00 بتوقيت الجزائر
-        const { start: yesterdayStart, end: yesterdayEnd } = getDutyDayWindow(-1);
+        // نافذة الدوام الماضية: من 22:00 ليلة أمس حتى 04:00 اليوم
+        const yesterdayStart = new Date(nowDZ);
+        yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+        yesterdayStart.setUTCHours(22, 0, 0, 0);
+        const yesterdayEnd = new Date(nowDZ);
+        yesterdayEnd.setUTCHours(4, 0, 0, 0);
 
         // استثناء الدون وأعضاء العصابات من الملاحظات التلقائية
         const users = await User.find({
@@ -1881,16 +1633,9 @@ setInterval(async () => {
                 continue;
             }
 
-            // التحقق من الحضور عبر سجل البصمات (IN) داخل نافذة الدوام، مع احتياط للبيانات القديمة قبل تفعيل سجل البصمات
-            const inPunchCount = await PunchRecord.countDocuments({
-                username: user.username,
-                action: 'IN',
-                timestamp: { $gte: yesterdayStart, $lt: yesterdayEnd }
-            });
-            const legacyInWindow = user.last_punch_in &&
+            const wasOnDuty = user.last_punch_in &&
                 user.last_punch_in >= yesterdayStart &&
-                user.last_punch_in < yesterdayEnd;
-            const wasOnDuty = inPunchCount > 0 || !!legacyInWindow;
+                user.last_punch_in <= yesterdayEnd;
 
             if (wasOnDuty) {
                 if (user.consecutive_misses > 0) {
@@ -1911,8 +1656,8 @@ setInterval(async () => {
                 is_auto: true
             }).save();
 
-            // الإنذار الرسمي يُمنح مرة واحدة فقط عند بلوغ 3 غيابات متتالية (وليس مع كل ملاحظة)
-            if (user.consecutive_misses === 3) {
+            // الإنذار الرسمي يبدأ فقط بعد تراكم 3 غيابات متتالية
+            if (user.consecutive_misses >= 3) {
                 user.warning_dates.push(new Date());
                 user.warnings = user.warning_dates.length;
 
@@ -1943,13 +1688,12 @@ setInterval(async () => {
 // ================== تنظيف الملاحظات التلقائية القديمة (أقدم من 7 أيام) يومياً عند 22:00 بتوقيت الجزائر ==================
 setInterval(async () => {
     try {
-        const now = new Date();
-        const dzNow = new Date(now.getTime() + (60 * 60 * 1000));
-        const hours = dzNow.getUTCHours();
-        const minutes = dzNow.getUTCMinutes();
+        const nowDZ = algeriaNow();
+        const hours = nowDZ.getUTCHours();
+        const minutes = nowDZ.getUTCMinutes();
         if (hours !== 22 || minutes > 0) return;
 
-        const cutoff = new Date(dzNow.getTime() - 7 * 24 * 60 * 60 * 1000);
+        const cutoff = new Date(nowDZ.getTime() - 7 * 24 * 60 * 60 * 1000);
 
         const result = await MemberNote.deleteMany({
             is_auto: true,
