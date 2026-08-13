@@ -10,7 +10,7 @@ const path = require('path');
 const multer = require('multer');
 const cloudinary = require('cloudinary').v2;
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
-const { isInDutyTimeWindow, algeriaNow, buildDutyWeekDays } = require('./server/shared/time');
+const { isInDutyTimeWindow, algeriaNow, getDutyDayWindow, buildDutyWeekDays } = require('./server/shared/time');
 const { ROLES, ROLE_GROUPS } = require('./server/shared/roles');
 const logger = require('./server/shared/logger');
 
@@ -24,10 +24,10 @@ const PORT = process.env.PORT || 3000;
 // الاتصال بقاعدة بيانات MongoDB
 const MONGO_URI = process.env.MONGO_URI;
 
-if (!MONGO_URI) { console.error('MONGO_URI غير معرف. يرجى ضبط متغير البيئة MONGO_URI.'); process.exit(1); }
+if (!MONGO_URI) { logger.error('MONGO_URI غير معرف. يرجى ضبط متغير البيئة MONGO_URI.'); logger.flushSync(); process.exit(1); }
 mongoose.connect(MONGO_URI)
-  .then(() => console.log('تم الاتصال بقاعدة بيانات CORTEZ (v8.0 - الملاحظات والحضور والمخزون).'))
-  .catch(err => console.error('خطأ في الاتصال بقاعدة البيانات:', err));
+  .then(() => logger.log('تم الاتصال بقاعدة بيانات CORTEZ (v8.0 - الملاحظات والحضور والمخزون).'))
+  .catch(err => logger.error('خطأ في الاتصال بقاعدة البيانات: ' + (err && err.message ? err.message : err)));
 
 app.use(cors({ origin: process.env.CORS_ORIGIN || "http://localhost:3000" }));
 app.use(express.json());
@@ -84,20 +84,13 @@ const UserSchema = new mongoose.Schema({
     duty_status: { type: String, enum: ['ON-DUTY', 'OFF-DUTY'], default: 'OFF-DUTY' },
     last_punch_in: { type: Date },
     weekly_hours: { type: Number, default: 0 },
-    warnings: { type: Number, default: 0 },
-    // سجل تواريخ الإنذارات (يُستخدم لحساب انتهاء صلاحية الإنذار بعد 30 يوماً)
-    warning_dates: { type: [Date], default: [] },
     is_blacklisted: { type: Boolean, default: false },
     consecutive_misses: { type: Number, default: 0 },
-    total_heists: { type: Number, default: 0 },
-    // v7.7: الغرامات المالية المستحقة
-    fine_amount: { type: Number, default: 0 },
-    fine_reason: { type: String, default: "" }
+    total_heists: { type: Number, default: 0 }
 });
 
 const LeaveSchema = new mongoose.Schema({ username: String, reason: String, duration: Number, status: { type: String, default: 'Pending' }, timestamp: { type: Date, default: Date.now } });
 const JustificationSchema = new mongoose.Schema({ username: String, reason: String, status: { type: String, default: 'Pending' }, timestamp: { type: Date, default: Date.now } });
-const PenaltyLogSchema = new mongoose.Schema({ target_username: String, admin_username: String, type: String, reason: String, fine_amount: { type: Number, default: 0 }, timestamp: { type: Date, default: Date.now } });
 
 const ArchiveSchema = new mongoose.Schema({ week_date: { type: Date, default: Date.now }, records: Array });
 
@@ -163,7 +156,6 @@ const GangSchema = new mongoose.Schema({
 const User = mongoose.model('User', UserSchema);
 const Leave = mongoose.model('Leave', LeaveSchema);
 const Justification = mongoose.model('Justification', JustificationSchema);
-const PenaltyLog = mongoose.model('PenaltyLog', PenaltyLogSchema);
 const Archive = mongoose.model('Archive', ArchiveSchema);
 const Item = mongoose.model('Item', ItemSchema);
 const Order = mongoose.model('Order', OrderSchema);
@@ -180,7 +172,6 @@ const MemberNoteSchema = new mongoose.Schema({
     username: String,
     reason: String,
     issued_by: String,
-    bill_amount: { type: Number, default: 0 },
     is_auto: { type: Boolean, default: false },
     timestamp: { type: Date, default: Date.now }
 });
@@ -260,73 +251,6 @@ const WeeklyPurchase = mongoose.model('WeeklyPurchase', WeeklyPurchaseSchema);
 const AuditLog = mongoose.model('AuditLog', AuditLogSchema);
 const PunchRecord = mongoose.model('PunchRecord', PunchRecordSchema);
 
-// ================== بطولة CHAMPION (شجرة مواجهات العصابات المسلحة) ==================
-const ChampionStateSchema = new mongoose.Schema({
-    key: { type: String, default: 'champion', unique: true },
-    qf: { type: Array, default: [] },
-    sf: { type: Array, default: [] },
-    final: { type: Object, default: {} },
-    champion: { type: String, default: '' },
-    updated_by: { type: String, default: '' },
-    updated_at: { type: Date, default: Date.now }
-});
-const ChampionState = mongoose.model('ChampionState', ChampionStateSchema);
-
-const defaultChampionState = () => ({
-    qf: [
-        { a: { name: 'Calavera', score: 0 }, b: { name: 'Ballas', score: 0 } },
-        { a: { name: 'Cryps', score: 0 }, b: { name: 'Bloods', score: 0 } },
-        { a: { name: 'Maranova', score: 0 }, b: { name: 'Families', score: 0 } },
-        { a: { name: 'Ghost Rider', score: 0 }, b: { name: 'Chang', score: 0 } }
-    ],
-    sf: [
-        { a: { name: '', score: 0 }, b: { name: '', score: 0 } },
-        { a: { name: '', score: 0 }, b: { name: '', score: 0 } }
-    ],
-    final: { a: { name: '', score: 0 }, b: { name: '', score: 0 } },
-    champion: ''
-});
-
-const championWinner = (m) => {
-    if (!m || !m.a || !m.b) return null;
-    if (Number(m.a.score) >= 2) return 'a';
-    if (Number(m.b.score) >= 2) return 'b';
-    return null;
-};
-
-// إعادة حساب أسماء نصف النهائي والنهائي والبطل تلقائياً من نتائج الأدوار السابقة (أفضل من 3)
-const syncChampionNames = (s) => {
-    if (!s) return s;
-    const qf = Array.isArray(s.qf) && s.qf.length === 4 ? s.qf : defaultChampionState().qf;
-    const sf = Array.isArray(s.sf) && s.sf.length === 2 ? s.sf : defaultChampionState().sf;
-    const final = s.final && typeof s.final === 'object' ? s.final : defaultChampionState().final;
-
-    const w0 = championWinner(qf[0]), w1 = championWinner(qf[1]);
-    sf[0].a.name = w0 ? qf[0][w0].name : '';
-    sf[0].b.name = w1 ? qf[1][w1].name : '';
-    const w2 = championWinner(qf[2]), w3 = championWinner(qf[3]);
-    sf[1].a.name = w2 ? qf[2][w2].name : '';
-    sf[1].b.name = w3 ? qf[3][w3].name : '';
-
-    const f0 = championWinner(sf[0]), f1 = championWinner(sf[1]);
-    final.a.name = f0 ? sf[0][f0].name : '';
-    final.b.name = f1 ? sf[1][f1].name : '';
-
-    const cw = championWinner(final);
-    s.champion = cw ? final[cw].name : '';
-
-    s.qf = qf; s.sf = sf; s.final = final;
-    return s;
-};
-
-const getChampionDoc = async () => {
-    let doc = await ChampionState.findOne({ key: 'champion' });
-    if (!doc) {
-        doc = await ChampionState.create({ key: 'champion', ...defaultChampionState() });
-    }
-    return doc;
-};
-
 async function initSystemDB() {
     try {
         const treasuryCount = await Treasury.countDocuments({});
@@ -336,7 +260,7 @@ async function initSystemDB() {
         const gangTreasuryCount = await GangTreasury.countDocuments({});
         if (gangTreasuryCount === 0) { await new GangTreasury({ total_balance: 0 }).save(); }
     } catch (err) {
-        console.error("Initialization warning:", err.message);
+        logger.error("Initialization warning: " + err.message);
     }
 }
 initSystemDB();
@@ -362,7 +286,7 @@ const verifyAuth = (roles) => {
                     return res.status(403).json({ error: "أنت محظور من استخدام النظام (قائمة سوداء).", forceLogout: true });
                 }
                 decoded.role = currentUser.role;
-                const hasAccess = roles.includes(decoded.role) || decoded.role === 'Don';
+                const hasAccess = roles.includes(decoded.role) || decoded.role === ROLES.DON;
                 if (!hasAccess) return res.status(403).json({ error: "ليست لديك صلاحية الوصول لهذه الميزة." });
                 next();
             }).catch(() => res.status(500).json({ error: "خطأ في معالجة الطلب." }));
@@ -373,7 +297,7 @@ const verifyAuth = (roles) => {
 // ================== مسارات الواجهة البرمجية ==================
 
 // رفع الصور إلى Cloudinary (متاح للقيادة وأصحاب الصلاحيات فقط)
-app.post('/api/upload-image', verifyAuth(['Underboss', 'Business_Manager', 'Gang_Supervisor', 'Don']), (req, res) => {
+app.post('/api/upload-image', verifyAuth([ROLES.UNDERBOSS, ROLES.BUSINESS_MANAGER, ROLES.GANG_SUPERVISOR, ROLES.DON]), (req, res) => {
     imageUpload.single('image')(req, res, (err) => {
         if (err) return res.status(400).json({ error: err.message || "خطأ في رفع الصورة." });
         if (!req.file) return res.status(400).json({ error: "لم يتم العثور على الصورة المرفوعة." });
@@ -389,7 +313,7 @@ app.post('/api/auth/register', async (req, res) => {
         const isFirstUser = (await User.countDocuments({})) === 0;
         const newUser = new User({
             username, password: hashedPassword, discord_id: String(discord_id),
-            role: isFirstUser ? 'Don' : 'Soldat',
+            role: isFirstUser ? ROLES.DON : ROLES.SOLDAT,
             account_status: isFirstUser ? 'approved' : 'pending'
         });
         await newUser.save();
@@ -410,7 +334,7 @@ app.post('/api/gang-auth/register', async (req, res) => {
         const hashedPassword = await bcrypt.hash(password, 10);
         const newUser = new User({
             username, password: hashedPassword, discord_id: discord_id ? String(discord_id) : 'N/A',
-            role: 'Gang_Member', gang_name, account_status: 'pending'
+            role: ROLES.GANG_MEMBER, gang_name, account_status: 'pending'
         });
         await newUser.save();
         io.emit('accountPending');
@@ -437,7 +361,7 @@ app.post('/api/auth/login', async (req, res) => {
         if (user.account_status === 'rejected') return res.status(403).json({ error: "تم رفض حسابك من قبل الإدارة." });
         
         const token = jwt.sign({ id: user._id, role: user.role, username: user.username }, JWT_SECRET, { expiresIn: '24h' });
-        res.json({ token, user: { username: user.username, role: user.role, gang_name: user.gang_name, duty_status: user.duty_status, fine_amount: user.fine_amount, fine_reason: user.fine_reason } });
+        res.json({ token, user: { username: user.username, role: user.role, gang_name: user.gang_name, duty_status: user.duty_status } });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -446,14 +370,15 @@ app.get('/api/auth/me', async (req, res) => {
         const token = req.headers['authorization']?.split(' ')[1];
         if (!token) return res.status(401).json({ error: "غير مصرح" });
         const decoded = jwt.verify(token, JWT_SECRET);
-        const user = await User.findById(decoded.id, 'username role duty_status fine_amount fine_reason');
+        const user = await User.findById(decoded.id, 'username role duty_status');
+        if (!user) return res.status(401).json({ error: "حسابك لم يعد موجوداً", forceLogout: true });
         res.json(user);
     } catch { res.status(401).json({ error: "انتهت الجلسة" }); }
 });
 
-app.get('/api/users/list', verifyAuth(['Underboss', 'Chef_Braquage', 'Business_Manager', 'Don']), async (req, res) => {
+app.get('/api/users/list', verifyAuth([ROLES.UNDERBOSS, ROLES.CHEF_BRAQUAGE, ROLES.BUSINESS_MANAGER, ROLES.DON]), async (req, res) => {
     try {
-        const users = await User.find({ is_blacklisted: false, account_status: 'approved', role: { $ne: 'Gang_Member' } }, 'username');
+        const users = await User.find({ account_status: 'approved', role: { $ne: ROLES.GANG_MEMBER } }, 'username is_blacklisted');
         res.json(users);
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -463,7 +388,7 @@ app.get('/api/shop/items', async (req, res) => {
     catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/shop/add-item', verifyAuth(['Underboss', 'Business_Manager']), async (req, res) => {
+app.post('/api/shop/add-item', verifyAuth(ROLE_GROUPS.SHOP_MANAGER), async (req, res) => {
     try {
         const { name, price, image_url, in_stock, max_per_order, max_per_week } = req.body;
         const newItem = new Item({
@@ -478,7 +403,7 @@ app.post('/api/shop/add-item', verifyAuth(['Underboss', 'Business_Manager']), as
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.put('/api/shop/item/:id', verifyAuth(['Underboss', 'Business_Manager']), async (req, res) => {
+app.put('/api/shop/item/:id', verifyAuth(ROLE_GROUPS.SHOP_MANAGER), async (req, res) => {
     try {
         const { name, price, image_url, in_stock, max_per_order, max_per_week } = req.body;
         const update = {};
@@ -494,7 +419,7 @@ app.put('/api/shop/item/:id', verifyAuth(['Underboss', 'Business_Manager']), asy
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.delete('/api/shop/item/:id', verifyAuth(['Underboss', 'Business_Manager']), async (req, res) => {
+app.delete('/api/shop/item/:id', verifyAuth(ROLE_GROUPS.SHOP_MANAGER), async (req, res) => {
     try {
         await Item.findByIdAndDelete(req.params.id);
         io.emit('shopUpdated');
@@ -502,7 +427,7 @@ app.delete('/api/shop/item/:id', verifyAuth(['Underboss', 'Business_Manager']), 
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/shop/checkout', verifyAuth(['Underboss', 'Soldat', 'Capo', 'GRH', 'Chef_Braquage', 'Business_Manager', 'Gang_Supervisor']), async (req, res) => {
+app.post('/api/shop/checkout', verifyAuth(ROLE_GROUPS.MEMBERS), async (req, res) => {
     try {
         const { items } = req.body;
         if (!items || items.length === 0) return res.status(400).json({ error: "السلة فارغة." });
@@ -553,7 +478,7 @@ app.post('/api/shop/checkout', verifyAuth(['Underboss', 'Soldat', 'Capo', 'GRH',
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/api/shop/orders', verifyAuth(['Underboss', 'Business_Manager', 'Chef_Braquage', 'GRH']), async (req, res) => {
+app.get('/api/shop/orders', verifyAuth([ROLES.DON, ROLES.UNDERBOSS, ROLES.BUSINESS_MANAGER, ROLES.CHEF_BRAQUAGE, ROLES.GRH]), async (req, res) => {
     try { const orders = await Order.find().sort({ timestamp: -1 }); res.json(orders); } 
     catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -577,11 +502,11 @@ const confirmPaymentLogic = async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 };
 
-app.post('/api/shop/order/:id/pay', verifyAuth(['Underboss', 'Business_Manager']), confirmPaymentLogic);
-app.put('/api/shop/order/:id/pay', verifyAuth(['Underboss', 'Business_Manager']), confirmPaymentLogic);
+app.post('/api/shop/order/:id/pay', verifyAuth(ROLE_GROUPS.ORDER_APPROVERS), confirmPaymentLogic);
+app.put('/api/shop/order/:id/pay', verifyAuth(ROLE_GROUPS.ORDER_APPROVERS), confirmPaymentLogic);
 
 // رفض طلب شراء من شوب الأعضاء (لا يُضاف أي مبلغ إلى الخزينة)
-app.post('/api/shop/order/:id/reject', verifyAuth(['Underboss', 'Business_Manager']), async (req, res) => {
+app.post('/api/shop/order/:id/reject', verifyAuth(ROLE_GROUPS.ORDER_APPROVERS), async (req, res) => {
     try {
         const order = await Order.findById(req.params.id);
         if (!order || order.status === 'Paid') return res.status(400).json({ error: "الطلب غير موجود أو تم قبضه مسبقاً." });
@@ -593,7 +518,7 @@ app.post('/api/shop/order/:id/reject', verifyAuth(['Underboss', 'Business_Manage
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/api/treasury/balance', verifyAuth(['Underboss', 'Business_Manager']), async (req, res) => {
+app.get('/api/treasury/balance', verifyAuth(ROLE_GROUPS.SHOP_MANAGER), async (req, res) => {
     try {
         const treasury = await Treasury.findOne({});
         const balance = treasury ? treasury.total_balance : 0;
@@ -601,7 +526,7 @@ app.get('/api/treasury/balance', verifyAuth(['Underboss', 'Business_Manager']), 
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/treasury/reset', verifyAuth(['Don']), async (req, res) => {
+app.post('/api/treasury/reset', verifyAuth(ROLE_GROUPS.DON_ONLY), async (req, res) => {
     try {
         await Treasury.updateOne({}, { total_balance: 0 });
         io.emit('treasuryUpdated');
@@ -674,17 +599,17 @@ app.get('/api/shop/invoice/:id', async (req, res) => {
     } catch (err) { res.status(500).send("خطأ في استرجاع الفاتورة: " + err.message); }
 });
 
-app.get('/api/admin/users', verifyAuth(['Underboss', 'GRH']), async (req, res) => {
+app.get('/api/admin/users', verifyAuth(ROLE_GROUPS.ADMIN), async (req, res) => {
     try {
-        const users = await User.find({}, 'username role duty_status weekly_hours warnings is_blacklisted fine_amount fine_reason consecutive_misses');
+        const users = await User.find({}, 'username role duty_status weekly_hours is_blacklisted consecutive_misses');
         res.json(users);
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/admin/change-role', verifyAuth(['Underboss', 'GRH']), async (req, res) => {
+app.post('/api/admin/change-role', verifyAuth(ROLE_GROUPS.ADMIN), async (req, res) => {
     try {
         const { target_username, new_role } = req.body;
-        if (new_role === 'Don') return res.status(403).json({ error: "لا يمكن منح رتبة الدون (Don) بهذه الطريقة!" });
+        if (new_role === ROLES.DON) return res.status(403).json({ error: "لا يمكن منح رتبة الدون (Don) بهذه الطريقة!" });
         const oldUser = await User.findOne({ username: target_username }, 'role');
         await User.findOneAndUpdate({ username: target_username }, { role: new_role });
         await new AuditLog({
@@ -697,7 +622,7 @@ app.post('/api/admin/change-role', verifyAuth(['Underboss', 'GRH']), async (req,
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/admin/reset-password', verifyAuth(['Underboss', 'GRH']), async (req, res) => {
+app.post('/api/admin/reset-password', verifyAuth(ROLE_GROUPS.ADMIN), async (req, res) => {
     try {
         const { target_username, new_password } = req.body;
         if (!new_password || new_password.length < 4) return res.status(400).json({ error: "كلمة المرور الجديدة قصيرة جداً (4 أحرف على الأقل)." });
@@ -710,7 +635,7 @@ app.post('/api/admin/reset-password', verifyAuth(['Underboss', 'GRH']), async (r
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/admin/adjust-hours', verifyAuth(['Underboss', 'GRH']), async (req, res) => {
+app.post('/api/admin/adjust-hours', verifyAuth(ROLE_GROUPS.ADMIN), async (req, res) => {
     try {
         const { target_username, new_hours } = req.body;
         if (new_hours === undefined || new_hours === '' || isNaN(new_hours) || Number(new_hours) < 0) {
@@ -733,14 +658,14 @@ app.post('/api/admin/adjust-hours', verifyAuth(['Underboss', 'GRH']), async (req
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/api/admin/audit-log', verifyAuth(['Underboss', 'GRH']), async (req, res) => {
+app.get('/api/admin/audit-log', verifyAuth(ROLE_GROUPS.ADMIN), async (req, res) => {
     try {
         const logs = await AuditLog.find().sort({ timestamp: -1 }).limit(200);
         res.json(logs);
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/admin/reset-weekly-hours', verifyAuth(['Don']), async (req, res) => {
+app.post('/api/admin/reset-weekly-hours', verifyAuth(ROLE_GROUPS.DON_ONLY), async (req, res) => {
     try {
         const currentUsers = await User.find({ is_blacklisted: false }, 'username role weekly_hours');
         await new Archive({ records: currentUsers }).save();
@@ -753,80 +678,41 @@ app.post('/api/admin/reset-weekly-hours', verifyAuth(['Don']), async (req, res) 
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/api/admin/archive', verifyAuth(['Underboss', 'GRH']), async (req, res) => {
+app.get('/api/admin/archive', verifyAuth(ROLE_GROUPS.ADMIN), async (req, res) => {
     try { const archives = await Archive.find().sort({ week_date: -1 }); res.json(archives); } 
     catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ================== v7.7: نظام الغرامات والعقوبات الإدارية ==================
-app.post('/api/admin/penalty', verifyAuth(['Underboss', 'GRH']), async (req, res) => {
+// ================== القائمة السوداء (أداة إدارة مستقلة) ==================
+app.post('/api/admin/blacklist/set', verifyAuth(ROLE_GROUPS.ADMIN), async (req, res) => {
     try {
-        const { target_username, type, reason, fine_amount } = req.body;
+        const { target_username, blacklist } = req.body;
         const user = await User.findOne({ username: target_username });
         if (!user) return res.status(404).json({ error: "العضو غير موجود." });
 
-        let penaltyAmount = 0;
-
-        if (type === 'Warning') {
-            user.warning_dates.push(new Date());
-            user.warnings = user.warning_dates.length;
-            if (user.warnings >= 3) { user.is_blacklisted = true; forceUserLogout(target_username); }
-        } else if (type === 'Blacklist') {
-            user.is_blacklisted = true; user.duty_status = 'OFF-DUTY';
+        user.is_blacklisted = !!blacklist;
+        if (user.is_blacklisted) {
+            user.duty_status = 'OFF-DUTY';
             forceUserLogout(target_username);
-        } else if (type === 'Remove_Blacklist') {
-            user.is_blacklisted = false; user.warnings = 0; user.warning_dates = [];
-        } else if (type === 'Fine') {
-            penaltyAmount = Number(fine_amount || 0);
-            if (penaltyAmount <= 0) return res.status(400).json({ error: "مبلغ الغرامة يجب أن يكون رقماً موجباً." });
-            user.fine_amount += penaltyAmount;
-            user.fine_reason = reason || "غرامة مفروضة من الإدارة";
         }
-        
         await user.save();
-        await new PenaltyLog({ target_username, admin_username: req.user.username, type, reason, fine_amount: penaltyAmount }).save();
-        
+
+        await new AuditLog({
+            action: blacklist ? 'blacklist_added' : 'blacklist_removed',
+            target_username,
+            performed_by: req.user.username,
+            details: blacklist ? 'إدراج في القائمة السوداء' : 'الإخراج من القائمة السوداء'
+        }).save();
+
         io.emit('dutyUpdated', { username: user.username, duty_status: user.duty_status });
-        io.emit('finesUpdated');
-        io.emit('notesUpdated');
-        
-        res.json({ msg: "تم تنفيذ الإجراء بنجاح." });
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// قائمة الأعضاء الذين عليهم غرامات معلقة (للوحة الإدارة)
-app.get('/api/admin/fines/active', verifyAuth(['Underboss', 'GRH']), async (req, res) => {
-    try {
-        const finedUsers = await User.find({ fine_amount: { $gt: 0 } }, 'username role fine_amount fine_reason');
-        res.json(finedUsers);
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.post('/api/admin/fines/pay', verifyAuth(['Underboss', 'GRH']), async (req, res) => {
-    try {
-        const { target_username } = req.body;
-        const user = await User.findOne({ username: target_username });
-        if (!user || user.fine_amount <= 0) return res.status(400).json({ error: "العضو ليس عليه غرامة معلقة." });
-
-        const amountPaid = user.fine_amount;
-        
-        user.fine_amount = 0;
-        user.fine_reason = "";
-        await user.save();
-
-        await Treasury.updateOne({}, { $inc: { total_balance: amountPaid } });
-
-        io.emit('finesUpdated');
-        io.emit('treasuryUpdated');
-        io.emit('dutyUpdated');
-        
-        res.json({ msg: `تم استلام الغرامة بقيمة ${amountPaid}$ وإضافتها إلى الخزينة العليا.` });
+        io.emit('auditLogUpdated');
+        res.json({ msg: blacklist ? `تم إدراج "${target_username}" في القائمة السوداء.` : `تم إخراج "${target_username}" من القائمة السوداء.` });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.get('/api/stats/leaderboard', async (req, res) => {
     try {
-        const users = await User.find({ is_blacklisted: false, account_status: 'approved', role: { $ne: 'Gang_Member' } }, 'username weekly_hours role duty_status');
+        const users = await User.find({ is_blacklisted: false, account_status: 'approved', role: { $ne: ROLES.GANG_MEMBER } }, 'username weekly_hours role duty_status');
         const fmt = users.map(u => ({ username: u.username, role: u.role, duty_status: u.duty_status, hours: u.weekly_hours }));
         
         res.json({ 
@@ -836,14 +722,14 @@ app.get('/api/stats/leaderboard', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/hr/leave', verifyAuth(['Underboss', 'Soldat', 'Capo', 'GRH', 'Chef_Braquage', 'Business_Manager', 'Gang_Supervisor']), async (req, res) => {
+app.post('/api/hr/leave', verifyAuth(ROLE_GROUPS.MEMBERS), async (req, res) => {
     try {
         await new Leave({ username: req.user.username, reason: req.body.reason, duration: Number(req.body.duration) }).save();
         io.emit('requestUpdated'); res.json({ msg: "تم إرسال طلب الإجازة بنجاح." });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/hr/justify', verifyAuth(['Underboss', 'Soldat', 'Capo', 'GRH', 'Chef_Braquage', 'Business_Manager', 'Gang_Supervisor']), async (req, res) => {
+app.post('/api/hr/justify', verifyAuth(ROLE_GROUPS.MEMBERS), async (req, res) => {
     try {
         await new Justification({ username: req.user.username, reason: req.body.reason }).save();
         io.emit('requestUpdated'); res.json({ msg: "تم إرسال التبرير بنجاح." });
@@ -851,7 +737,7 @@ app.post('/api/hr/justify', verifyAuth(['Underboss', 'Soldat', 'Capo', 'GRH', 'C
 });
 
 // سجل طلبات الإجازة وتبرير الغياب بعد البت فيها — ظاهر لجميع الأعضاء في روم ABSENCE-CONGE
-app.get('/api/hr/log', verifyAuth(['Underboss', 'Soldat', 'Capo', 'GRH', 'Chef_Braquage', 'Business_Manager', 'Gang_Supervisor']), async (req, res) => {
+app.get('/api/hr/log', verifyAuth(ROLE_GROUPS.MEMBERS), async (req, res) => {
     try {
         const leaves = await Leave.find().sort({ timestamp: -1 });
         const justifications = await Justification.find().sort({ timestamp: -1 });
@@ -859,7 +745,7 @@ app.get('/api/hr/log', verifyAuth(['Underboss', 'Soldat', 'Capo', 'GRH', 'Chef_B
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/api/hr/requests', verifyAuth(['Underboss', 'GRH']), async (req, res) => {
+app.get('/api/hr/requests', verifyAuth(ROLE_GROUPS.ADMIN), async (req, res) => {
     try {
         const leaves = await Leave.find({ status: 'Pending' });
         const justifications = await Justification.find({ status: 'Pending' });
@@ -867,7 +753,7 @@ app.get('/api/hr/requests', verifyAuth(['Underboss', 'GRH']), async (req, res) =
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/hr/action', verifyAuth(['Underboss', 'GRH']), async (req, res) => {
+app.post('/api/hr/action', verifyAuth(ROLE_GROUPS.ADMIN), async (req, res) => {
     try {
         const { type, id, action } = req.body;
         if (type === 'leave') {
@@ -879,8 +765,7 @@ app.post('/api/hr/action', verifyAuth(['Underboss', 'GRH']), async (req, res) =>
                     await new MemberNote({
                         username: leave.username,
                         reason: `إجازة معتمدة من الإدارة: ${leave.reason} لمدة ${leave.duration} أيام`,
-                        issued_by: req.user.username,
-                        bill_amount: 0
+                        issued_by: req.user.username
                     }).save();
                     io.emit('notesUpdated');
                 }
@@ -891,94 +776,23 @@ app.post('/api/hr/action', verifyAuth(['Underboss', 'GRH']), async (req, res) =>
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ================== v8.0: نظام الملاحظات ==================
-app.post('/api/notes/add', verifyAuth(['Don', 'Underboss', 'GRH']), async (req, res) => {
-    try {
-        const { username, reason, bill_amount } = req.body;
-        if (!username || !reason) return res.status(400).json({ error: "اسم المستخدم والسبب مطلوبان." });
-
-        const note = new MemberNote({
-            username,
-            reason,
-            issued_by: req.user.username,
-            bill_amount: Number(bill_amount || 0)
-        });
-        await note.save();
-        io.emit('notesUpdated');
-        io.emit('dutyUpdated');
-        res.status(201).json({ msg: "تمت إضافة الملاحظة بنجاح." });
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.get('/api/notes/my', verifyAuth(['Underboss', 'Soldat', 'Capo', 'GRH', 'Chef_Braquage', 'Business_Manager', 'Gang_Supervisor']), async (req, res) => {
+// ================== v8.0: نظام الملاحظات (الأوتوماتيكية) ==================
+app.get('/api/notes/my', verifyAuth(ROLE_GROUPS.MEMBERS), async (req, res) => {
     try {
         const notes = await MemberNote.find({ username: req.user.username }).sort({ timestamp: -1 });
         res.json(notes);
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/api/notes/all', verifyAuth(['Don', 'Underboss', 'GRH']), async (req, res) => {
+app.get('/api/notes/all', verifyAuth(ROLE_GROUPS.DON_AND_ADMIN), async (req, res) => {
     try {
         const notes = await MemberNote.find().sort({ timestamp: -1 });
         res.json(notes);
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/notes/penalize', verifyAuth(['Don', 'Underboss', 'GRH']), async (req, res) => {
-    try {
-        const { username, reason, bill_amount } = req.body;
-        if (!username || !reason) return res.status(400).json({ error: "اسم المستخدم والسبب مطلوبان." });
-
-        const note = new MemberNote({
-            username,
-            reason,
-            issued_by: req.user.username,
-            bill_amount: Number(bill_amount || 0)
-        });
-        await note.save();
-
-        // قاعدة: عند بلوغ 3 ملاحظات يتم تحويلها إلى إنذار رسمي
-        const totalNotes = await MemberNote.countDocuments({ username });
-        let warningsIssued = false;
-        let blacklisted = false;
-
-        if (totalNotes >= 3) {
-            const user = await User.findOne({ username });
-            if (user && !user.is_blacklisted) {
-                user.warning_dates.push(new Date());
-                user.warnings = user.warning_dates.length;
-                if (user.warnings >= 3) {
-                    user.is_blacklisted = true;
-                    blacklisted = true;
-                }
-                await user.save();
-                warningsIssued = true;
-
-                await new PenaltyLog({
-                    target_username: username,
-                    admin_username: req.user.username,
-                    type: 'Warning',
-                    reason: `ملاحظات متراكمة: بلوغ ${totalNotes} ملاحظات`,
-                    fine_amount: 0
-                }).save();
-            }
-        }
-
-        io.emit('notesUpdated');
-        io.emit('dutyUpdated');
-        io.emit('finesUpdated');
-
-        let msg = "تمت إضافة الملاحظة بنجاح.";
-        if (warningsIssued) msg += ` (${username} بلغ 3 ملاحظات وتحولت إلى إنذار رسمي.`;
-        if (blacklisted) msg += ` تم وضعه في القائمة السوداء لبلوغ 3 إنذارات.)`;
-        else if (warningsIssued) msg += ")";
-
-        res.status(201).json({ msg, total_notes: totalNotes });
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
 // ================== v8.0: حذف ملاحظة ==================
-app.delete('/api/notes/:id', verifyAuth(['Don', 'Underboss', 'GRH']), async (req, res) => {
+app.delete('/api/notes/:id', verifyAuth(ROLE_GROUPS.DON_AND_ADMIN), async (req, res) => {
     try {
         const note = await MemberNote.findByIdAndDelete(req.params.id);
         if (!note) return res.status(404).json({ error: "الملاحظة غير موجودة." });
@@ -989,15 +803,15 @@ app.delete('/api/notes/:id', verifyAuth(['Don', 'Underboss', 'GRH']), async (req
 
 // ================== v8.0: سجل الحضور الأسبوعي (مبني على بصمات الدخول/الخروج الفعلية) ==================
 // يوم الدوام الواحد يمتد من 22:00 إلى 04:00 بتوقيت الجزائر (ليلة الدوام تُحسب لليوم الذي تبدأ فيه)
-app.get('/api/attendance/week', verifyAuth(['Don', 'Underboss', 'GRH', 'Business_Manager']), async (req, res) => {
+app.get('/api/attendance/week', verifyAuth(ROLE_GROUPS.ATTENDANCE_VIEW), async (req, res) => {
     try {
-        // تحديد آخر 7 أيام دوام (كل يوم يبدأ 22:00 بتوقيت الجزائر = 21:00 UTC)
+        // تحديد آخر 7 أيام دوام (كل يوم دوام يمتد من 22:00 حتى 04:00 بتوقيت الجزائر)
         const days = buildDutyWeekDays(7);
 
         const members = await User.find({
             is_blacklisted: false,
             account_status: 'approved',
-            role: { $ne: 'Gang_Member' }
+            role: { $ne: ROLES.GANG_MEMBER }
         }, 'username role last_punch_in');
 
         // جلب جميع بصمات الدخول المسجلة خلال الأسبوع
@@ -1034,7 +848,7 @@ app.get('/api/attendance/week', verifyAuth(['Don', 'Underboss', 'GRH', 'Business
 });
 
 // ================== v8.0: نظام المخزون / حاسبة البزنس مانجر ==================
-app.post('/api/inventory/add', verifyAuth(['Don', 'Underboss', 'Business_Manager']), async (req, res) => {
+app.post('/api/inventory/add', verifyAuth(ROLE_GROUPS.DON_AND_SHOP), async (req, res) => {
     try {
         const { name, image_url, buy_from_gang_price, sell_to_black_price, quantity } = req.body;
         if (!name) return res.status(400).json({ error: "اسم المنتج مطلوب." });
@@ -1053,14 +867,14 @@ app.post('/api/inventory/add', verifyAuth(['Don', 'Underboss', 'Business_Manager
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/api/inventory/items', verifyAuth(['Underboss', 'Soldat', 'Capo', 'GRH', 'Chef_Braquage', 'Business_Manager', 'Gang_Supervisor']), async (req, res) => {
+app.get('/api/inventory/items', verifyAuth(ROLE_GROUPS.MEMBERS), async (req, res) => {
     try {
         const items = await InventoryItem.find().sort({ timestamp: -1 });
         res.json(items);
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.put('/api/inventory/item/:id', verifyAuth(['Don', 'Underboss', 'Business_Manager']), async (req, res) => {
+app.put('/api/inventory/item/:id', verifyAuth(ROLE_GROUPS.DON_AND_SHOP), async (req, res) => {
     try {
         const { name, image_url, buy_from_gang_price, sell_to_black_price, quantity } = req.body;
         const update = {};
@@ -1076,7 +890,7 @@ app.put('/api/inventory/item/:id', verifyAuth(['Don', 'Underboss', 'Business_Man
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.delete('/api/inventory/item/:id', verifyAuth(['Don', 'Underboss', 'Business_Manager']), async (req, res) => {
+app.delete('/api/inventory/item/:id', verifyAuth(ROLE_GROUPS.DON_AND_SHOP), async (req, res) => {
     try {
         await InventoryItem.findByIdAndDelete(req.params.id);
         io.emit('inventoryUpdated');
@@ -1085,14 +899,14 @@ app.delete('/api/inventory/item/:id', verifyAuth(['Don', 'Underboss', 'Business_
 });
 
 // ================== الموافقة على الحسابات الجديدة (مافيا أو عصابات) — GRH أو الدون ==================
-app.get('/api/admin/pending-accounts', verifyAuth(['Underboss', 'GRH']), async (req, res) => {
+app.get('/api/admin/pending-accounts', verifyAuth(ROLE_GROUPS.ADMIN), async (req, res) => {
     try {
         const pending = await User.find({ account_status: 'pending' }, 'username role gang_name discord_id timestamp');
         res.json(pending);
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/admin/pending-accounts/review', verifyAuth(['Underboss', 'GRH']), async (req, res) => {
+app.post('/api/admin/pending-accounts/review', verifyAuth(ROLE_GROUPS.ADMIN), async (req, res) => {
     try {
         const { target_username, decision } = req.body;
         if (!['approve', 'reject'].includes(decision)) return res.status(400).json({ error: "قرار غير صالح." });
@@ -1105,7 +919,7 @@ app.post('/api/admin/pending-accounts/review', verifyAuth(['Underboss', 'GRH']),
         await new AuditLog({
             action: decision === 'approve' ? 'account_approved' : 'account_rejected',
             target_username, performed_by: req.user.username,
-            details: user.role === 'Gang_Member' ? `عضو عصابة: ${user.gang_name}` : 'عضو مافيا'
+            details: user.role === ROLES.GANG_MEMBER ? `عضو عصابة: ${user.gang_name}` : 'عضو مافيا'
         }).save();
         io.emit('accountPending'); io.emit('auditLogUpdated');
         res.json({ msg: decision === 'approve' ? `تم قبول حساب ${target_username} بنجاح.` : `تم رفض حساب ${target_username}.` });
@@ -1118,7 +932,7 @@ app.get('/api/gang-shop/items', async (req, res) => {
     catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/gang-shop/add-item', verifyAuth(['Underboss', 'Business_Manager']), async (req, res) => {
+app.post('/api/gang-shop/add-item', verifyAuth(ROLE_GROUPS.SHOP_MANAGER), async (req, res) => {
     try {
         const { name, item_type, buy_price, sell_price, image_url, in_stock, max_per_order, max_per_week } = req.body;
         const validTypes = ['buy_only', 'sell_only', 'both'];
@@ -1143,7 +957,7 @@ app.post('/api/gang-shop/add-item', verifyAuth(['Underboss', 'Business_Manager']
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.put('/api/gang-shop/item/:id', verifyAuth(['Underboss', 'Business_Manager']), async (req, res) => {
+app.put('/api/gang-shop/item/:id', verifyAuth(ROLE_GROUPS.SHOP_MANAGER), async (req, res) => {
     try {
         const { name, item_type, buy_price, sell_price, image_url, in_stock, max_per_order, max_per_week } = req.body;
         const item = await GangShopItem.findById(req.params.id);
@@ -1174,7 +988,7 @@ app.put('/api/gang-shop/item/:id', verifyAuth(['Underboss', 'Business_Manager'])
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.delete('/api/gang-shop/item/:id', verifyAuth(['Underboss', 'Business_Manager']), async (req, res) => {
+app.delete('/api/gang-shop/item/:id', verifyAuth(ROLE_GROUPS.SHOP_MANAGER), async (req, res) => {
     try {
         await GangShopItem.findByIdAndDelete(req.params.id);
         io.emit('gangShopUpdated');
@@ -1184,7 +998,7 @@ app.delete('/api/gang-shop/item/:id', verifyAuth(['Underboss', 'Business_Manager
 
 const MAX_QTY_PER_LINE = 100000;
 
-app.post('/api/gang-shop/checkout', verifyAuth(['Gang_Member']), async (req, res) => {
+app.post('/api/gang-shop/checkout', verifyAuth(ROLE_GROUPS.GANG_MEMBER_ONLY), async (req, res) => {
     try {
         const { items_bought, items_sold } = req.body;
         if ((!items_bought || items_bought.length === 0) && (!items_sold || items_sold.length === 0)) {
@@ -1260,7 +1074,7 @@ app.post('/api/gang-shop/checkout', verifyAuth(['Gang_Member']), async (req, res
     } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
-app.get('/api/gang-shop/my-orders', verifyAuth(['Gang_Member']), async (req, res) => {
+app.get('/api/gang-shop/my-orders', verifyAuth(ROLE_GROUPS.GANG_MEMBER_ONLY), async (req, res) => {
     try {
         const orders = await GangOrder.find({ gang_member_username: req.user.username }).sort({ timestamp: -1 });
         res.json(orders);
@@ -1268,7 +1082,7 @@ app.get('/api/gang-shop/my-orders', verifyAuth(['Gang_Member']), async (req, res
 });
 
 // إلغاء/تعديل طلب معلّق من العضو صاحب الطلب نفسه فقط
-app.post('/api/gang-shop/order/:id/cancel', verifyAuth(['Gang_Member']), async (req, res) => {
+app.post('/api/gang-shop/order/:id/cancel', verifyAuth(ROLE_GROUPS.GANG_MEMBER_ONLY), async (req, res) => {
     try {
         const order = await GangOrder.findById(req.params.id);
         if (!order || order.gang_member_username !== req.user.username || order.status !== 'Pending') {
@@ -1281,12 +1095,12 @@ app.post('/api/gang-shop/order/:id/cancel', verifyAuth(['Gang_Member']), async (
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/api/gang-shop/orders', verifyAuth(['Underboss', 'Business_Manager']), async (req, res) => {
+app.get('/api/gang-shop/orders', verifyAuth(ROLE_GROUPS.ORDER_APPROVERS), async (req, res) => {
     try { const orders = await GangOrder.find().sort({ timestamp: -1 }); res.json(orders); }
     catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/gang-shop/order/:id/confirm', verifyAuth(['Underboss', 'Business_Manager']), async (req, res) => {
+app.post('/api/gang-shop/order/:id/confirm', verifyAuth(ROLE_GROUPS.ORDER_APPROVERS), async (req, res) => {
     try {
         const order = await GangOrder.findById(req.params.id);
         if (!order || order.status !== 'Pending') return res.status(400).json({ error: "الطلب غير موجود أو لم يعد معلقاً." });
@@ -1300,7 +1114,7 @@ app.post('/api/gang-shop/order/:id/confirm', verifyAuth(['Underboss', 'Business_
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/gang-shop/order/:id/reject', verifyAuth(['Underboss', 'Business_Manager']), async (req, res) => {
+app.post('/api/gang-shop/order/:id/reject', verifyAuth(ROLE_GROUPS.ORDER_APPROVERS), async (req, res) => {
     try {
         const { reason } = req.body;
         const order = await GangOrder.findById(req.params.id);
@@ -1314,7 +1128,7 @@ app.post('/api/gang-shop/order/:id/reject', verifyAuth(['Underboss', 'Business_M
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/api/gang-shop/treasury', verifyAuth(['Underboss', 'Business_Manager']), async (req, res) => {
+app.get('/api/gang-shop/treasury', verifyAuth(ROLE_GROUPS.ORDER_APPROVERS), async (req, res) => {
     try {
         const treasury = await GangTreasury.findOne({});
         const balance = treasury ? treasury.total_balance : 0;
@@ -1322,125 +1136,11 @@ app.get('/api/gang-shop/treasury', verifyAuth(['Underboss', 'Business_Manager'])
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/gang-shop/treasury/reset', verifyAuth(['Don']), async (req, res) => {
+app.post('/api/gang-shop/treasury/reset', verifyAuth(ROLE_GROUPS.DON_ONLY), async (req, res) => {
     try {
         await GangTreasury.updateOne({}, { total_balance: 0 });
         io.emit('gangTreasuryUpdated');
         res.json({ msg: "تم تصفير خزينة شوب العصابات بنجاح." });
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// ================== إزالة الإنذارات (المسارات الإدارية) ==================
-app.post('/api/admin/remove-warning', verifyAuth(['Don', 'Underboss', 'GRH']), async (req, res) => {
-    try {
-        const { target_username } = req.body;
-        const user = await User.findOne({ username: target_username });
-        if (!user) return res.status(404).json({ error: "العضو غير موجود." });
-        if (user.warnings <= 0) return res.status(400).json({ error: "العضو ليس عليه إنذارات." });
-
-        const dates = user.warning_dates || [];
-        if (dates.length > 0) dates.shift();
-        user.warning_dates = dates;
-        user.warnings = dates.length;
-        await user.save();
-
-        await new AuditLog({
-            action: 'warning_removed',
-            target_username,
-            performed_by: req.user.username,
-            details: `إزالة إنذار واحد (المتبقي: ${user.warnings})`
-        }).save();
-
-        io.emit('dutyUpdated', {});
-        io.emit('auditLogUpdated');
-        res.json({ msg: `تمت إزالة إنذار واحد من "${target_username}". الإنذارات المتبقية: ${user.warnings}` });
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// ================== إزالة القائمة السوداء وتصفير الإنذارات ==================
-app.post('/api/admin/blacklist/remove', verifyAuth(['Don']), async (req, res) => {
-    try {
-        const { target_username } = req.body;
-        const user = await User.findOne({ username: target_username });
-        if (!user) return res.status(404).json({ error: "العضو غير موجود." });
-        user.is_blacklisted = false;
-        user.warnings = 0;
-        user.warning_dates = [];
-        await user.save();
-        await new AuditLog({
-            action: 'blacklist_removed',
-            target_username,
-            performed_by: req.user.username,
-            details: 'الإخراج من القائمة السوداء وتصفير الإنذارات'
-        }).save();
-        io.emit('dutyUpdated', {});
-        io.emit('auditLogUpdated');
-        res.json({ msg: `تم إخراج "${target_username}" من القائمة السوداء بنجاح.` });
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// ================== قائمة الأعضاء الذين لديهم إنذارات ==================
-app.get('/api/admin/warnings/list', verifyAuth(['Don', 'Underboss', 'GRH', 'Business_Manager']), async (req, res) => {
-    try {
-        const warnedUsers = await User.find(
-            { warnings: { $gt: 0 }, is_blacklisted: false },
-            'username role warnings warning_dates consecutive_misses'
-        ).sort({ warnings: -1 });
-        res.json(warnedUsers.map(u => ({
-            username: u.username,
-            role: u.role,
-            warnings: u.warnings,
-            last_warning_date: u.warning_dates.length > 0 ? u.warning_dates[u.warning_dates.length - 1] : null,
-            consecutive_misses: u.consecutive_misses
-        })));
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// ================== مسارات بطولة CHAMPION (شجرة مواجهات العصابات) ==================
-// عرض شجرة البطولة (لجميع الأعضاء المصادق عليهم)
-app.get('/api/champion', verifyAuth(['Underboss', 'Soldat', 'Capo', 'GRH', 'Chef_Braquage', 'Business_Manager', 'Gang_Supervisor', 'Gang_Member', 'Don']), async (req, res) => {
-    try {
-        const doc = await getChampionDoc();
-        res.json({ qf: doc.qf, sf: doc.sf, final: doc.final, champion: doc.champion, updated_by: doc.updated_by, updated_at: doc.updated_at });
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// حفظ التعديلات وتحديث الشجرة لحظياً للجميع (القيادة)
-app.post('/api/champion/save', verifyAuth(['Underboss', 'Business_Manager', 'Don']), async (req, res) => {
-    try {
-        const { qf, sf, final } = req.body;
-        if (!Array.isArray(qf) || qf.length !== 4 || !Array.isArray(sf) || sf.length !== 2 || !final || typeof final !== 'object') {
-            return res.status(400).json({ error: "بيانات شجرة البطولة غير صالحة." });
-        }
-        const team = (t) => ({ name: String((t && t.name) || ''), score: Math.max(0, Math.min(2, Number((t && t.score) || 0))) });
-        const match = (m) => ({ a: team(m && m.a), b: team(m && m.b) });
-        const cleaned = {
-            qf: Array.from({ length: 4 }, (_, i) => match(qf[i])),
-            sf: Array.from({ length: 2 }, (_, i) => match(sf[i])),
-            final: match(final)
-        };
-        const state = syncChampionNames(cleaned);
-        const doc = await ChampionState.findOneAndUpdate(
-            { key: 'champion' },
-            { $set: { qf: state.qf, sf: state.sf, final: state.final, champion: state.champion, updated_by: req.user.username, updated_at: new Date() } },
-            { upsert: true, new: true }
-        );
-        io.emit('championUpdated');
-        res.json({ msg: "تم حفظ شجرة البطولة وتحديثها لجميع الأعضاء.", state: { qf: doc.qf, sf: doc.sf, final: doc.final, champion: doc.champion, updated_by: doc.updated_by, updated_at: doc.updated_at } });
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// مسح المسابقات السابقة وإعادة تعيين البطولة للأسماء الافتراضية (القيادة العليا)
-app.post('/api/champion/reset', verifyAuth(['Don', 'Underboss']), async (req, res) => {
-    try {
-        const state = defaultChampionState();
-        const doc = await ChampionState.findOneAndUpdate(
-            { key: 'champion' },
-            { $set: { ...state, updated_by: req.user.username, updated_at: new Date() } },
-            { upsert: true, new: true }
-        );
-        io.emit('championUpdated');
-        res.json({ msg: "تم مسح المسابقات السابقة وإعادة تعيين البطولة.", state: { qf: doc.qf, sf: doc.sf, final: doc.final, champion: doc.champion } });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -1469,8 +1169,15 @@ const forceUserLogout = (username) => {
 // ---------------- Sockets ----------------
 io.on('connection', (socket) => {
     // ربط السوكيت باسم المستخدم المسجل
-    socket.on('register', (data) => {
+    socket.on('register', async (data) => {
         if (data && data.username) {
+            try {
+                const user = await User.findOne({ username: data.username }).select('account_status is_blacklisted');
+                if (!user || user.account_status !== 'approved' || user.is_blacklisted) {
+                    socket.emit('forceLogout', { reason: 'حسابك غير موجود أو تم حظره من النظام.' });
+                    return;
+                }
+            } catch(e){}
             socketUsers[socket.id] = data.username;
             if (!userSockets[data.username]) userSockets[data.username] = [];
             if (!userSockets[data.username].includes(socket.id)) {
@@ -1492,7 +1199,7 @@ io.on('connection', (socket) => {
         if (!username) return;
         // التحقق من الصلاحية: الدون أو النائب فقط
         const user = await User.findOne({ username }, 'role');
-        if (!user || (user.role !== 'Don' && user.role !== 'Underboss')) return;
+        if (!user || (user.role !== ROLES.DON && user.role !== ROLES.UNDERBOSS)) return;
         io.emit('emergencyAlert', {
             message: "تم تفعيل استنفار عام! جميع الأعضاء يجب أن يتواجدوا فوراً في المدينة.",
             sender: username
@@ -1526,7 +1233,7 @@ io.on('connection', (socket) => {
             io.emit('dutyUpdated', { username: user.username, duty_status: user.duty_status });
             io.emit('attendanceUpdated');
             socket.emit('statusResponse', { username: user.username, duty_status: user.duty_status });
-        } catch (err) { console.error(err.message); }
+        } catch (err) { logger.error(err.message); }
     });
 });
 
@@ -1559,59 +1266,31 @@ setInterval(async () => {
             }
         }
         if (stateChanged) { io.emit('dutyUpdated', {}); io.emit('attendanceUpdated'); }
-    } catch (err) { console.error(err.message); }
+    } catch (err) { logger.error(err.message); }
 }, 300000); 
-
-// ================== تنظيف الإنذارات المنتهية (بعد 30 يوماً) ==================
-const WARNING_EXPIRY_MS = 30 * 24 * 60 * 60 * 1000;
-
-async function cleanupExpiredWarnings() {
-    try {
-        const now = new Date();
-        const usersWithWarnings = await User.find({ 'warning_dates.0': { $exists: true } });
-
-        for (let u of usersWithWarnings) {
-            const beforeCount = u.warning_dates.length;
-            u.warning_dates = u.warning_dates.filter(d => (now - new Date(d)) < WARNING_EXPIRY_MS);
-
-            if (u.warning_dates.length !== beforeCount) {
-                u.warnings = u.warning_dates.length;
-                await u.save();
-            }
-        }
-        io.emit('dutyUpdated', {});
-    } catch (err) { console.error("خطأ في تنظيف الإنذارات:", err.message); }
-}
-
-setInterval(cleanupExpiredWarnings, 3600000);
-cleanupExpiredWarnings();
 
 // ================== الملاحظات التلقائية للغياب — تُرسل يومياً في الساعة 04:00 بتوقيت الجزائر ==================
 let lastAutoNoteDate = '';
 setInterval(async () => {
     try {
-        const nowDZ = algeriaNow();
-        const hours = nowDZ.getUTCHours();
-        const minutes = nowDZ.getUTCMinutes();
+        const dzNow = algeriaNow();
+        const hours = dzNow.getUTCHours();
+        const minutes = dzNow.getUTCMinutes();
         if (hours !== 4 || minutes > 0) return;
 
         // ضمان إرسال الملاحظة مرة واحدة فقط في اليوم
-        const todayStr = nowDZ.toISOString().slice(0, 10);
+        const todayStr = dzNow.toISOString().slice(0, 10);
         if (lastAutoNoteDate === todayStr) return;
         lastAutoNoteDate = todayStr;
 
-        // نافذة الدوام الماضية: من 22:00 ليلة أمس حتى 04:00 اليوم
-        const yesterdayStart = new Date(nowDZ);
-        yesterdayStart.setDate(yesterdayStart.getDate() - 1);
-        yesterdayStart.setUTCHours(22, 0, 0, 0);
-        const yesterdayEnd = new Date(nowDZ);
-        yesterdayEnd.setUTCHours(4, 0, 0, 0);
+        // نافذة الدوام الماضية (ليلة أمس): من 22:00 حتى 04:00 بتوقيت الجزائر
+        const { start: yesterdayStart, end: yesterdayEnd } = getDutyDayWindow(-1);
 
         // استثناء الدون وأعضاء العصابات من الملاحظات التلقائية
         const users = await User.find({
             is_blacklisted: false,
             account_status: 'approved',
-            role: { $nin: ['Don', 'Gang_Member'] }
+            role: { $nin: [ROLES.DON, ROLES.GANG_MEMBER] }
         });
 
         const approvedLeaves = await Leave.find({ status: 'Approved' });
@@ -1633,9 +1312,16 @@ setInterval(async () => {
                 continue;
             }
 
-            const wasOnDuty = user.last_punch_in &&
+            // التحقق من الحضور عبر سجل البصمات (IN) داخل نافذة الدوام، مع احتياط للبيانات القديمة قبل تفعيل سجل البصمات
+            const inPunchCount = await PunchRecord.countDocuments({
+                username: user.username,
+                action: 'IN',
+                timestamp: { $gte: yesterdayStart, $lt: yesterdayEnd }
+            });
+            const legacyInWindow = user.last_punch_in &&
                 user.last_punch_in >= yesterdayStart &&
-                user.last_punch_in <= yesterdayEnd;
+                user.last_punch_in < yesterdayEnd;
+            const wasOnDuty = inPunchCount > 0 || !!legacyInWindow;
 
             if (wasOnDuty) {
                 if (user.consecutive_misses > 0) {
@@ -1652,48 +1338,26 @@ setInterval(async () => {
                 username: user.username,
                 reason: MISSED_DUTY_NOTE_TEXT,
                 issued_by: 'SYSTEM',
-                bill_amount: 0,
                 is_auto: true
             }).save();
-
-            // الإنذار الرسمي يبدأ فقط بعد تراكم 3 غيابات متتالية
-            if (user.consecutive_misses >= 3) {
-                user.warning_dates.push(new Date());
-                user.warnings = user.warning_dates.length;
-
-                await new PenaltyLog({
-                    target_username: user.username,
-                    admin_username: 'SYSTEM',
-                    type: 'Warning',
-                    reason: `غياب متتالي: ${user.consecutive_misses} أيام بدون تسجيل ON-DUTY`,
-                    fine_amount: 0
-                }).save();
-
-                if (user.warnings >= 3) {
-                    user.is_blacklisted = true;
-                    user.duty_status = 'OFF-DUTY';
-                    forceUserLogout(user.username);
-                }
-            }
 
             await user.save();
         }
 
         io.emit('notesUpdated');
         io.emit('dutyUpdated', {});
-        io.emit('finesUpdated');
-    } catch (err) { console.error("Auto-note error:", err.message); }
+    } catch (err) { logger.error("Auto-note error: " + err.message); }
 }, 60000);
 
 // ================== تنظيف الملاحظات التلقائية القديمة (أقدم من 7 أيام) يومياً عند 22:00 بتوقيت الجزائر ==================
 setInterval(async () => {
     try {
-        const nowDZ = algeriaNow();
-        const hours = nowDZ.getUTCHours();
-        const minutes = nowDZ.getUTCMinutes();
+        const dzNow = algeriaNow();
+        const hours = dzNow.getUTCHours();
+        const minutes = dzNow.getUTCMinutes();
         if (hours !== 22 || minutes > 0) return;
 
-        const cutoff = new Date(nowDZ.getTime() - 7 * 24 * 60 * 60 * 1000);
+        const cutoff = new Date(dzNow.getTime() - 7 * 24 * 60 * 60 * 1000);
 
         const result = await MemberNote.deleteMany({
             is_auto: true,
@@ -1701,10 +1365,10 @@ setInterval(async () => {
         });
 
         if (result.deletedCount > 0) {
-            console.log(`Cleaned ${result.deletedCount} auto notes older than 7 days`);
+            logger.log(`Cleaned ${result.deletedCount} auto notes older than 7 days`);
             io.emit('notesUpdated');
         }
-    } catch (err) { console.error("Auto-note cleanup error:", err.message); }
+    } catch (err) { logger.error("Auto-note cleanup error: " + err.message); }
 }, 60000);
 
-server.listen(PORT, () => console.log("[CORTEZ] Server v8.0 - Notes & Attendance & Inventory Update running on port " + PORT + ""));
+server.listen(PORT, () => logger.log("[CORTEZ] Server v8.0 - Notes & Attendance & Inventory Update running on port " + PORT));
