@@ -1,23 +1,88 @@
-{
-  "name": "cortez-system",
-  "version": "8.0.0",
-  "description": "CORTEZ SYSTEM v8.0 - نظام إدارة عائلة المافيا (دوام، حضور، ملاحظات، مخزون، شوب)",
-  "main": "server.js",
-  "scripts": {
-    "start": "node server.js"
-  },
-  "engines": {
-    "node": ">=16.0.0"
-  },
-  "dependencies": {
-    "bcryptjs": "^2.4.3",
-    "cloudinary": "^1.41.3",
-    "cors": "^2.8.5",
-    "express": "^4.18.2",
-    "jsonwebtoken": "^9.0.0",
-    "mongoose": "^7.0.0",
-    "multer": "^1.4.5-lts.1",
-    "multer-storage-cloudinary": "^4.0.0",
-    "socket.io": "^4.6.0"
-  }
-}
+# PROJECT_MAP — CORTEZ SYSTEM v8.0
+
+آخر تحديث: 2026-08-12 · الحالة: **أساس جديد (نسخة الإنتاج بدون CHAMPION) — M2/M3/M4 منجزة**
+
+## [TECH_STACK]
+
+### التبعيات — الحالي مقابل الأحدث المستقر (تحقق npm registry مباشر، 2026-08-12)
+
+| الحزمة | المثبّت | الأحدث | ملاحظة / توصية |
+|--------|---------|--------|----------------|
+| express | ^4.18.2 | **5.2.1** | Major (Node ≥ 18). كسر في سلوك الـ routes/الـ middleware — فحص سلوكي إلزامي |
+| socket.io | ^4.8.3 | **4.8.3** | ✅ محدّثة — مطابقة للأحدث |
+| mongoose | ^7.0.0 | **9.9.2** | Major ×2 (Node ≥ 20.19.0). أحدث من المثبّت بمجرّدين كاملين |
+| bcryptjs | ^2.4.3 | **3.0.3** | Major — ESM/CJS مزدوج، `hash/compare` نفسها |
+| jsonwebtoken | ^9.0.3 | **9.0.3** | ✅ محدّثة — مطابقة للأحدث |
+| cors | ^2.8.6 | **2.8.6** | ✅ محدّثة — مطابقة للأحدث |
+| multer | ^1.4.5-lts.1 | **2.2.0** | Major — كسر محتمل في معالجة الأخطاء/Stream |
+| cloudinary | ^1.41.3 | **2.10.0** | ⚠️ لا تُرقَّى مع `multer-storage-cloudinary` (خلاف peer — انظر ORPHANS) |
+| multer-storage-cloudinary | ^4.0.0 | **4.0.0** | غير محدّثة منذ 2020 — peerDep يقفل `cloudinary ^1.21.0` |
+
+### بيئة التشغيل
+- Node: `engines >=16` حالياً → الترقية الكبرى (express 5 / mongoose 9) تتطلب **Node ≥ 20.19** على الاستضافة (Render).
+- MongoDB Atlas عبر `MONGO_URI` · Cloudinary للصور · استضافة Render.
+- متغيرات البيئة: `MONGO_URI` (إلزامي)، `JWT_SECRET`، `CLOUDINARY_*`، `CORS_ORIGIN`، `PORT`.
+
+### نافذة الدوام (معتمدة رسمياً)
+- **22:00 → 04:00 بتوقيت الجزائر (UTC+1، بدون توقيت صيفي)**.
+
+## [SYSTEM_FLOW]
+
+1. **المصادقة**: تسجيل (مافيا/عصابة) → حالة `pending` → موافقة GRH/Don → JWT → تسجيل سوكيت `register`.
+2. **الدوام**: زر ON (خارج نافذة 22:00-04:00 ممنوع من العميل + السيرفر) → `PunchRecord IN` → تراكم `weekly_hours` → OFF → `PunchRecord OUT`. إيقاف تلقائي بعد 8 ساعات أو خارج النافذة (فحص كل 5 دقائق).
+3. **الغياب التلقائي**: كل يوم 04:00 جزائري → من لم يسجّل ON → `MemberNote` + `consecutive_misses` → 3 غيابات = إنذار → 3 إنذارات = قائمة سوداء.
+4. **شوب المافيا**: إضافة منتج (Underboss/BM) → checkout (تحقق: مخزون/حد طلب/حد أسبوعي عبر `WeeklyPurchase`) → `Order Pending` → تأكيد القبض → الخزينة `+=`.
+5. **شوب العصابات**: تصفح كتالوج → checkout (شراء/بيع) → `GangOrder Pending` → تأكيد BM/Underboss → خزينة العصابات `+= net_amount`.
+6. **المخزون/الحسابات**: BM يضيف أيتمات → حاسبة تسعير.
+7. **العقوبات/الملاحظات**: `PenaltyLog` + `MemberNote` + `AuditLog` → إشعارات سوكيت → تحديث مباشر للواجهة.
+
+## [ARCHITECTURE]
+
+- **البنية**: مونوليث من ملفين (`server.js` + `index.html`) منظم بتعليقات نطاقات (Domain). طبقة `server/shared/` مفعّلة بالكامل.
+- **الأساس الحالي**: نسخة الإنتاج الجديدة (من `Downloads`) — **بدون نظام CHAMPION** — نُقلت إلى جذر المشروع وأُعيد تطبيق M2/M3/M4 عليها.
+- **الحالة الفعلية لطبقة `server/shared/` (تحقق كود، 2026-08-12)**:
+  - `time.js` — **مُستخرج ومُستخدم فعلياً**: `isInDutyTimeWindow`/`algeriaNow`/`getDutyDayWindow`/`buildDutyWeekDays` مستدعاة في server.js (الأسطر 13، 926، 1412، 1435، 1491، 1502). لا بقايا `gulf*` ولا إزاحات `60*60*1000` مكررة خارج الطبقة المشتركة.
+  - `roles.js` — **مُستخدم فعلياً**: `ROLES`/`ROLE_GROUPS` مستدعاة في server.js (الأسطر 14، 309، 322، 380، 388، 926...). لا سلاسل أدوار مكررة في `verifyAuth([...])` — كلها `ROLE_GROUPS.*` أو inline عبر `ROLES`.
+  - `logger.js` — **مُستخدم فعلياً**: **صفر `console.*`** في server.js؛ كل المواضع عبر `logger.log/warn/error` (+ `flushSync` قبل `process.exit(1)` في فحص `MONGO_URI`).
+- **قاعدة التقسيم**: Domain-Driven بالتعليقات داخل الملفات، لا بالملفات المنفصلة. أي استخراج إضافي = Feature Creep → مرفوض.
+
+## [ORPHANS & PENDING]
+
+- **قيود التبعيات (حرجة)**:
+  - `multer-storage-cloudinary@4.0.0` (منذ 2020) يشترط peer `cloudinary ^1.21.0` → ترقية cloudinary لـ 2.x **تكسر `npm install`**. الحل الأبسط: إبقاء cloudinary @1.x. البديل المستقبلي: ستوراج مخصص.
+  - ترقية mongoose 9 + express 5 تفرض رفع `engines` إلى `>=20.19` وفحص سلوكي شامل.
+- **مخلفات فعلية (تحقق كود)**:
+  - `consecutive_misses`/`HeistType`/`HeistItem`/`WeeklyGoal`/`HeistLog`/`Gang` موديلات محجوزة غير مستخدمة بالكامل (توافق قديم) — لا تُحذف دون طلب.
+  - `champion.html` — بقايا نظام CHAMPION من النسخة السابقة، **غير مُحال إليه** من `index.html` الجديد (أُزيل نظام CHAMPION من النسخة الجديدة). **لا يُحذف دون موافقة.**
+- **لا يوجد** كود Deprecated يُستخدم.
+- **لا يوجد** إطار اختبارات (node غير مثبت محلياً — التحقق حسابي على حالات نافذة الدوام الحدّية).
+
+## [LOGGING] — البروتوكول الرابع: تتبع آمن غير حظري
+
+- **النمط**: Asynchronous fire-and-forget عبر `setImmediate`/قائمة انتظار داخلية — لا `await` ولا حظر على مسار الطلب.
+- **المستويات (فقط)**: `info | warn | error`. ممنوع `debug`/`verbose` (Feature Creep).
+- **الوجهات**: `stdout/stderr` حالياً + `AuditLog` (نموذج موجود) للأحداث التجارية الحساسة. لا ملفات إضافية.
+- **التخفيف**: اقتطاع عند 512 حرف + تجميع التكرارات المتطابقة المتتالية (`lastCount`).
+- **الأمان**: لا تسجيل لأي `JWT`، `password`، `MONGO_URI`، `req.body` الخام.
+- **النطاق المتبقي**: استبدال الـ **11 استدعاء `console.*`** بـ `logger.log()/warn()/error()` (المستورد موجود، غير مستخدم).
+
+## [MILESTONES] — أهداف قابلة للتحقق (Verifiable Goals)
+
+| # | الهدف (القابل للتحقق) | دليل النجاح (قابل للفحص) | الأولوية |
+|---|----------------------|--------------------------|----------|
+| M1 | ✅ منجز: ترقية الإصدارات الآمنة الصغرى (socket.io→4.8.3، jsonwebtoken→9.0.3، cors→2.8.6) | package.json يطابق الأحدث؛ لا أخطاء استيراد | P1 |
+| M2 | ✅ منجز: استخراج `server/shared/time.js` | `gulf*` أُزيلت؛ `isInDutyTimeWindow`/`algeriaNow`/`getDutyDayWindow`/`buildDutyWeekDays` تُستخدم من مصدر واحد؛ سلوك 22:00/04:00 دون تغيير | P1 |
+| M3 | ✅ منجز: تفعيل `server/shared/roles.js` | `ROLES`/`ROLE_GROUPS` تُستخدم في ≥5 مواضع؛ لا سلاسل أدوار مكررة في `verifyAuth`؛ السلوك دون تغيير | P1 |
+| M4 | ✅ منجز: تفعيل `server/shared/logger.js` | صفر `console.*` في server.js؛ `logger.log/warn/error` في كل المواضع؛ لا `await` في مسار التسجيل؛ لا أسرار | P1 |
+| M5 | (مؤجلة — تتطلب Node ≥20.19) ترقية express→5.2.1، mongoose→9.9.2، bcryptjs→3.0.3، multer→2.2.0 | فحص سلوكي شامل + رفع `engines` + رفع نسخة Node على Render | P3 |
+| M6 | (مؤجلة — تتطلب موافقة) استبدال `multer-storage-cloudinary@4.0.0` بستوراج مخصص | `npm install` ينجح مع `cloudinary@2.10.0`؛ رفع الصور يعمل | P3 |
+
+**قرار: M2–M4 منجزة على الأساس الجديد (نسخة الإنتاج بدون CHAMPION) دون كسر بيئة التشغيل (Node ≥16، تغييرات اسمية/سلوك محفوظ). M5–M6 تتطلب قرار الاستضافة وموافقة صريحة.**
+
+## [CHANGELOG] — 2026-08-12 (جلسة التنفيذ)
+
+- **الأساس**: استُبدل `server.js`/`index.html` بنسخة الإنتاج الجديدة من `Downloads` (بدون نظام CHAMPION).
+- **M2**: ربط `server/shared/time.js` بالكامل — أُزيلت الدوال المكررة (`isInDutyTimeWindow`/`getDutyDayWindow`) وإزاحات `60*60*1000` المتناثرة، واستُخدمت `algeriaNow()`/`getDutyDayWindow()`/`buildDutyWeekDays()` من مصدر واحد.
+- **M3**: استُبدلت كل سلاسل الأدوار المكررة في `verifyAuth([...])` بـ `ROLE_GROUPS.*`؛ المجموعات أحادية الاستخدام → inline عبر `ROLES`. أُضيفت مجموعة جديدة `ORDER_APPROVERS` (Don/Underboss/BM/GRH/Chef_Braquage) لأنها متكررة فعلياً (8 مواضع).
+- **M4**: استُبدلت الـ 11 `console.*` بالـ `logger` (+ `logger.flushSync()` قبل `process.exit(1)`).
+- **تحقق**: صفر `console.*`، صفر `verifyAuth(['...)`، توازن `{}`/`[]` سليم (فرق `()` هو في الأصل من التعليقات العربية، مطابق قبل/بعد التعديل).
