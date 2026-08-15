@@ -374,7 +374,7 @@
 
         <div id="nav">
             <button class="nav-btn active" id="nav-dashboard" data-nav="dashboard" onclick="goSection('dashboard')"><i class="fa-solid fa-gauge-high"></i> DASHBOARD</button>
-            <button class="nav-btn" id="nav-shop" data-nav="shop" onclick="goSection('shop')"><i class="fa-solid fa-gun"></i> BLACK MARKET</button>
+            <button class="nav-btn" id="nav-shop" data-nav="shop" onclick="goSection('shop')"><i class="fa-solid fa-gun"></i> MEMBER SHOP</button>
             <button class="nav-btn" id="nav-tracking" data-nav="tracking" onclick="goSection('tracking')"><i class="fa-solid fa-map-location-dot"></i> TRACKING</button>
             <button class="nav-btn" data-nav="attendance" id="nav-attendance" style="display:none;" onclick="goSection('attendance')"><i class="fa-solid fa-clipboard-check"></i> ATTENDANCE</button>
             <button class="nav-btn" id="nav-requests" data-nav="requests" onclick="goSection('requests')"><i class="fa-solid fa-envelope-open-text"></i> REQUESTS</button>
@@ -415,8 +415,23 @@
         <section id="sec-shop" class="section">
             <div class="shop-layout">
                 <div class="glass" style="padding:20px;">
+                    <div id="shop-admin-add" style="display:none;">
+                        <div class="glass" style="padding:18px; margin-bottom:16px; background:rgba(0,0,0,0.25);">
+                            <div class="form-label">إضافة منتج للسوق (مخصص للقيادة)</div>
+                            <div class="form-grid">
+                                <div><div class="form-label">اسم المنتج</div><input class="cyber-input" id="sh-name" placeholder="اسم المنتج"></div>
+                                <div><div class="form-label">السعر ($)</div><input class="cyber-input" id="sh-price" type="number" placeholder="0"></div>
+                                <div class="full"><div class="form-label">رابط الصورة</div><input class="cyber-input" id="sh-img" placeholder="https://..."></div>
+                                <div class="full" style="display:flex; gap:10px; align-items:center;">
+                                    <button class="btn-cyber btn-green" style="padding:12px 26px;" onclick="addShopItem()"><i class="fa-solid fa-plus" style="margin-left:6px;"></i>نشر المنتج</button>
+                                    <input type="file" id="upload-sh-img" accept="image/*" style="display:none;" onchange="uploadImageFile(this,'sh-img')">
+                                    <button class="btn-cyber btn-ghost" style="padding:12px 18px;" onclick="document.getElementById('upload-sh-img').click()">📷 رفع صورة</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:16px;">
-                        <h2 class="glass-title" style="margin:0;"><i class="fa-solid fa-gun" style="margin-left:10px;"></i>BLACK MARKET WEAPONRY</h2>
+                        <h2 class="glass-title" style="margin:0;"><i class="fa-solid fa-gun" style="margin-left:10px;"></i>MEMBER SHOP WEAPONRY</h2>
                         <button class="btn-cyber btn-ghost" onclick="openCart()"><i class="fa-solid fa-cart-shopping" style="margin-left:8px;"></i>CART <span id="cartCount" style="color:var(--amber);">0</span></button>
                     </div>
                     <div class="item-grid" id="shopGrid"><div class="loading">جاري التحميل...</div></div>
@@ -499,9 +514,7 @@
                     <div class="ops-tab active" data-ops="manage" onclick="opsTab('manage')">إدارة الأعضاء</div>
                     <div class="ops-tab" data-ops="pending" onclick="opsTab('pending')">حسابات معلقة</div>
                     <div class="ops-tab" data-ops="notes" onclick="opsTab('notes')">الملاحظات</div>
-                    <div class="ops-tab" data-ops="treasury" onclick="opsTab('treasury')">الخزينة</div>
                     <div class="ops-tab" data-ops="audit" onclick="opsTab('audit')">سجل التدقيق</div>
-                    <div class="ops-tab" data-ops="market" onclick="opsTab('market')">إدارة السوق</div>
                 </div>
 
                 <div id="ops-panel-manage" class="ops-panel active">
@@ -562,17 +575,6 @@
                     </div></div>
                 </div>
 
-                <div id="ops-panel-treasury" class="ops-panel">
-                    <div class="stat-row">
-                        <div class="stat-mini glass"><div class="sv" id="treasuryVal" style="color:var(--amber);">0$</div><div class="st">MAFIA TREASURY</div></div>
-                    </div>
-                    <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                        <button class="btn-cyber btn-red" id="btn-treasury-reset" style="display:none;" onclick="confirmResetTreasury()">تصفير الخزينة</button>
-                        <button class="btn-cyber btn-red" id="btn-weekly-reset" style="display:none;" onclick="confirmWeeklyReset()">أرشفة الأسبوع وتصفير الساعات</button>
-                    </div>
-                    <div id="archiveBox" style="margin-top:16px;"></div>
-                </div>
-
                 <div id="ops-panel-audit" class="ops-panel">
                     <div class="table-wrap"><div class="scroll">
                         <table class="data-table" id="tbl-audit">
@@ -580,20 +582,6 @@
                             <tbody></tbody>
                         </table>
                     </div></div>
-                </div>
-
-                <div id="ops-panel-market" class="ops-panel">
-                    <div class="form-grid">
-                        <div class="full">
-                            <div class="form-label">إضافة منتج للسوق الأسود (BLACK MARKET)</div>
-                            <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                                <input class="cyber-input" id="mkt-name" placeholder="اسم المنتج" style="flex:2; min-width:140px;">
-                                <input class="cyber-input" id="mkt-price" type="number" placeholder="السعر $" style="flex:1; min-width:100px;">
-                                <input class="cyber-input" id="mkt-img" placeholder="رابط الصورة" style="flex:2; min-width:140px;">
-                                <button class="btn-cyber btn-green" onclick="addMarketItem()">نشر المنتج</button>
-                            </div>
-                        </div>
-                    </div>
                 </div>
             </div>
         </section>
@@ -631,14 +619,17 @@
             <div id="gm-admin-zone" style="display:none;">
                 <div class="glass" style="padding:20px;">
                     <h2 class="glass-title" style="margin-top:0;"><i class="fa-solid fa-user-shield" style="margin-left:10px;"></i>GANG SHOP ADMIN — إدارة السوق</h2>
-                    <div class="ops-tabs" id="gangAdminTabs" style="margin-top:14px;">
-                        <div class="ops-tab active" data-gtab="manage" onclick="gangTab('manage')">إدارة الكتالوج</div>
-                        <div class="ops-tab" data-gtab="orders" onclick="gangTab('orders')">الطلبات</div>
-                        <div class="ops-tab" data-gtab="treasury" onclick="gangTab('treasury')">الخزينة</div>
-                    </div>
 
                     <div id="gang-panel-manage" class="ops-panel active">
-                        <div class="glass" style="padding:18px; margin-bottom:16px; background:rgba(0,0,0,0.25);">
+                        <h3 class="glass-title" style="font-size:.9rem; margin-top:0;"><i class="fa-solid fa-clock-rotate-left" style="margin-left:8px;"></i>ORDERS / الطلبات</h3>
+                        <div class="table-wrap"><div class="scroll">
+                            <table class="data-table" id="tbl-gang-orders">
+                                <thead><tr><th>MEMBER</th><th>GANG</th><th>BOUGHT</th><th>SOLD</th><th>NET</th><th>STATUS</th><th>ACTION</th><th>DATE</th></tr></thead>
+                                <tbody></tbody>
+                            </table>
+                        </div></div>
+
+                        <div class="glass" style="padding:18px; margin-top:16px; margin-bottom:16px; background:rgba(0,0,0,0.25);">
                             <div class="form-label">إضافة منتج جديد</div>
                             <div class="form-grid">
                                 <div><div class="form-label">اسم المنتج</div><input class="cyber-input" id="gs-name" placeholder="اسم المنتج"></div>
@@ -662,22 +653,6 @@
                             </div>
                         </div>
                         <div class="item-grid" id="gang-shop-catalog-container"><div class="loading">جاري تحميل الكتالوج...</div></div>
-                    </div>
-
-                    <div id="gang-panel-orders" class="ops-panel">
-                        <div class="table-wrap"><div class="scroll">
-                            <table class="data-table" id="tbl-gang-orders">
-                                <thead><tr><th>MEMBER</th><th>GANG</th><th>BOUGHT</th><th>SOLD</th><th>NET</th><th>STATUS</th><th>ACTION</th><th>DATE</th></tr></thead>
-                                <tbody></tbody>
-                            </table>
-                        </div></div>
-                    </div>
-
-                    <div id="gang-panel-treasury" class="ops-panel">
-                        <div class="stat-row">
-                            <div class="stat-mini glass"><div class="sv" id="gang-treasury-balance" style="color:var(--amber);">0$</div><div class="st">GANG SHOP TREASURY</div></div>
-                        </div>
-                        <button class="btn-cyber btn-red" id="btn-gang-treasury-reset" style="display:none;" onclick="resetGangTreasury()">تصفير خزينة شوب العصابات</button>
                     </div>
                 </div>
             </div>
@@ -712,6 +687,9 @@
                     <div class="stat-mini glass"><div class="sv gs-buy-color" id="inv-total-buy">0$</div><div class="st">إجمالي الشراء من العصابة</div></div>
                     <div class="stat-mini glass"><div class="sv gs-sell-color" id="inv-total-sell">0$</div><div class="st">إجمالي البيع على البلاك</div></div>
                     <div class="stat-mini glass"><div class="sv" id="inv-total-profit" style="color:var(--amber);">0$</div><div class="st">صافي الربح/الخسارة</div></div>
+                </div>
+                <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:16px;">
+                    <button class="btn-cyber btn-green" style="padding:12px 24px;" onclick="printInventoryInvoice()"><i class="fa-solid fa-print" style="margin-left:6px;"></i>🖨️ إصدار فاتورة</button>
                 </div>
             </div>
 
@@ -1061,11 +1039,9 @@
         socket.on('ordersUpdated', () => { if(isVisible('shop')) loadMyOrders(); });
         socket.on('requestUpdated', () => { if(isVisible('requests')) loadReqLog(); });
         socket.on('auditLogUpdated', () => { if(isVisible('ops')) loadAudit(); });
-        socket.on('treasuryUpdated', () => { if(isVisible('ops')) loadTreasury(); });
         socket.on('inventoryUpdated', () => { if(isVisible('inventory')) loadInventory(); });
         socket.on('gangShopUpdated', () => { if(isVisible('gangshop')){ loadGangCatalog(); if(isGangAdmin()) loadGangShopCatalog(); } });
         socket.on('gangOrdersUpdated', () => { if(isVisible('gangshop')){ if(userData && userData.role === 'Gang_Member') loadMyGangOrders(); if(isGangAdmin()) loadGangOrders(); } });
-        socket.on('gangTreasuryUpdated', () => { if(isVisible('gangshop') && isGangAdmin()) loadGangTreasury(); });
     }
     function isVisible(sec){ return $('sec-'+sec) && $('sec-'+sec).classList.contains('active'); }
     function applyDutyUI(){
@@ -1113,9 +1089,7 @@
         $('nav-ops').style.display = ['Don','Underboss','GRH','Business_Manager'].includes(role) ? 'flex' : 'none';
         $('nav-gangshop').style.display = isGangAdmin() ? 'flex' : 'none';
         $('nav-inventory').style.display = ['Don','Underboss','Business_Manager'].includes(role) ? 'flex' : 'none';
-        $('btn-treasury-reset').style.display = role==='Don' ? 'inline-block' : 'none';
-        $('btn-weekly-reset').style.display = role==='Don' ? 'inline-block' : 'none';
-        $('btn-gang-treasury-reset').style.display = role==='Don' ? 'inline-block' : 'none';
+        $('shop-admin-add').style.display = canManageShop() ? 'block' : 'none';
         $('gm-member-zone').style.display = 'none';
         $('gm-admin-zone').style.display = isGangAdmin() ? 'block' : 'none';
         $('inv-admin-add').style.display = ['Don','Underboss','Business_Manager'].includes(role) ? 'block' : 'none';
@@ -1147,7 +1121,7 @@
         if(name==='gangshop'){
             loadGangCatalog();
             if(userData && userData.role === 'Gang_Member') loadMyGangOrders();
-            if(isGangAdmin()){ loadGangShopCatalog(); loadGangOrders(); loadGangTreasury(); }
+            if(isGangAdmin()){ loadGangShopCatalog(); loadGangOrders(); }
         }
         if(name==='inventory') loadInventory();
         if(name==='ops') loadOps();
@@ -1248,11 +1222,20 @@
             const items = await api('/api/shop/items');
             shopItems = items;
             let html = '';
+            const canManage = canManageShop();
             items.forEach((it,idx) => {
                 const img = it.image_url || 'https://placehold.co/150x150/0d0d0d/00ff66?text=ITEM';
                 const disabled = it.in_stock === false;
-                html += `<div class="item-card" data-tilt>
-                    <img src="${esc(img)}" onerror="this.src='https://placehold.co/150x150/0d0d0d/00ff66?text=ITEM'" alt="${esc(it.name)}">
+                const outBadge = disabled ? '<div style="position:absolute; top:8px; right:8px; color:var(--red); background:rgba(0,0,0,.75); font-family:var(--mono); font-size:.66rem; padding:3px 9px; border-radius:8px; border:1px solid rgba(255,45,85,.5);">نفذت الكمية</div>' : '';
+                const manageBtns = canManage ? `
+                        <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:10px; border-top:1px solid var(--green-line); padding-top:10px;">
+                            <button class="btn-cyber btn-ghost" style="padding:5px 9px; font-size:.68rem;" onclick="openShopItemEdit('${it._id}')">✏️ تعديل</button>
+                            <button class="btn-cyber btn-ghost" style="padding:5px 9px; font-size:.68rem;" onclick="toggleShopItemStock('${it._id}', ${it.in_stock})">${it.in_stock ? '🚫 نفذت الكمية' : '✅ توفير'}</button>
+                            <button class="btn-cyber btn-red" style="padding:5px 9px; font-size:.68rem;" onclick="deleteShopItem('${it._id}')">🗑️ حذف</button>
+                        </div>` : '';
+                html += `<div class="item-card" style="position:relative;" data-tilt>
+                    <img src="${esc(img)}" onerror="this.src='https://placehold.co/150x150/0d0d0d/00ff66?text=ITEM'" alt="${esc(it.name)}" style="${disabled ? 'opacity:.4;' : ''}">
+                    ${outBadge}
                     <div class="ic-body">
                         <div class="ic-name">${esc(it.name)}</div>
                         <div class="ic-price">${money(it.price)}</div>
@@ -1263,6 +1246,7 @@
                             <button class="mini-btn" onclick="qtyAdj('qty-${idx}',1)">+</button>
                         </div>
                         <button class="btn-cyber btn-green" style="width:100%; margin-top:10px; padding:9px;" onclick="addToCart(${idx})"><i class="fa-solid fa-cart-plus" style="margin-left:6px;"></i>ADD</button>`}
+                        ${manageBtns}
                     </div>
                 </div>`;
             });
@@ -1332,7 +1316,7 @@
                         </div>`;
                     }
                 } else if(o.status === 'Paid'){
-                    statusTxt = '<span class="badge Approved">✔️ مدفوع للخزينة</span>';
+                    statusTxt = '<span class="badge Approved">✔️ تم قبض المبلغ</span>';
                 } else if(o.status === 'Rejected'){
                     statusTxt = '<span class="badge Rejected">❌ مرفوض</span>';
                 }
@@ -1349,13 +1333,13 @@
     }
     function canApproveShopOrders(){ return userData && ['Don','Underboss','Business_Manager','GRH','Chef_Braquage'].includes(userData.role); }
     function confirmOrderPayment(id){
-        openModal('تأكيد قبض الأموال', 'هل أنت متأكد من استلام المبلغ بالكامل وإضافته إلى خزينة العصابة؟', async () => {
+        openModal('تأكيد قبض الأموال', 'هل أنت متأكد من استلام المبلغ بالكامل من العضو؟', async () => {
             try { const d = await api('/api/shop/order/' + id + '/pay', { method:'POST' }); toast(d.msg); loadMyOrders(); }
             catch(e){ toast(e.message, 'err'); }
         });
     }
     function rejectOrder(id){
-        openModal('رفض الطلب', 'هل تريد رفض طلب الشراء هذا؟ لن يُضاف أي مبلغ إلى الخزينة.', async () => {
+        openModal('رفض الطلب', 'هل تريد رفض طلب الشراء هذا؟ لن يُسجل أي دفع على هذا الطلب.', async () => {
             try { const d = await api('/api/shop/order/' + id + '/reject', { method:'POST' }); toast(d.msg); loadMyOrders(); }
             catch(e){ toast(e.message, 'err'); }
         });
@@ -1399,7 +1383,7 @@
         document.querySelectorAll('#sec-ops .ops-panel').forEach(p => p.classList.remove('active'));
         $('ops-panel-'+name).classList.add('active');
     }
-    function loadOps(){ loadPending(); loadAllNotes(); loadAudit(); loadTreasury(); }
+    function loadOps(){ loadPending(); loadAllNotes(); loadAudit(); }
     async function loadUsersList(){
         try {
             const users = await api('/api/users/list');
@@ -1475,38 +1459,63 @@
             });
         } catch(e){}
     }
-    async function loadTreasury(){
-        try {
-            const data = await api('/api/treasury/balance');
-            $('treasuryVal').textContent = money(data.balance_raw);
-        } catch(e){}
-        try {
-            const archives = await api('/api/admin/archive');
-            const box = $('archiveBox');
-            box.innerHTML = '<h3 class="glass-title" style="font-size:.8rem;">الأرشيف</h3>' + (archives.length ? '' : '<div class="empty">لا يوجد أرشيف</div>');
-            archives.slice(0,8).forEach(a => {
-                const recs = (a.records||[]);
-                box.innerHTML += `<div class="log-item" style="font-family:var(--mono); font-size:.7rem;">WEEK: ${esc(new Date(a.week_date).toLocaleDateString('en-GB'))} — ${recs.length} أعضاء</div>`;
-            });
-        } catch(e){}
-    }
-    function confirmResetTreasury(){
-        openModal('تصفير الخزينة', 'هل أنت متأكد من تصفير خزينة العصابة بالكامل؟', async () => {
-            try { const d = await api('/api/treasury/reset', { method:'POST' }); toast(d.msg); loadTreasury(); }
-            catch(e){ toast(e.message, 'err'); }
-        });
-    }
-    function confirmWeeklyReset(){
-        openModal('أرشفة الأسبوع', 'سيتم أرشفة ساعات الجميع وتصفيرها. متأكد؟', async () => {
-            try { const d = await api('/api/admin/reset-weekly-hours', { method:'POST' }); toast(d.msg); }
-            catch(e){ toast(e.message, 'err'); }
-        });
-    }
-    async function addMarketItem(){
-        const name = $('mkt-name').value.trim(), price = $('mkt-price').value, image_url = $('mkt-img').value.trim();
+    function canManageShop(){ return userData && ['Don','Underboss','Business_Manager'].includes(userData.role); }
+    async function addShopItem(){
+        const name = $('sh-name').value.trim(), price = $('sh-price').value, image_url = $('sh-img').value.trim();
         if(!name || !price){ toast('أدخل الاسم والسعر', 'warn'); return; }
-        try { const d = await api('/api/shop/add-item', { method:'POST', body:{ name, price, image_url } }); toast(d.msg); $('mkt-name').value=''; $('mkt-price').value=''; $('mkt-img').value=''; loadShopItems(false); }
+        try { const d = await api('/api/shop/add-item', { method:'POST', body:{ name, price, image_url } }); toast(d.msg); $('sh-name').value=''; $('sh-price').value=''; $('sh-img').value=''; loadShopItems(false); }
         catch(e){ toast(e.message, 'err'); }
+    }
+    function openShopItemEdit(id){
+        const itm = shopItems.find(i => i._id === id); if(!itm) return;
+        $('gang-modal-title').innerText = '✏️ تعديل: ' + itm.name;
+        $('gang-modal-body').innerHTML = `
+            <div class="input-group"><label>اسم المنتج:</label><input class="cyber-input" id="ed-s-name" value="${esc(itm.name)}"></div>
+            <div class="input-group"><label>السعر ($):</label><input class="cyber-input" id="ed-s-price" type="number" value="${itm.price}"></div>
+            <div class="input-group"><label>أقصى كمية بالطلب (اتركه فاضي = بدون حد):</label><input class="cyber-input" id="ed-s-max-order" type="number" value="${itm.max_per_order ?? ''}"></div>
+            <div class="input-group"><label>أقصى كمية أسبوعياً (اتركه فاضي = بدون حد):</label><input class="cyber-input" id="ed-s-max-week" type="number" value="${itm.max_per_week ?? ''}"></div>
+            <div class="input-group"><label>رابط الصورة:</label><input class="cyber-input" id="ed-s-img" value="${esc(itm.image_url || '')}"></div>
+            <div style="display:flex; gap:8px; align-items:center; margin-top:4px;">
+                <input type="file" id="upload-ed-s-img" accept="image/*" style="display:none;" onchange="uploadImageFile(this,'ed-s-img')">
+                <button type="button" class="btn-cyber btn-ghost" style="padding:8px 14px;" onclick="document.getElementById('upload-ed-s-img').click()">📷 رفع صورة جديدة</button>
+            </div>`;
+        const actionsEl = $('gang-modal-actions');
+        actionsEl.innerHTML = '';
+        const saveBtn = document.createElement('button');
+        saveBtn.className = 'btn-cyber btn-green'; saveBtn.style.padding = '10px 22px';
+        saveBtn.innerText = 'حفظ التعديلات';
+        saveBtn.onclick = () => saveShopItemEdit(id);
+        actionsEl.appendChild(saveBtn);
+        const cancelBtn = document.createElement('button');
+        cancelBtn.className = 'btn-cyber btn-red'; cancelBtn.style.padding = '10px 22px';
+        cancelBtn.innerText = 'إلغاء';
+        cancelBtn.onclick = closeGangModal;
+        actionsEl.appendChild(cancelBtn);
+        $('gang-modal-overlay').classList.add('open');
+    }
+    async function saveShopItemEdit(id){
+        const name = $('ed-s-name').value.trim();
+        const price = $('ed-s-price').value;
+        const max_per_order = $('ed-s-max-order').value;
+        const max_per_week = $('ed-s-max-week').value;
+        const image_url = $('ed-s-img').value.trim();
+        if(!name || !price){ toast('الاسم والسعر مطلوبان', 'warn'); return; }
+        try {
+            const d = await api('/api/shop/item/' + id, { method:'PUT', body:{ name, price, image_url, max_per_order, max_per_week } });
+            toast(d.msg); closeGangModal(); loadShopItems(false);
+        } catch(e){ toast(e.message, 'err'); }
+    }
+    function toggleShopItemStock(id, currentlyInStock){
+        openModal('تغيير الحالة', currentlyInStock ? 'تأكيد: تحديد هذا المنتج كـ (نفذت الكمية)؟' : 'تأكيد: توفير هذا المنتج للشراء مجدداً؟', async () => {
+            try { const d = await api('/api/shop/item/' + id, { method:'PUT', body:{ in_stock: !currentlyInStock } }); toast(d.msg); loadShopItems(false); }
+            catch(e){ toast(e.message, 'err'); }
+        });
+    }
+    function deleteShopItem(id){
+        openModal('حذف المنتج', 'هل أنت متأكد من حذف هذا المنتج نهائياً؟', async () => {
+            try { const d = await api('/api/shop/item/' + id, { method:'DELETE' }); toast(d.msg); loadShopItems(false); }
+            catch(e){ toast(e.message, 'err'); }
+        });
     }
 
     /* ============================================================
@@ -1663,14 +1672,9 @@
     }
 
     /* ============================================================
-       GANG SHOP — ADMIN (إدارة الكتالوج / الطلبات / الخزينة)
+       GANG SHOP — ADMIN (إدارة الكتالوج / الطلبات)
        ============================================================ */
     function isGangAdmin(){ return userData && ['Don','Underboss','Business_Manager','GRH','Chef_Braquage'].includes(userData.role); }
-    function gangTab(name){
-        document.querySelectorAll('#gangAdminTabs .ops-tab').forEach(t => t.classList.toggle('active', t.dataset.gtab === name));
-        document.querySelectorAll('#gm-admin-zone .ops-panel').forEach(p => p.classList.remove('active'));
-        $('gang-panel-' + name).classList.add('active');
-    }
     async function loadGangShopCatalog(){
         try {
             const items = await api('/api/gang-shop/items');
@@ -1833,23 +1837,13 @@
     }
     function confirmGangOrder(id){
         openModal('تأكيد الطلب', 'هل تأكدت من إتمام تسليم الأشياء/الفلوس مع العضو فعلياً بالمدينة؟', async () => {
-            try { const d = await api('/api/gang-shop/order/' + id + '/confirm', { method:'POST' }); toast(d.msg); loadGangOrders(); loadGangTreasury(); }
+            try { const d = await api('/api/gang-shop/order/' + id + '/confirm', { method:'POST' }); toast(d.msg); loadGangOrders(); }
             catch(e){ toast(e.message, 'err'); }
         });
     }
     function rejectGangOrder(id){
         openPrompt('رفض الطلب', 'سبب الرفض (اختياري):', async (reason) => {
             try { const d = await api('/api/gang-shop/order/' + id + '/reject', { method:'POST', body:{ reason: reason || '' } }); toast(d.msg); loadGangOrders(); }
-            catch(e){ toast(e.message, 'err'); }
-        });
-    }
-    async function loadGangTreasury(){
-        try { const d = await api('/api/gang-shop/treasury'); $('gang-treasury-balance').innerText = money(d.balance_raw); }
-        catch(e){}
-    }
-    function resetGangTreasury(){
-        openModal('تصفير الخزينة', 'تحذير: تصفير خزينة شوب العصابات بالكامل؟ هذا الإجراء لا يمكن التراجع عنه.', async () => {
-            try { const d = await api('/api/gang-shop/treasury/reset', { method:'POST' }); toast(d.msg); loadGangTreasury(); }
             catch(e){ toast(e.message, 'err'); }
         });
     }
@@ -1936,7 +1930,10 @@
                 <td>${esc(itm.name)}</td>
                 <td style="color:var(--red); font-family:var(--mono);">${money(itm.buy_from_gang_price)}</td>
                 <td style="color:var(--green); font-family:var(--mono);">${money(itm.sell_to_black_price)}</td>
-                <td>${canDelete ? `<button class="btn-cyber btn-red" style="padding:4px 9px; font-size:.68rem;" onclick="deleteInventoryItem('${itm._id}')">حذف</button>` : '<span style="color:var(--muted);">—</span>'}</td>
+                <td>${canDelete ? `<div style="display:flex; gap:6px;">
+                    <button class="btn-cyber btn-ghost" style="padding:4px 9px; font-size:.68rem;" onclick="openInventoryItemEdit('${itm._id}')">✏️ تعديل</button>
+                    <button class="btn-cyber btn-red" style="padding:4px 9px; font-size:.68rem;" onclick="deleteInventoryItem('${itm._id}')">🗑️ حذف</button>
+                </div>` : '<span style="color:var(--muted);">—</span>'}</td>
             </tr>`;
         });
     }
@@ -1955,6 +1952,106 @@
             try { const d = await api('/api/inventory/item/' + id, { method:'DELETE' }); toast(d.msg); delete invCart[id]; loadInventory(); }
             catch(e){ toast(e.message, 'err'); }
         });
+    }
+    function openInventoryItemEdit(id){
+        const itm = inventoryData.find(i => i._id === id); if(!itm) return;
+        $('gang-modal-title').innerText = '✏️ تعديل: ' + itm.name;
+        $('gang-modal-body').innerHTML = `
+            <div class="input-group"><label>اسم المنتج:</label><input class="cyber-input" id="ed-i-name" value="${esc(itm.name)}"></div>
+            <div class="input-group"><label>سعر الشراء من العصابة ($):</label><input class="cyber-input" id="ed-i-buy" type="number" value="${itm.buy_from_gang_price || 0}"></div>
+            <div class="input-group"><label>سعر البيع على البلاك ($):</label><input class="cyber-input" id="ed-i-sell" type="number" value="${itm.sell_to_black_price || 0}"></div>
+            <div class="input-group"><label>رابط الصورة:</label><input class="cyber-input" id="ed-i-img" value="${esc(itm.image_url || '')}"></div>
+            <div style="display:flex; gap:8px; align-items:center; margin-top:4px;">
+                <input type="file" id="upload-ed-i-img" accept="image/*" style="display:none;" onchange="uploadImageFile(this,'ed-i-img')">
+                <button type="button" class="btn-cyber btn-ghost" style="padding:8px 14px;" onclick="document.getElementById('upload-ed-i-img').click()">📷 رفع صورة جديدة</button>
+            </div>`;
+        const actionsEl = $('gang-modal-actions');
+        actionsEl.innerHTML = '';
+        const saveBtn = document.createElement('button');
+        saveBtn.className = 'btn-cyber btn-green'; saveBtn.style.padding = '10px 22px';
+        saveBtn.innerText = 'حفظ التعديلات';
+        saveBtn.onclick = () => saveInventoryItemEdit(id);
+        actionsEl.appendChild(saveBtn);
+        const cancelBtn = document.createElement('button');
+        cancelBtn.className = 'btn-cyber btn-red'; cancelBtn.style.padding = '10px 22px';
+        cancelBtn.innerText = 'إلغاء';
+        cancelBtn.onclick = closeGangModal;
+        actionsEl.appendChild(cancelBtn);
+        $('gang-modal-overlay').classList.add('open');
+    }
+    async function saveInventoryItemEdit(id){
+        const name = $('ed-i-name').value.trim();
+        const buy_from_gang_price = $('ed-i-buy').value;
+        const sell_to_black_price = $('ed-i-sell').value;
+        const image_url = $('ed-i-img').value.trim();
+        if(!name){ toast('اسم المنتج مطلوب', 'warn'); return; }
+        try {
+            const d = await api('/api/inventory/item/' + id, { method:'PUT', body:{ name, buy_from_gang_price, sell_to_black_price, image_url } });
+            toast(d.msg); closeGangModal(); loadInventory();
+        } catch(e){ toast(e.message, 'err'); }
+    }
+    function printInventoryInvoice(){
+        const rows = [];
+        let totalBuy = 0, totalSell = 0;
+        inventoryData.forEach(itm => {
+            const c = invCart[itm._id] || { buyQty:0, sellQty:0 };
+            if(c.buyQty > 0 || c.sellQty > 0){
+                const bSub = (itm.buy_from_gang_price || 0) * c.buyQty;
+                const sSub = (itm.sell_to_black_price || 0) * c.sellQty;
+                totalBuy += bSub; totalSell += sSub;
+                rows.push(`<tr>
+                    <td>${esc(itm.name)}</td>
+                    <td style="text-align:center;">${c.buyQty || '-'}</td>
+                    <td style="text-align:center;">${money(bSub)}</td>
+                    <td style="text-align:center;">${c.sellQty || '-'}</td>
+                    <td style="text-align:center;">${money(sSub)}</td>
+                    <td style="text-align:center;">${money(sSub - bSub)}</td>
+                </tr>`);
+            }
+        });
+        if(!rows.length){ toast('حدد كميات لأيتم واحد على الأقل قبل إصدار الفاتورة', 'warn'); return; }
+        const profit = totalSell - totalBuy;
+        const dateStr = new Date().toLocaleString('en-GB');
+        const html = `<!DOCTYPE html>
+        <html lang="ar" dir="rtl">
+        <head>
+            <meta charset="UTF-8">
+            <title>CORTEZ SYNDICATE - INVENTORY INVOICE</title>
+            <style>
+                body { font-family: 'Courier New', monospace; background: #050505; color: #e0e0e0; padding: 40px; }
+                .invoice-box { border: 2px solid #ff66cc; padding: 40px; max-width: 780px; margin: auto; background: #0a0a0a; box-shadow: 0 0 30px rgba(255,102,204,0.1); }
+                h1 { color: #ff66cc; margin-bottom: 5px; letter-spacing: 2px; text-transform: uppercase; }
+                h3 { color: #555; margin-top: 0; }
+                hr { border-color: #222; margin: 26px 0; }
+                table { width: 100%; border-collapse: collapse; font-size: 1rem; }
+                th { color: #ff66cc; border-bottom: 1px solid #444; padding: 10px; text-align: center; }
+                td { padding: 9px; border-bottom: 1px solid #111; }
+                .total { font-size: 1.3rem; font-weight: bold; margin-top: 20px; padding-top: 18px; border-top: 1px dashed #333; }
+                .stamp { color: #ff66cc; border: 2px solid #ff66cc; display: inline-block; padding: 10px 20px; transform: rotate(-10deg); font-weight: bold; margin-top: 30px; }
+            </style>
+        </head>
+        <body onload="window.print()">
+            <div class="invoice-box">
+                <h1>CORTEZ SYNDICATE</h1>
+                <h3>INVENTORY CALCULATION INVOICE</h3>
+                <hr>
+                <div style="text-align:right; margin-bottom:20px;">
+                    <p><b>التاريخ:</b> ${dateStr}</p>
+                    <p><b>المُصدر:</b> ${esc(userData.username)}</p>
+                </div>
+                <table>
+                    <thead><tr><th>المنتج</th><th>كمية الشراء</th><th>إجمالي الشراء</th><th>كمية البيع</th><th>إجمالي البيع</th><th>الصافي</th></tr></thead>
+                    <tbody>${rows.join('')}</tbody>
+                </table>
+                <div class="total">إجمالي الشراء: ${money(totalBuy)} — إجمالي البيع: ${money(totalSell)} — ${profit >= 0 ? 'صافي الربح: ' : 'صافي الخسارة: '}${money(Math.abs(profit))}</div>
+                <div class="stamp">CALCULATED &amp; AUTHORIZED</div>
+            </div>
+        </body>
+        </html>`;
+        const w = window.open('', '_blank');
+        if(!w){ toast('يبدو أن النوافذ المنبثقة محظورة. اسمح بها ثم حاول مجدداً.', 'err'); return; }
+        w.document.write(html);
+        w.document.close();
     }
 
     /* ============================================================
