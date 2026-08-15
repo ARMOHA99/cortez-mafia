@@ -92,8 +92,6 @@ const UserSchema = new mongoose.Schema({
 const LeaveSchema = new mongoose.Schema({ username: String, reason: String, duration: Number, status: { type: String, default: 'Pending' }, timestamp: { type: Date, default: Date.now } });
 const JustificationSchema = new mongoose.Schema({ username: String, reason: String, status: { type: String, default: 'Pending' }, timestamp: { type: Date, default: Date.now } });
 
-const ArchiveSchema = new mongoose.Schema({ week_date: { type: Date, default: Date.now }, records: Array });
-
 const ItemSchema = new mongoose.Schema({
     name: { type: String, required: true },
     price: { type: Number, required: true },
@@ -115,8 +113,6 @@ const OrderSchema = new mongoose.Schema({
     status: { type: String, enum: ['Pending', 'Paid', 'Rejected'], default: 'Pending' },
     timestamp: { type: Date, default: Date.now }
 });
-
-const TreasurySchema = new mongoose.Schema({ total_balance: { type: Number, default: 0 } });
 
 const HeistTypeSchema = new mongoose.Schema({ name: { type: String, required: true, unique: true } });
 const HeistItemSchema = new mongoose.Schema({ name: { type: String, required: true, unique: true }, price: { type: Number, required: true, default: 0 } });
@@ -156,11 +152,8 @@ const GangSchema = new mongoose.Schema({
 const User = mongoose.model('User', UserSchema);
 const Leave = mongoose.model('Leave', LeaveSchema);
 const Justification = mongoose.model('Justification', JustificationSchema);
-const Archive = mongoose.model('Archive', ArchiveSchema);
 const Item = mongoose.model('Item', ItemSchema);
 const Order = mongoose.model('Order', OrderSchema);
-const Treasury = mongoose.model('Treasury', TreasurySchema);
-
 const HeistType = mongoose.model('HeistType', HeistTypeSchema);
 const HeistItem = mongoose.model('HeistItem', HeistItemSchema);
 const WeeklyGoal = mongoose.model('WeeklyGoal', WeeklyGoalSchema);
@@ -217,8 +210,6 @@ const GangOrderSchema = new mongoose.Schema({
     timestamp: { type: Date, default: Date.now }
 });
 
-const GangTreasurySchema = new mongoose.Schema({ total_balance: { type: Number, default: 0 } });
-
 // ================== تتبع المشتريات الأسبوعية (لتطبيق حدود "X في الأسبوع") ==================
 const WeeklyPurchaseSchema = new mongoose.Schema({
     username: String,
@@ -246,24 +237,9 @@ PunchRecordSchema.index({ username: 1, timestamp: 1 });
 
 const GangShopItem = mongoose.model('GangShopItem', GangShopItemSchema);
 const GangOrder = mongoose.model('GangOrder', GangOrderSchema);
-const GangTreasury = mongoose.model('GangTreasury', GangTreasurySchema);
 const WeeklyPurchase = mongoose.model('WeeklyPurchase', WeeklyPurchaseSchema);
 const AuditLog = mongoose.model('AuditLog', AuditLogSchema);
 const PunchRecord = mongoose.model('PunchRecord', PunchRecordSchema);
-
-async function initSystemDB() {
-    try {
-        const treasuryCount = await Treasury.countDocuments({});
-        if (treasuryCount === 0) { await new Treasury({ total_balance: 0 }).save(); }
-
-        // خزينة شوب العصابات
-        const gangTreasuryCount = await GangTreasury.countDocuments({});
-        if (gangTreasuryCount === 0) { await new GangTreasury({ total_balance: 0 }).save(); }
-    } catch (err) {
-        logger.error("Initialization warning: " + err.message);
-    }
-}
-initSystemDB();
 
 // ================== إدارة اتصالات السوكيت الخاصة بالمستخدمين (لتفعيل الطرد الفوري) ==================
 const userSockets = {}; // { username: [socketId, ...] }
@@ -494,18 +470,15 @@ const confirmPaymentLogic = async (req, res) => {
         order.status = 'Paid';
         await order.save();
         
-        const amountToAdd = order.total_price || order.price; 
-        await Treasury.updateOne({}, { $inc: { total_balance: amountToAdd } });
-        
-        io.emit('ordersUpdated'); io.emit('treasuryUpdated');
-        res.json({ msg: "تم تأكيد استلام المبلغ وإضافته إلى خزينة العصابة بنجاح." });
+        io.emit('ordersUpdated');
+        res.json({ msg: "تم تأكيد استلام المبلغ بنجاح." });
     } catch (err) { res.status(500).json({ error: err.message }); }
 };
 
 app.post('/api/shop/order/:id/pay', verifyAuth(ROLE_GROUPS.ORDER_APPROVERS), confirmPaymentLogic);
 app.put('/api/shop/order/:id/pay', verifyAuth(ROLE_GROUPS.ORDER_APPROVERS), confirmPaymentLogic);
 
-// رفض طلب شراء من شوب الأعضاء (لا يُضاف أي مبلغ إلى الخزينة)
+// رفض طلب شراء من شوب الأعضاء
 app.post('/api/shop/order/:id/reject', verifyAuth(ROLE_GROUPS.ORDER_APPROVERS), async (req, res) => {
     try {
         const order = await Order.findById(req.params.id);
@@ -515,22 +488,6 @@ app.post('/api/shop/order/:id/reject', verifyAuth(ROLE_GROUPS.ORDER_APPROVERS), 
         await order.save();
         io.emit('ordersUpdated');
         res.json({ msg: "تم رفض الطلب." });
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.get('/api/treasury/balance', verifyAuth(ROLE_GROUPS.SHOP_MANAGER), async (req, res) => {
-    try {
-        const treasury = await Treasury.findOne({});
-        const balance = treasury ? treasury.total_balance : 0;
-        res.json({ balance_raw: balance, balance_formatted: formatMoneyShort(balance) });
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.post('/api/treasury/reset', verifyAuth(ROLE_GROUPS.DON_ONLY), async (req, res) => {
-    try {
-        await Treasury.updateOne({}, { total_balance: 0 });
-        io.emit('treasuryUpdated');
-        res.json({ msg: "تم تصفير الخزينة العليا للعصابة بنجاح." });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -663,24 +620,6 @@ app.get('/api/admin/audit-log', verifyAuth(ROLE_GROUPS.ADMIN), async (req, res) 
         const logs = await AuditLog.find().sort({ timestamp: -1 }).limit(200);
         res.json(logs);
     } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.post('/api/admin/reset-weekly-hours', verifyAuth(ROLE_GROUPS.DON_ONLY), async (req, res) => {
-    try {
-        const currentUsers = await User.find({ is_blacklisted: false }, 'username role weekly_hours');
-        await new Archive({ records: currentUsers }).save();
-        
-        await User.updateMany({}, { weekly_hours: 0, duty_status: 'OFF-DUTY', total_heists: 0 }); 
-        await WeeklyPurchase.deleteMany({});
-        
-        io.emit('dutyUpdated');
-        res.json({ msg: "تمت أرشفة الأسبوع وتصفير الساعات لكل الأعضاء بنجاح." });
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.get('/api/admin/archive', verifyAuth(ROLE_GROUPS.ADMIN), async (req, res) => {
-    try { const archives = await Archive.find().sort({ week_date: -1 }); res.json(archives); } 
-    catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ================== القائمة السوداء (أداة إدارة مستقلة) ==================
@@ -1107,10 +1046,9 @@ app.post('/api/gang-shop/order/:id/confirm', verifyAuth(ROLE_GROUPS.ORDER_APPROV
 
         order.status = 'Confirmed';
         await order.save();
-        await GangTreasury.updateOne({}, { $inc: { total_balance: order.net_amount } });
 
-        io.emit('gangOrdersUpdated'); io.emit('gangTreasuryUpdated');
-        res.json({ msg: "تم تأكيد الطلب وإضافة المبلغ إلى الخزينة." });
+        io.emit('gangOrdersUpdated');
+        res.json({ msg: "تم تأكيد الطلب." });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -1125,22 +1063,6 @@ app.post('/api/gang-shop/order/:id/reject', verifyAuth(ROLE_GROUPS.ORDER_APPROVE
         await order.save();
         io.emit('gangOrdersUpdated');
         res.json({ msg: "تم رفض الطلب." });
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.get('/api/gang-shop/treasury', verifyAuth(ROLE_GROUPS.ORDER_APPROVERS), async (req, res) => {
-    try {
-        const treasury = await GangTreasury.findOne({});
-        const balance = treasury ? treasury.total_balance : 0;
-        res.json({ balance_raw: balance, balance_formatted: formatMoneyShort(balance) });
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.post('/api/gang-shop/treasury/reset', verifyAuth(ROLE_GROUPS.DON_ONLY), async (req, res) => {
-    try {
-        await GangTreasury.updateOne({}, { total_balance: 0 });
-        io.emit('gangTreasuryUpdated');
-        res.json({ msg: "تم تصفير خزينة شوب العصابات بنجاح." });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
