@@ -205,11 +205,6 @@
         .present{ color:var(--green); font-weight:700; } .absent{ color:var(--red); font-weight:700; }
         .rank-1{ color:#ffd700; } .rank-2{ color:#c0c0c0; } .rank-3{ color:#cd7f32; }
 
-        /* ============ REQUESTS ============ */
-        .req-grid{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
-        .req-box{ padding:22px; }
-        .req-box h3{ font-family:var(--mono); letter-spacing:3px; color:var(--green); margin:0 0 6px; }
-        .req-box .desc{ font-size:.75rem; color:var(--muted); margin-bottom:6px; }
         .log-item{ padding:11px 0; border-bottom:1px dashed rgba(0,255,102,0.14); font-size:.8rem; }
         .log-item:last-child{ border-bottom:none; }
         .badge{ display:inline-block; padding:2px 10px; border-radius:20px; font-family:var(--mono); font-size:.6rem; letter-spacing:1px; }
@@ -290,7 +285,7 @@
         #gang-modal-body .input-group input, #gang-modal-body .input-group select{ width:100%; }
 
         @media (max-width:900px){
-            .dash-grid,.req-grid,.shop-layout,.stat-row,.form-grid,.three-col{ grid-template-columns:1fr; }
+            .dash-grid,.shop-layout,.stat-row,.form-grid,.three-col{ grid-template-columns:1fr; }
             .dash-orbit{ grid-template-columns:1fr; }
             .dash-orbit .duty-core{ grid-column:1; grid-row:auto; }
             .dash-orbit .dash-notes{ grid-column:1; grid-row:auto; }
@@ -377,7 +372,6 @@
             <button class="nav-btn" id="nav-shop" data-nav="shop" onclick="goSection('shop')"><i class="fa-solid fa-gun"></i> MEMBER SHOP</button>
             <button class="nav-btn" id="nav-tracking" data-nav="tracking" onclick="goSection('tracking')"><i class="fa-solid fa-map-location-dot"></i> TRACKING</button>
             <button class="nav-btn" data-nav="attendance" id="nav-attendance" style="display:none;" onclick="goSection('attendance')"><i class="fa-solid fa-clipboard-check"></i> ATTENDANCE</button>
-            <button class="nav-btn" id="nav-requests" data-nav="requests" onclick="goSection('requests')"><i class="fa-solid fa-envelope-open-text"></i> REQUESTS</button>
             <button class="nav-btn" data-nav="gangshop" id="nav-gangshop" style="display:none;" onclick="goSection('gangshop')"><i class="fa-solid fa-people-group"></i> GANG SHOP</button>
             <button class="nav-btn" data-nav="inventory" id="nav-inventory" style="display:none;" onclick="goSection('inventory')"><i class="fa-solid fa-calculator"></i> INVENTORY</button>
             <button class="nav-btn" data-nav="ops" id="nav-ops" style="display:none;" onclick="goSection('ops')"><i class="fa-solid fa-user-shield"></i> BOSS CENTER</button>
@@ -471,38 +465,15 @@
         <section id="sec-attendance" class="section">
             <div class="glass" style="padding:20px;">
                 <h2 class="glass-title" style="margin-top:0;"><i class="fa-solid fa-clipboard-check" style="margin-left:10px;"></i>WEEKLY ATTENDANCE</h2>
+                <div id="btn-weekly-reset-wrap" style="display:none; margin-bottom:14px;">
+                    <button class="btn-cyber btn-red" onclick="confirmWeeklyReset()">أرشفة الجدول وتصفير الساعات الأسبوعية</button>
+                </div>
                 <div class="table-wrap"><div class="scroll">
                     <table class="data-table" id="tbl-attendance">
                         <thead><tr id="att-head"><th>MEMBER</th><th>ROLE</th><th>TOTAL</th></tr></thead>
                         <tbody></tbody>
                     </table>
                 </div></div>
-            </div>
-        </section>
-
-        <!-- REQUESTS -->
-        <section id="sec-requests" class="section">
-            <div class="req-grid">
-                <div class="req-box glass">
-                    <h3><i class="fa-solid fa-umbrella-beach" style="margin-left:8px;"></i>CONGE / إجازة</h3>
-                    <div class="desc">طلب إجازة رسمية — يقرها GRH أو القيادة</div>
-                    <div class="form-label" style="margin-top:16px;">السبب</div>
-                    <input class="cyber-input" id="leave-reason" placeholder="سبب الإجازة">
-                    <div class="form-label">المدة (أيام)</div>
-                    <input class="cyber-input" id="leave-days" type="number" min="1" placeholder="عدد الأيام">
-                    <button class="btn-cyber btn-green" style="width:100%; margin-top:16px; padding:13px;" onclick="submitLeave()">إرسال الطلب</button>
-                </div>
-                <div class="req-box glass">
-                    <h3><i class="fa-solid fa-file-shield" style="margin-left:8px;"></i>ABSENCE / تبرير</h3>
-                    <div class="desc">تبرير غياب قانوني — يفحصه GRH أو القيادة</div>
-                    <div class="form-label" style="margin-top:16px;">العذر القانوني</div>
-                    <input class="cyber-input" id="just-reason" placeholder="العذر والسبب">
-                    <button class="btn-cyber btn-green" style="width:100%; margin-top:16px; padding:13px;" onclick="submitJustify()">إرسال التبرير</button>
-                </div>
-            </div>
-            <div class="glass" style="padding:20px; margin-top:16px;">
-                <h3 class="glass-title" style="margin-top:0;"><i class="fa-solid fa-scroll" style="margin-left:8px;"></i>REQUEST LOG</h3>
-                <div id="reqLog"><div class="loading">جاري التحميل...</div></div>
             </div>
         </section>
 
@@ -1037,7 +1008,6 @@
         socket.on('notesUpdated', () => { loadMyNotes(); if(isVisible('ops')) loadAllNotes(); });
         socket.on('shopUpdated', () => { if(isVisible('shop')) loadShopItems(false); });
         socket.on('ordersUpdated', () => { if(isVisible('shop')) loadMyOrders(); });
-        socket.on('requestUpdated', () => { if(isVisible('requests')) loadReqLog(); });
         socket.on('auditLogUpdated', () => { if(isVisible('ops')) loadAudit(); });
         socket.on('inventoryUpdated', () => { if(isVisible('inventory')) loadInventory(); });
         socket.on('gangShopUpdated', () => { if(isVisible('gangshop')){ loadGangCatalog(); if(isGangAdmin()) loadGangShopCatalog(); } });
@@ -1068,7 +1038,7 @@
 
         // عضو العصابة: مسار منفصل — يرى شوب العصابة فقط ولا يلمس أي بيانات/أقسام خاصة بالمافيا
         if(userData.role === 'Gang_Member'){
-            ['nav-dashboard','nav-shop','nav-tracking','nav-attendance','nav-requests','nav-inventory','nav-ops'].forEach(id => { const el = $(id); if(el) el.style.display = 'none'; });
+            ['nav-dashboard','nav-shop','nav-tracking','nav-attendance','nav-inventory','nav-ops'].forEach(id => { const el = $(id); if(el) el.style.display = 'none'; });
             $('nav-gangshop').style.display = 'flex';
             $('dutySwitch').style.display = 'none';
             $('gm-member-zone').style.display = 'block';
@@ -1084,12 +1054,12 @@
         $('nav-dashboard').style.display = 'flex';
         $('nav-shop').style.display = 'flex';
         $('nav-tracking').style.display = 'flex';
-        $('nav-requests').style.display = 'flex';
         $('nav-attendance').style.display = ['Don','Underboss','GRH','Business_Manager'].includes(role) ? 'flex' : 'none';
         $('nav-ops').style.display = ['Don','Underboss','GRH','Business_Manager'].includes(role) ? 'flex' : 'none';
         $('nav-gangshop').style.display = isGangAdmin() ? 'flex' : 'none';
         $('nav-inventory').style.display = ['Don','Underboss','Business_Manager'].includes(role) ? 'flex' : 'none';
         $('shop-admin-add').style.display = canManageShop() ? 'block' : 'none';
+        $('btn-weekly-reset-wrap').style.display = role==='Don' ? 'block' : 'none';
         $('gm-member-zone').style.display = 'none';
         $('gm-admin-zone').style.display = isGangAdmin() ? 'block' : 'none';
         $('inv-admin-add').style.display = ['Don','Underboss','Business_Manager'].includes(role) ? 'block' : 'none';
@@ -1117,7 +1087,6 @@
         if(name==='shop'){ loadShopItems(false); loadMyOrders(); }
         if(name==='tracking') loadLeaderboard(false);
         if(name==='attendance') loadAttendance();
-        if(name==='requests') loadReqLog();
         if(name==='gangshop'){
             loadGangCatalog();
             if(userData && userData.role === 'Gang_Member') loadMyGangOrders();
@@ -1213,6 +1182,12 @@
             });
             qs('#tbl-attendance tbody').innerHTML = rows || '<tr><td colspan="9" class="empty">لا توجد بيانات</td></tr>';
         } catch(e){ /* بلا صلاحية أو خطأ */ }
+    }
+    function confirmWeeklyReset(){
+        openModal('أرشفة الجدول وتصفير الساعات', 'سيتم تصفير ساعات الدوام الأسبوعية لكل الأعضاء (وإرجاع الجميع OFF-DUTY). متأكد؟', async () => {
+            try { const d = await api('/api/admin/reset-weekly-hours', { method:'POST' }); toast(d.msg); loadLeaderboard(false); }
+            catch(e){ toast(e.message, 'err'); }
+        });
     }
 
     /* ---------- Shop ---------- */
@@ -1343,38 +1318,6 @@
             try { const d = await api('/api/shop/order/' + id + '/reject', { method:'POST' }); toast(d.msg); loadMyOrders(); }
             catch(e){ toast(e.message, 'err'); }
         });
-    }
-
-    /* ---------- Requests ---------- */
-    async function submitLeave(){
-        const reason = $('leave-reason').value.trim();
-        const days = $('leave-days').value;
-        if(!reason || !days){ toast('أدخل السبب والمدة', 'warn'); return; }
-        try { const d = await api('/api/hr/leave', { method:'POST', body:{ reason, duration: days } }); toast(d.msg); $('leave-reason').value=''; $('leave-days').value=''; loadReqLog(); }
-        catch(e){ toast(e.message, 'err'); }
-    }
-    async function submitJustify(){
-        const reason = $('just-reason').value.trim();
-        if(!reason){ toast('أدخل العذر', 'warn'); return; }
-        try { const d = await api('/api/hr/justify', { method:'POST', body:{ reason } }); toast(d.msg); $('just-reason').value=''; loadReqLog(); }
-        catch(e){ toast(e.message, 'err'); }
-    }
-    async function loadReqLog(){
-        const box = $('reqLog');
-        try {
-            const data = await api('/api/hr/log');
-            let html = '<div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">';
-            html += '<div><h3 class="glass-title" style="font-size:.8rem;">الإجازات</h3>';
-            (data.leaves||[]).slice(0,15).forEach(l => {
-                html += `<div class="log-item"><b>${esc(l.username)}</b> — ${esc(l.reason)} (${l.duration} أيام) <span class="badge ${l.status||'Pending'}">${l.status||'Pending'}</span></div>`;
-            });
-            html += '</div><div><h3 class="glass-title" style="font-size:.8rem;">التبريرات</h3>';
-            (data.justifications||[]).slice(0,15).forEach(j => {
-                html += `<div class="log-item"><b>${esc(j.username)}</b> — ${esc(j.reason)} <span class="badge ${j.status||'Pending'}">${j.status||'Pending'}</span></div>`;
-            });
-            html += '</div></div>';
-            box.innerHTML = html;
-        } catch(e){ box.innerHTML = '<div class="empty">لا يمكن تحميل السجل</div>'; }
     }
 
     /* ---------- OPS ---------- */
