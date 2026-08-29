@@ -89,9 +89,6 @@ const UserSchema = new mongoose.Schema({
     total_heists: { type: Number, default: 0 }
 });
 
-const LeaveSchema = new mongoose.Schema({ username: String, reason: String, duration: Number, status: { type: String, default: 'Pending' }, timestamp: { type: Date, default: Date.now } });
-const JustificationSchema = new mongoose.Schema({ username: String, reason: String, status: { type: String, default: 'Pending' }, timestamp: { type: Date, default: Date.now } });
-
 const ItemSchema = new mongoose.Schema({
     name: { type: String, required: true },
     price: { type: Number, required: true },
@@ -150,8 +147,6 @@ const GangSchema = new mongoose.Schema({
 });
 
 const User = mongoose.model('User', UserSchema);
-const Leave = mongoose.model('Leave', LeaveSchema);
-const Justification = mongoose.model('Justification', JustificationSchema);
 const Item = mongoose.model('Item', ItemSchema);
 const Order = mongoose.model('Order', OrderSchema);
 const HeistType = mongoose.model('HeistType', HeistTypeSchema);
@@ -622,6 +617,16 @@ app.get('/api/admin/audit-log', verifyAuth(ROLE_GROUPS.ADMIN), async (req, res) 
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// تصفير ساعات الدوام الأسبوعية (متاح للدون فقط — زر أرشفة الجدول في قسم الحضور)
+app.post('/api/admin/reset-weekly-hours', verifyAuth(ROLE_GROUPS.DON_ONLY), async (req, res) => {
+    try {
+        await User.updateMany({}, { weekly_hours: 0, duty_status: 'OFF-DUTY', total_heists: 0 });
+        await WeeklyPurchase.deleteMany({});
+        io.emit('dutyUpdated');
+        res.json({ msg: "تم تصفير ساعات الدوام الأسبوعية لكل الأعضاء بنجاح." });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // ================== القائمة السوداء (أداة إدارة مستقلة) ==================
 app.post('/api/admin/blacklist/set', verifyAuth(ROLE_GROUPS.ADMIN), async (req, res) => {
     try {
@@ -658,60 +663,6 @@ app.get('/api/stats/leaderboard', async (req, res) => {
             leaderboard: [...fmt].sort((a,b)=> b.hours - a.hours), 
             slacking: fmt.filter(u=> u.hours < 600)
         });
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.post('/api/hr/leave', verifyAuth(ROLE_GROUPS.MEMBERS), async (req, res) => {
-    try {
-        await new Leave({ username: req.user.username, reason: req.body.reason, duration: Number(req.body.duration) }).save();
-        io.emit('requestUpdated'); res.json({ msg: "تم إرسال طلب الإجازة بنجاح." });
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.post('/api/hr/justify', verifyAuth(ROLE_GROUPS.MEMBERS), async (req, res) => {
-    try {
-        await new Justification({ username: req.user.username, reason: req.body.reason }).save();
-        io.emit('requestUpdated'); res.json({ msg: "تم إرسال التبرير بنجاح." });
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// سجل طلبات الإجازة وتبرير الغياب بعد البت فيها — ظاهر لجميع الأعضاء في روم ABSENCE-CONGE
-app.get('/api/hr/log', verifyAuth(ROLE_GROUPS.MEMBERS), async (req, res) => {
-    try {
-        const leaves = await Leave.find().sort({ timestamp: -1 });
-        const justifications = await Justification.find().sort({ timestamp: -1 });
-        res.json({ leaves, justifications });
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.get('/api/hr/requests', verifyAuth(ROLE_GROUPS.ADMIN), async (req, res) => {
-    try {
-        const leaves = await Leave.find({ status: 'Pending' });
-        const justifications = await Justification.find({ status: 'Pending' });
-        res.json({ leaves, justifications });
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.post('/api/hr/action', verifyAuth(ROLE_GROUPS.ADMIN), async (req, res) => {
-    try {
-        const { type, id, action } = req.body;
-        if (type === 'leave') {
-            await Leave.findByIdAndUpdate(id, { status: action });
-            // عند اعتماد الإجازة تُسجل ملاحظة إدارية للعضو
-            if (action === 'Approved') {
-                const leave = await Leave.findById(id);
-                if (leave) {
-                    await new MemberNote({
-                        username: leave.username,
-                        reason: `إجازة معتمدة من الإدارة: ${leave.reason} لمدة ${leave.duration} أيام`,
-                        issued_by: req.user.username
-                    }).save();
-                    io.emit('notesUpdated');
-                }
-            }
-        }
-        if (type === 'justify') await Justification.findByIdAndUpdate(id, { status: action });
-        io.emit('requestUpdated'); res.json({ msg: "تم تحديث حالة الطلب بنجاح." });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -1215,25 +1166,7 @@ setInterval(async () => {
             role: { $nin: [ROLES.DON, ROLES.GANG_MEMBER] }
         });
 
-        const approvedLeaves = await Leave.find({ status: 'Approved' });
-
         for (const user of users) {
-            const hasLeave = approvedLeaves.some(l => {
-                if (l.username !== user.username) return false;
-                const leaveStart = new Date(l.timestamp);
-                const leaveEnd = new Date(leaveStart);
-                leaveEnd.setDate(leaveEnd.getDate() + (l.duration || 1));
-                return yesterdayStart < leaveEnd;
-            });
-
-            if (hasLeave) {
-                if (user.consecutive_misses > 0) {
-                    user.consecutive_misses = 0;
-                    await user.save();
-                }
-                continue;
-            }
-
             // التحقق من الحضور عبر سجل البصمات (IN) داخل نافذة الدوام، مع احتياط للبيانات القديمة قبل تفعيل سجل البصمات
             const inPunchCount = await PunchRecord.countDocuments({
                 username: user.username,
