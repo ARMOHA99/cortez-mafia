@@ -749,6 +749,7 @@
     /* ---------- State ---------- */
     let userToken = null;
     let userData = null;
+    let userRefreshToken = null;
     let socket = null;
     let cart = [];
     let shopItems = [];
@@ -777,13 +778,41 @@
         const dz = (now.getUTCHours() + 1) % 24; // الجزائر UTC+1
         return dz >= 22 || dz < 4;
     }
-    async function api(path, opts){
+    let refreshInFlight = null;
+    async function tryRefreshToken(){
+        if(!userRefreshToken || !userData || !userData.username) return false;
+        if(refreshInFlight) return refreshInFlight;
+        refreshInFlight = (async () => {
+            try {
+                const res = await fetch('/api/auth/refresh', {
+                    method: 'POST',
+                    headers: { 'Content-Type':'application/json' },
+                    body: JSON.stringify({ username: userData.username, refreshToken: userRefreshToken })
+                });
+                const data = await res.json().catch(()=>null);
+                if(!res.ok || !data || !data.token) return false;
+                userToken = data.token;
+                userRefreshToken = data.refreshToken;
+                localStorage.setItem('token', userToken);
+                localStorage.setItem('refreshToken', userRefreshToken);
+                return true;
+            } catch(e){ return false; }
+        })();
+        const result = await refreshInFlight;
+        refreshInFlight = null;
+        return result;
+    }
+    async function api(path, opts, _retried){
         opts = opts || {};
         const headers = { 'Content-Type':'application/json' };
         if(userToken) headers['Authorization'] = 'Bearer ' + userToken;
         const res = await fetch(path, { method: opts.method||'GET', headers, body: opts.body ? JSON.stringify(opts.body) : undefined });
         let data = null;
         try { data = await res.json(); } catch(e){}
+        if(data && data.tokenExpired && !_retried){
+            const refreshed = await tryRefreshToken();
+            if(refreshed) return api(path, opts, true);
+        }
         if(data && data.forceLogout){ toast(data.error || 'تم تسجيل خروجك.', 'err'); setTimeout(()=>logout(), 600); }
         if(!res.ok){ const msg = (data && data.error) ? data.error : 'خطأ غير متوقع'; throw new Error(msg); }
         return data;
@@ -937,8 +966,10 @@
             const data = await api('/api/auth/login', { method:'POST', body:{ username, password } });
             userToken = data.token;
             userData = data.user;
+            userRefreshToken = data.refreshToken;
             localStorage.setItem('token', userToken);
             localStorage.setItem('user', JSON.stringify(userData));
+            if(userRefreshToken) localStorage.setItem('refreshToken', userRefreshToken);
             enterApp();
         } catch(err){
             $('authError').textContent = err.message;
@@ -966,13 +997,17 @@
         } catch(err){ $('authError').textContent = err.message; }
     }
     function logout(){
-        userToken = null; userData = null;
-        localStorage.removeItem('token'); localStorage.removeItem('user');
+        const outgoingUsername = userData && userData.username;
+        userToken = null; userData = null; userRefreshToken = null;
+        localStorage.removeItem('token'); localStorage.removeItem('user'); localStorage.removeItem('refreshToken');
         $('app-screen').style.display = 'none';
         $('login-screen').style.display = 'flex';
         $('in-pass').value = '';
         $('in-user').value = '';
         if(socket) socket.disconnect();
+        if(outgoingUsername){
+            fetch('/api/auth/logout', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ username: outgoingUsername }) }).catch(()=>{});
+        }
     }
 
     /* ============================================================
@@ -2060,10 +2095,11 @@
     /* ---------- Boot ---------- */
     (function boot(){
         const savedToken = localStorage.getItem('token');
+        const savedRefresh = localStorage.getItem('refreshToken');
         let savedUser = null;
         try { savedUser = JSON.parse(localStorage.getItem('user')); } catch(e){}
         if(savedToken && savedUser && savedUser.username){
-            userToken = savedToken; userData = savedUser;
+            userToken = savedToken; userData = savedUser; userRefreshToken = savedRefresh || null;
             $('in-user').value = savedUser.username;
             enterApp();
         }
@@ -2076,6 +2112,8 @@
         } catch(e){}
     }
     setInterval(heartbeatCheck, 30000);
+    // تجديد استباقي: كل 45 دقيقة (قبل انتهاء التوكن اللي مدته ساعتين) نجدد التوكن بصمت بلا ما يحس المستخدم
+    setInterval(() => { if(userToken && userRefreshToken) tryRefreshToken(); }, 45 * 60 * 1000);
     </script>
 </body>
 </html>
