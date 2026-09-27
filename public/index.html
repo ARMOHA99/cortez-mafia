@@ -812,6 +812,10 @@
         if(data && data.tokenExpired && !_retried){
             const refreshed = await tryRefreshToken();
             if(refreshed) return api(path, opts, true);
+            // التجديد فشل فعلاً (الجلسة منتهية حقاً) — سجل خروج نظيف بدل ما يبقى المستخدم عالق يشوف نفس الخطأ
+            toast('انتهت جلستك، يرجى تسجيل الدخول من جديد.', 'err');
+            setTimeout(()=>logout(), 600);
+            throw new Error('انتهت الجلسة، يرجى تسجيل الدخول من جديد.');
         }
         if(data && data.forceLogout){ toast(data.error || 'تم تسجيل خروجك.', 'err'); setTimeout(()=>logout(), 600); }
         if(!res.ok){ const msg = (data && data.error) ? data.error : 'خطأ غير متوقع'; throw new Error(msg); }
