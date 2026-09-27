@@ -4,6 +4,7 @@ const socketIo = require('socket.io');
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const cors = require('cors');
 const path = require('path');
 // لرفع الصور إلى Cloudinary — التثبيت: npm install multer cloudinary multer-storage-cloudinary
@@ -86,7 +87,9 @@ const UserSchema = new mongoose.Schema({
     weekly_hours: { type: Number, default: 0 },
     is_blacklisted: { type: Boolean, default: false },
     consecutive_misses: { type: Number, default: 0 },
-    total_heists: { type: Number, default: 0 }
+    total_heists: { type: Number, default: 0 },
+    refresh_token: { type: String, default: null },
+    refresh_token_expires: { type: Date, default: null }
 });
 
 const ItemSchema = new mongoose.Schema({
@@ -261,7 +264,7 @@ const verifyAuth = (roles) => {
                 if (!hasAccess) return res.status(403).json({ error: "ليست لديك صلاحية الوصول لهذه الميزة." });
                 next();
             }).catch(() => res.status(500).json({ error: "خطأ في معالجة الطلب." }));
-        } catch { res.status(400).json({ error: "انتهت صلاحية التوكن أو أنه غير صالح." }); }
+        } catch { res.status(401).json({ error: "انتهت صلاحية التوكن أو أنه غير صالح.", tokenExpired: true }); }
     }
 };
 
@@ -331,9 +334,46 @@ app.post('/api/auth/login', async (req, res) => {
         if (user.account_status === 'pending') return res.status(403).json({ error: "حسابك لم تتم الموافقة عليه بعد. يرجى الانتظار." });
         if (user.account_status === 'rejected') return res.status(403).json({ error: "تم رفض حسابك من قبل الإدارة." });
         
-        const token = jwt.sign({ id: user._id, role: user.role, username: user.username }, JWT_SECRET, { expiresIn: '24h' });
-        res.json({ token, user: { username: user.username, role: user.role, gang_name: user.gang_name, duty_status: user.duty_status } });
+        const token = jwt.sign({ id: user._id, role: user.role, username: user.username }, JWT_SECRET, { expiresIn: '2h' });
+        const refreshToken = crypto.randomBytes(40).toString('hex');
+        user.refresh_token = await bcrypt.hash(refreshToken, 10);
+        user.refresh_token_expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 يوم
+        await user.save();
+        res.json({ token, refreshToken, user: { username: user.username, role: user.role, gang_name: user.gang_name, duty_status: user.duty_status } });
     } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// تجديد التوكن باستخدام الـ refresh token (بدون الحاجة لإعادة تسجيل الدخول)
+app.post('/api/auth/refresh', async (req, res) => {
+    try {
+        const { username, refreshToken } = req.body;
+        if (!username || !refreshToken) return res.status(400).json({ error: "بيانات ناقصة.", forceLogout: true });
+
+        const user = await User.findOne({ username });
+        if (!user || !user.refresh_token || !user.refresh_token_expires || user.refresh_token_expires < new Date()) {
+            return res.status(401).json({ error: "انتهت صلاحية الجلسة، يرجى تسجيل الدخول من جديد.", forceLogout: true });
+        }
+        const match = await bcrypt.compare(refreshToken, user.refresh_token);
+        if (!match) return res.status(401).json({ error: "جلسة غير صالحة، يرجى تسجيل الدخول من جديد.", forceLogout: true });
+        if (user.is_blacklisted || user.account_status !== 'approved') {
+            return res.status(403).json({ error: "غير مصرح لك بالوصول.", forceLogout: true });
+        }
+
+        const newToken = jwt.sign({ id: user._id, role: user.role, username: user.username }, JWT_SECRET, { expiresIn: '2h' });
+        const newRefreshToken = crypto.randomBytes(40).toString('hex');
+        user.refresh_token = await bcrypt.hash(newRefreshToken, 10);
+        user.refresh_token_expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+        await user.save();
+        res.json({ token: newToken, refreshToken: newRefreshToken });
+    } catch (err) { res.status(500).json({ error: "خطأ في تجديد الجلسة." }); }
+});
+
+app.post('/api/auth/logout', async (req, res) => {
+    try {
+        const { username } = req.body;
+        if (username) await User.updateOne({ username }, { refresh_token: null, refresh_token_expires: null });
+        res.json({ ok: true });
+    } catch (err) { res.json({ ok: true }); }
 });
 
 app.get('/api/auth/me', async (req, res) => {
@@ -344,7 +384,7 @@ app.get('/api/auth/me', async (req, res) => {
         const user = await User.findById(decoded.id, 'username role duty_status');
         if (!user) return res.status(401).json({ error: "حسابك لم يعد موجوداً", forceLogout: true });
         res.json(user);
-    } catch { res.status(401).json({ error: "انتهت الجلسة" }); }
+    } catch { res.status(401).json({ error: "انتهت الجلسة", tokenExpired: true }); }
 });
 
 app.get('/api/users/list', verifyAuth([ROLES.UNDERBOSS, ROLES.CHEF_BRAQUAGE, ROLES.BUSINESS_MANAGER, ROLES.DON]), async (req, res) => {
